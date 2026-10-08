@@ -4,8 +4,9 @@ Takt is a web platform for organizing the learning process of private teachers a
 students. This repository is a monorepo containing the FastAPI backend, React frontend,
 and local Docker infrastructure.
 
-The current implementation is the technical foundation only. It deliberately contains no
-user, authentication, lesson, invitation, dashboard, or other domain functionality.
+The current implementation includes the technical foundation plus the backend identity,
+authentication, refresh-session, and profile modules. Learning-process, invitation,
+dashboard, and other later-sprint domain functionality is not implemented yet.
 
 ## Repository layout
 
@@ -67,6 +68,21 @@ Alembic reads the same `DATABASE_URL` as the application:
 alembic upgrade head
 alembic current
 ```
+
+Authentication and profile persistence tests require a separate PostgreSQL database. Set
+`TEST_DATABASE_URL`, apply migrations to that database, and then run pytest. SQLite is not
+supported as an application or test database.
+
+## Authentication API
+
+The Backend exposes registration, login, refresh rotation, logout, current-user, and profile
+operations under `/api/v1`. Access tokens are short-lived JWTs returned in response bodies.
+Refresh tokens are opaque, one-time values stored only as HMAC digests and delivered through
+an HttpOnly cookie. Cookie-based refresh and logout require the CSRF cookie value in the
+`X-CSRF-Token` header.
+
+Production requires independent random values for `JWT_SECRET_KEY`,
+`REFRESH_TOKEN_HMAC_KEY`, and `RATE_LIMIT_HMAC_KEY`; placeholder values are rejected.
 
 ## Frontend development
 

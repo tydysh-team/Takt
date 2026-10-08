@@ -29,6 +29,16 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
       TRUSTED_HOSTS: ${TRUSTED_HOSTS:-["localhost","127.0.0.1","backend"]}
       ENABLE_HSTS: ${ENABLE_HSTS:-false}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      REFRESH_TOKEN_HMAC_KEY: ${REFRESH_TOKEN_HMAC_KEY:?Set REFRESH_TOKEN_HMAC_KEY in .env}
+      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:?Set RATE_LIMIT_HMAC_KEY in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-takt-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-takt-web}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-5}
+      REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-3}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -59,7 +69,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5173/"]
       interval: 5s
       timeout: 3s
       retries: 10

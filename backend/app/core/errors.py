@@ -7,12 +7,22 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.exceptions import (
+    AuthenticationRequiredError,
+    CsrfValidationError,
+    DomainError,
+    EmailAlreadyRegisteredError,
+    ForbiddenError,
+    InvalidCredentialsError,
+    ProfileNotFoundError,
+    RateLimitExceededError,
+)
 from app.schemas.error import ErrorDetail, ErrorResponse
 
 logger = logging.getLogger(__name__)
 
 
-def _response(
+def error_response(
     *,
     status_code: int,
     code: str,
@@ -55,7 +65,7 @@ async def validation_exception_handler(
                 message=str(error.get("msg", "Invalid value.")),
             )
         )
-    return _response(
+    return error_response(
         status_code=422,
         code="validation_error",
         message="Request validation failed.",
@@ -78,7 +88,7 @@ async def http_exception_handler(
     except ValueError:
         default_message = "HTTP error"
     message = exc.detail if isinstance(exc.detail, str) else default_message
-    return _response(
+    return error_response(
         status_code=exc.status_code,
         code=codes.get(exc.status_code, "http_error"),
         message=message,
@@ -92,14 +102,38 @@ async def unexpected_exception_handler(request: Request, exc: Exception) -> JSON
         extra={"method": request.method, "path": request.url.path},
         exc_info=exc,
     )
-    return _response(
+    return error_response(
         status_code=500,
         code="internal_error",
         message="An unexpected server error occurred.",
     )
 
 
+async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONResponse:
+    status_code = 400
+    headers: dict[str, str] | None = None
+    if isinstance(exc, EmailAlreadyRegisteredError):
+        status_code = 409
+    elif isinstance(exc, (InvalidCredentialsError, AuthenticationRequiredError)):
+        status_code = 401
+        headers = {"WWW-Authenticate": "Bearer"}
+    elif isinstance(exc, (ForbiddenError, CsrfValidationError)):
+        status_code = 403
+    elif isinstance(exc, ProfileNotFoundError):
+        status_code = 404
+    elif isinstance(exc, RateLimitExceededError):
+        status_code = 429
+        headers = {"Retry-After": str(exc.retry_after)}
+    return error_response(
+        status_code=status_code,
+        code=exc.code,
+        message=exc.safe_message,
+        headers=headers,
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(DomainError, domain_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unexpected_exception_handler)
