@@ -8,12 +8,17 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.exceptions import (
+    AlreadyConnectedError,
     AuthenticationRequiredError,
+    ConnectionNotFoundError,
     CsrfValidationError,
     DomainError,
     EmailAlreadyRegisteredError,
     ForbiddenError,
     InvalidCredentialsError,
+    InvalidInvitationError,
+    InvitationNotActiveError,
+    InvitationNotFoundError,
     ProfileNotFoundError,
     RateLimitExceededError,
 )
@@ -112,7 +117,10 @@ async def unexpected_exception_handler(request: Request, exc: Exception) -> JSON
 async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONResponse:
     status_code = 400
     headers: dict[str, str] | None = None
-    if isinstance(exc, EmailAlreadyRegisteredError):
+    if isinstance(
+        exc,
+        (EmailAlreadyRegisteredError, AlreadyConnectedError, InvitationNotActiveError),
+    ):
         status_code = 409
     elif isinstance(exc, (InvalidCredentialsError, AuthenticationRequiredError)):
         status_code = 401
@@ -121,6 +129,10 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
         status_code = 403
     elif isinstance(exc, ProfileNotFoundError):
         status_code = 404
+    elif isinstance(exc, (InvitationNotFoundError, ConnectionNotFoundError)):
+        status_code = 404
+    elif isinstance(exc, InvalidInvitationError):
+        status_code = 400
     elif isinstance(exc, RateLimitExceededError):
         status_code = 429
         headers = {"Retry-After": str(exc.retry_after)}

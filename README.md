@@ -4,9 +4,9 @@ Takt is a web platform for organizing the learning process of private teachers a
 students. This repository is a monorepo containing the FastAPI backend, React frontend,
 and local Docker infrastructure.
 
-The current implementation includes the technical foundation plus the backend identity,
-authentication, refresh-session, and profile modules. Learning-process, invitation,
-dashboard, and other later-sprint domain functionality is not implemented yet.
+The current implementation includes the technical foundation, secure authentication,
+profiles, teacher-student connections, invitations, role-aware dashboards, and an
+administrator workspace. Lesson and other later-sprint learning modules are not implemented.
 
 ## Repository layout
 
@@ -82,7 +82,35 @@ an HttpOnly cookie. Cookie-based refresh and logout require the CSRF cookie valu
 `X-CSRF-Token` header.
 
 Production requires independent random values for `JWT_SECRET_KEY`,
-`REFRESH_TOKEN_HMAC_KEY`, and `RATE_LIMIT_HMAC_KEY`; placeholder values are rejected.
+`REFRESH_TOKEN_HMAC_KEY`, `RATE_LIMIT_HMAC_KEY`, `INVITATION_CODE_SECRET`, and
+`ADMIN_SESSION_SECRET`; placeholder values are rejected.
+
+## Connections and invitations
+
+Teachers can create, list, and revoke one-time invitations through `/api/v1/invitations`.
+Students accept a code through `/api/v1/connections/accept`. Codes are returned only when
+created; PostgreSQL stores an HMAC digest. Connected teachers and students are available
+through `/api/v1/teachers`, `/api/v1/students`, and `/api/v1/dashboard/summary`.
+
+## Development seed and administration
+
+After applying migrations, seed local development data explicitly:
+
+```shell
+docker compose exec backend python -m app.seed
+```
+
+The command refuses to run unless `APP_ENV=development` and is safe to run repeatedly. Demo
+accounts use password `TaktDemo!2026`:
+
+- `admin@demo.example.com`
+- `teacher@demo.example.com`
+- `student1@demo.example.com`
+- `student2@demo.example.com`
+- `student3@demo.example.com`
+
+These are development credentials only and must never be used in production. SQLAdmin is
+mounted at http://localhost:8000/admin; enter the ADMIN email in its username field.
 
 ## Frontend development
 

@@ -12,12 +12,17 @@ from app.core.exceptions import (
     ForbiddenError,
     RateLimitExceededError,
 )
+from app.core.invitation_codes import InvitationCodeService
 from app.core.rate_limit import InMemoryRateLimiter, RateLimiter, RateLimitKeyFactory
 from app.core.security import PasswordService, TokenService
 from app.db.session import get_db_session
+from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.users import UserRepository
 from app.services.auth import AuthService
+from app.services.connections import ConnectionService
+from app.services.dashboard import DashboardService
+from app.services.invitations import InvitationService
 from app.services.profiles import ProfileService
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -57,6 +62,32 @@ def get_profile_service(
     return ProfileService(session)
 
 
+def get_invitation_code_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> InvitationCodeService:
+    return InvitationCodeService(settings)
+
+
+def get_invitation_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    codes: Annotated[InvitationCodeService, Depends(get_invitation_code_service)],
+) -> InvitationService:
+    return InvitationService(session=session, settings=settings, codes=codes)
+
+
+def get_connection_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ConnectionService:
+    return ConnectionService(session)
+
+
+def get_dashboard_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DashboardService:
+    return DashboardService(session)
+
+
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
@@ -77,6 +108,30 @@ async def get_current_active_user(
     if not user.is_active:
         raise ForbiddenError()
     return user
+
+
+def _require_role(user: User, role: UserRole) -> User:
+    if user.role != role:
+        raise ForbiddenError()
+    return user
+
+
+async def get_current_teacher(
+    user: Annotated[User, Depends(get_current_active_user)],
+) -> User:
+    return _require_role(user, UserRole.TEACHER)
+
+
+async def get_current_student(
+    user: Annotated[User, Depends(get_current_active_user)],
+) -> User:
+    return _require_role(user, UserRole.STUDENT)
+
+
+async def get_current_admin(
+    user: Annotated[User, Depends(get_current_active_user)],
+) -> User:
+    return _require_role(user, UserRole.ADMIN)
 
 
 def validate_csrf(request: Request, settings: Settings, tokens: TokenService) -> None:

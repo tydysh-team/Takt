@@ -18,6 +18,14 @@ os.environ.setdefault(
     "RATE_LIMIT_HMAC_KEY",
     "test-rate-limit-key-which-is-longer-than-thirty-two-characters",
 )
+os.environ.setdefault(
+    "INVITATION_CODE_SECRET",
+    "test-invitation-key-which-is-longer-than-thirty-two-characters",
+)
+os.environ.setdefault(
+    "ADMIN_SESSION_SECRET",
+    "test-admin-session-key-which-is-longer-than-thirty-two-characters",
+)
 
 import httpx  # noqa: E402
 import pytest_asyncio  # noqa: E402
@@ -28,9 +36,11 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 
 from app.api.dependencies.auth import get_rate_limiter  # noqa: E402
+from app.admin import admin_authentication  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.rate_limit import InMemoryRateLimiter  # noqa: E402
 from app.db.session import get_db_session  # noqa: E402
+from app.db.session import session_factory as application_session_factory  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -58,6 +68,7 @@ async def api_context() -> AsyncIterator[ApiTestContext]:
         )
         async with session_factory() as session:
             limiter = InMemoryRateLimiter()
+            admin_authentication.set_session_factory(session_factory)
 
             async def override_session() -> AsyncIterator[AsyncSession]:
                 yield session
@@ -75,6 +86,7 @@ async def api_context() -> AsyncIterator[ApiTestContext]:
                 yield ApiTestContext(client=client, session=session)
 
             app.dependency_overrides.clear()
+            admin_authentication.set_session_factory(application_session_factory)
         if outer_transaction.is_active:
             await outer_transaction.rollback()
     await engine.dispose()

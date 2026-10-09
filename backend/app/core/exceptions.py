@@ -43,6 +43,31 @@ class ProfileNotFoundError(DomainError):
     message = "Профиль не найден."
 
 
+class InvalidInvitationError(DomainError):
+    code = "invitation_invalid"
+    message = "Код приглашения недействителен или больше не активен."
+
+
+class InvitationNotFoundError(DomainError):
+    code = "invitation_not_found"
+    message = "Приглашение не найдено."
+
+
+class InvitationNotActiveError(DomainError):
+    code = "invitation_not_active"
+    message = "Приглашение больше не активно."
+
+
+class AlreadyConnectedError(DomainError):
+    code = "already_connected"
+    message = "Вы уже подключены к этому преподавателю."
+
+
+class ConnectionNotFoundError(DomainError):
+    code = "connection_not_found"
+    message = "Активная связь не найдена."
+
+
 class RateLimitExceededError(DomainError):
     code = "rate_limit_exceeded"
     message = "Слишком много запросов. Повторите попытку позже."

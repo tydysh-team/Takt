@@ -22,7 +22,7 @@ class ApiTestContext(Protocol):
 
 
 def unique_email(prefix: str) -> str:
-    return f"{prefix}-{uuid4().hex}@example.test"
+    return f"{prefix}-{uuid4().hex}@example.com"
 
 
 async def register_user(
@@ -318,7 +318,7 @@ async def test_profile_rejects_email_and_role_changes(api_context: ApiTestContex
     response = await api_context.client.patch(
         "/api/v1/profile",
         headers={"Authorization": f"Bearer {access_token}"},
-        json={"email": "changed@example.test", "role": "ADMIN"},
+        json={"email": "changed@example.com", "role": "ADMIN"},
     )
 
     assert response.status_code == 422

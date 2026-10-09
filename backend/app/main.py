@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
+from app.admin import setup_admin
 from app.api.health import router as health_router
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
@@ -61,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(application)
     application.include_router(health_router)
     application.include_router(api_router, prefix=resolved_settings.api_v1_prefix)
+    setup_admin(application)
     return application
 
 

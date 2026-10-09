@@ -30,11 +30,14 @@ class Settings(BaseSettings):
     jwt_secret_key: SecretStr = Field(min_length=32)
     refresh_token_hmac_key: SecretStr = Field(min_length=32)
     rate_limit_hmac_key: SecretStr = Field(min_length=32)
+    invitation_code_secret: SecretStr = Field(min_length=32)
+    admin_session_secret: SecretStr = Field(min_length=32)
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "takt-api"
     jwt_audience: str = "takt-web"
     access_token_ttl_minutes: int = Field(default=15, ge=1, le=60)
     refresh_token_ttl_days: int = Field(default=30, ge=1, le=90)
+    invitation_ttl_days: int = Field(default=7, ge=1, le=30)
 
     refresh_cookie_name: str = "takt_refresh"
     csrf_cookie_name: str = "takt_csrf"
@@ -44,6 +47,7 @@ class Settings(BaseSettings):
 
     login_rate_limit: int = Field(default=5, ge=1, le=100)
     register_rate_limit: int = Field(default=3, ge=1, le=100)
+    invitation_accept_rate_limit: int = Field(default=10, ge=1, le=100)
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
 
     @field_validator("database_url")
@@ -96,6 +100,8 @@ class Settings(BaseSettings):
             self.jwt_secret_key,
             self.refresh_token_hmac_key,
             self.rate_limit_hmac_key,
+            self.invitation_code_secret,
+            self.admin_session_secret,
         ):
             value = secret.get_secret_value().lower()
             if "replace" in value or "test" in value or "default" in value:
