@@ -1,3 +1,5 @@
+import { resolveApiBaseUrl } from "./resolve-api-base-url";
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 
 if (!apiBaseUrl) {
@@ -5,6 +7,9 @@ if (!apiBaseUrl) {
 }
 
 export const environment = Object.freeze({
-  apiBaseUrl: apiBaseUrl.replace(/\/$/, ""),
+  apiBaseUrl: resolveApiBaseUrl(
+    apiBaseUrl,
+    typeof window === "undefined" ? "" : window.location.hostname,
+  ),
 });
 

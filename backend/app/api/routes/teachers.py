@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -12,7 +12,7 @@ from app.services.connections import ConnectionService
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
-teacher_errors = {
+teacher_errors: dict[int | str, dict[str, Any]] = {
     403: {"model": ErrorResponse, "description": "Student role required"},
     404: {"model": ErrorResponse, "description": "Active connection not found"},
 }

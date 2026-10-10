@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID, uuid4
 
 import httpx
@@ -61,7 +61,7 @@ async def create_invitation(context: ApiTestContext, teacher_token: str) -> dict
         headers=authorization(teacher_token),
     )
     assert response.status_code == 201
-    return response.json()
+    return cast(dict[str, str], response.json())
 
 
 async def connect(

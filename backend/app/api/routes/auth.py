@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -30,7 +30,7 @@ from app.services.auth import AuthService, LoginResult
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-common_auth_errors = {
+common_auth_errors: dict[int | str, dict[str, Any]] = {
     401: {"model": ErrorResponse, "description": "Authentication failed"},
     422: {"model": ErrorResponse, "description": "Request validation failed"},
     429: {"model": ErrorResponse, "description": "Rate limit exceeded"},

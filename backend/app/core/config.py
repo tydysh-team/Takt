@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
 
     cors_origins: list[AnyHttpUrl] = Field(default_factory=list)
+    cors_allow_private_network: bool = True
     trusted_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     enable_hsts: bool = False
 
@@ -110,11 +111,30 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_strings(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.cors_origins]
+        origins = [str(origin).rstrip("/") for origin in self.cors_origins]
+        if self.app_env == "production":
+            return origins
+
+        # localhost and 127.0.0.1 are the same local frontend, but distinct CORS origins.
+        # Accept the counterpart only when one of them was explicitly configured.
+        for origin in self.cors_origins:
+            if origin.host not in {"localhost", "127.0.0.1"}:
+                continue
+            counterpart = "127.0.0.1" if origin.host == "localhost" else "localhost"
+            port = f":{origin.port}" if origin.port is not None else ""
+            alternate = f"{origin.scheme}://{counterpart}{port}"
+            if alternate not in origins:
+                origins.append(alternate)
+        return origins
 
     @property
     def secure_cookies(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def allow_private_network_cors(self) -> bool:
+        """Allow browser local-network preflights outside production only."""
+        return self.app_env != "production" and self.cors_allow_private_network
 
 
 @lru_cache

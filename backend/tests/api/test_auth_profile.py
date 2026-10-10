@@ -45,7 +45,11 @@ async def register_user(
     return resolved_email, response
 
 
-async def login_user(context: ApiTestContext, email: str, password: str = PASSWORD):
+async def login_user(
+    context: ApiTestContext,
+    email: str,
+    password: str = PASSWORD,
+) -> httpx.Response:
     return await context.client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": password},
@@ -180,7 +184,7 @@ async def test_me_with_valid_access_token_succeeds(api_context: ApiTestContext) 
 
 async def test_refresh_rotates_tokens(api_context: ApiTestContext) -> None:
     email, _ = await register_user(api_context)
-    login_response = await login_user(api_context, email)
+    await login_user(api_context, email)
     old_refresh = cookie_value(api_context, "takt_refresh")
     csrf = cookie_value(api_context, "takt_csrf")
 

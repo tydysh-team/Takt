@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 
@@ -11,7 +11,7 @@ from app.services.profiles import ProfileService
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
-profile_errors = {
+profile_errors: dict[int | str, dict[str, Any]] = {
     401: {"model": ErrorResponse, "description": "Authentication required"},
     403: {"model": ErrorResponse, "description": "User is inactive"},
     404: {"model": ErrorResponse, "description": "Profile not found"},

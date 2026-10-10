@@ -3,14 +3,19 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 
+import { AuthProvider } from "./features/auth/AuthProvider";
 import { router } from "./routes/router";
 import "./shared/styles.css";
+import "./shared/application.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: (failureCount, error) => {
+        const status = "status" in error ? error.status : null;
+        return typeof status === "number" && status < 500 ? false : failureCount < 1;
+      },
       staleTime: 30_000,
     },
   },
@@ -25,7 +30,9 @@ if (rootElement === null) {
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

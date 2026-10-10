@@ -20,7 +20,10 @@ def _validate_password(value: object) -> object:
     requirements = (
         (len(raw_value) >= 10, "Password must contain at least 10 characters."),
         (any(character.islower() for character in raw_value), "Password needs a lowercase letter."),
-        (any(character.isupper() for character in raw_value), "Password needs an uppercase letter."),
+        (
+            any(character.isupper() for character in raw_value),
+            "Password needs an uppercase letter.",
+        ),
         (any(character.isdigit() for character in raw_value), "Password needs a digit."),
         (
             any(not character.isalnum() for character in raw_value),

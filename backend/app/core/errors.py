@@ -127,9 +127,10 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
         headers = {"WWW-Authenticate": "Bearer"}
     elif isinstance(exc, (ForbiddenError, CsrfValidationError)):
         status_code = 403
-    elif isinstance(exc, ProfileNotFoundError):
-        status_code = 404
-    elif isinstance(exc, (InvitationNotFoundError, ConnectionNotFoundError)):
+    elif isinstance(
+        exc,
+        (ProfileNotFoundError, InvitationNotFoundError, ConnectionNotFoundError),
+    ):
         status_code = 404
     elif isinstance(exc, InvalidInvitationError):
         status_code = 400

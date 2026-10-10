@@ -35,8 +35,8 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
     create_async_engine,
 )
 
-from app.api.dependencies.auth import get_rate_limiter  # noqa: E402
 from app.admin import admin_authentication  # noqa: E402
+from app.api.dependencies.auth import get_rate_limiter  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.rate_limit import InMemoryRateLimiter  # noqa: E402
 from app.db.session import get_db_session  # noqa: E402

@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -42,4 +43,24 @@ def test_openapi_is_exposed_at_configured_path_with_error_schema() -> None:
     assert document["paths"]["/health"]["get"]["responses"]["500"]["content"][
         "application/json"
     ]["schema"]["$ref"].endswith("/ErrorResponse")
+
+
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+@pytest.mark.parametrize("private_network", [False, True])
+def test_local_frontend_preflight_is_allowed(origin: str, private_network: bool) -> None:
+    headers = {
+        "Origin": origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    }
+    if private_network:
+        headers["Access-Control-Request-Private-Network"] = "true"
+
+    with TestClient(app) as client:
+        response = client.options("/api/v1/auth/register", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    if private_network:
+        assert response.headers["access-control-allow-private-network"] == "true"
 
