@@ -22,22 +22,61 @@ Teacher–Student relation является отношением многие-к
 
 ```mermaid
 erDiagram
-    Teacher ||--o{ Lesson : schedules
-    Student ||--o{ Lesson : attends_planned
+    Account ||--o| Teacher : "profile if role=teacher"
+    Account ||--o| Student : "profile if role=student"
+
     Teacher ||--o{ TeacherStudentRelation : has
     Student ||--o{ TeacherStudentRelation : has
+
+    Teacher ||--o{ Lesson : schedules
+    Student ||--o{ Lesson : participates
+
     Account {
-        uuid id
+        uuid id PK
+        string email UK
+        string password_hash
+        string role
     }
+
+    Teacher {
+        uuid id PK
+        uuid account_id FK, UK
+        string display_name
+    }
+
+    Student {
+        uuid id PK
+        uuid account_id FK, UK
+        string display_name
+    }
+
+    TeacherStudentRelation {
+        uuid teacher_id FK
+        uuid student_id FK
+    }
+
     Lesson {
-        uuid id
-        uuid teacher_id
-        uuid student_id
+        uuid id PK
+        uuid teacher_id FK
+        uuid student_id FK
         timestamptz starts_at
     }
 ```
 
-Связующая сущность позволяет хранить известные пары, не устанавливая продуктовый предел количества Teacher или Student. Подпись `attends_planned` означает запланированную связь, не факт посещаемости. Account показан отдельно из-за Q-07.
+Связь Account с доменным профилем является one-to-one: `Teacher.account_id` и `Student.account_id` обязательны для соответствующего профиля и уникальны.
+
+Для каждого Account должен существовать ровно один профиль, соответствующий его `role`:
+
+- `teacher` → Teacher;
+- `student` → Student.
+
+Одновременное наличие Teacher и Student для одного Account в Sprint 1 не допускается. Проверка согласованности `Account.role` и типа профиля является системным инвариантом регистрации.
+
+Teacher–Student relation представляет отношение многие-ко-многим. Пара `(teacher_id, student_id)` должна быть уникальной; отдельный продуктовый смысл дубликата связи отсутствует.
+
+Lesson хранит прямые ссылки на Teacher и Student. Наличие Teacher–Student relation проверяется при создании Lesson согласно BR-02, но Lesson не является дочерним объектом записи TeacherStudentRelation. Это позволяет сохранять факт запланированного Lesson независимо от возможных будущих изменений связи между Teacher и Student.
+
+Подпись связи Student → Lesson означает участие Student в запланированном Lesson, а не подтверждённую посещаемость.
 
 ## Инженерный baseline хранения
 
