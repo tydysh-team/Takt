@@ -1,97 +1,304 @@
 # API-контракты Sprint 1
 
-[К API](../conventions.md) · [BR](../../requirements/business-rules.md) · [Scope / AC](../../sprints/sprint-01/scope.md)
+[К API](../conventions.md) · [Authentication](../authentication.md) · [Ошибки](../errors.md) · [BR](../../requirements/business-rules.md) · [Scope / AC](../../sprints/sprint-01/scope.md) · [Модель данных](../../architecture/data-model.md)
 
-## Статус и общие DTO
+## Статус контракта
 
-Пути и согласованные части ниже — целевой контракт реализации, endpoints сейчас не заявлены работающими. **Foundation auth заблокирован Q-07 / Q-08; представление участников — Q-09.** Пример согласованной части не делает весь контракт готовым. До разрешения блокера Backend / Frontend не фиксируют отсутствующие поля самостоятельно.
+Этот документ фиксирует целевой HTTP-контракт Sprint 1. Наличие контракта не означает, что endpoint уже реализован.
 
-Общие соглашения: JSON, UUID, временная семантика и коды HTTP — [API](../conventions.md); ошибки и их DTO — [errors](../errors.md); identity / role context — [authentication](../authentication.md). Во всех операциях path-параметров нет. Дополнительные body-поля запрещены; query-параметры перечислены исчерпывающе, параметры impersonation не поддерживаются.
+Продуктовые Q-05, Q-07, Q-08, Q-09 и Q-10 разрешены в [бизнес-правилах](../../requirements/business-rules.md) и не являются активными блокерами этого контракта.
 
-| DTO | Согласованные обязательные поля |
-| --- | --- |
-| AccountRefDTO | `id: UUID` |
-| StudentRefDTO | `id: UUID`; это reference, не окончательное представление ученика в форме (Q-09) |
-| LessonCreateDTO | `student_id: UUID`, `starts_at: timezone-aware ISO 8601 string`; оба non-null |
-| LessonDTO | `id: UUID`, `teacher_id: UUID`, `student_id: UUID`, `starts_at: UTC ISO 8601 string`; все non-null |
-| TokenDTO | `access_token: string` (непустой), `token_type: "bearer"` |
-| ContextDTO | `account_id: UUID`; role / domain-reference часть не финализирована (Q-07) |
+Неблокирующие implementation choices I-01–I-03 могут уточнять конкретные библиотеки, token implementation, local environment и tooling, но не меняют описанную здесь внешнюю семантику без согласованного изменения контракта.
 
-Поля длительности, посещаемости, домашних заданий и статусов не добавляются в LessonDTO. Teacher для US-02 пока представлен только reference `teacher_id`; окончательное человекочитаемое представление блокирует Q-09. Нельзя считать UUID утверждённой UX-подписью.
+Общие правила:
 
-### Карта операций
+- все прикладные paths имеют префикс `/api/v1`;
+- request / response JSON, UUID, HTTP policy и time semantics задаются [API conventions](../conventions.md);
+- authentication / trusted context задаются [authentication](../authentication.md);
+- все error responses используют [ErrorDTO](../errors.md);
+- дополнительные body-поля запрещены;
+- query parameters перечислены исчерпывающе;
+- path parameters в операциях Sprint 1 ниже отсутствуют;
+- client-side impersonation parameters не поддерживаются;
+- API DTO не являются SQLAlchemy persistence models;
+- response date-time возвращается в UTC с `Z`.
 
-| ID | Метод / путь | Связь | Готовность |
+## Общие DTO
+
+### Role
+
+Допустимые значения:
+
+```text
+teacher | student
+```
+
+### AccountContextDTO
+
+| Поле | Тип | Обязательность | Семантика |
 | --- | --- | --- | --- |
-| API-01 | POST `/api/v1/auth/register` | F-06 | BLOCKED: Q-07, Q-08 |
-| API-02 | POST `/api/v1/auth/login` | F-06 | BLOCKED: Q-08 |
-| API-03 | GET `/api/v1/me` | F-06 / F-08 | BLOCKED: Q-07 |
-| API-04 | GET `/api/v1/teachers/me/students` | F-06 / US-01 | Reference-граница определена; UI DTO — Q-09, auth prerequisite — Q-07 |
-| API-05 | POST `/api/v1/lessons` | US-01 | DTO определён; политика даты — Q-05, auth prerequisite — Q-07 |
-| API-06 | GET `/api/v1/students/me/lessons/upcoming` | US-02 | Выборка определена; Teacher display — Q-09, auth prerequisite — Q-07 |
-| API-07 | GET `/api/v1/teachers/me/lessons` | US-03 | Выборка определена; auth prerequisite — Q-07 |
+| `account_id` | UUID | required, non-null | ID текущего / созданного Account |
+| `role` | `"teacher" \| "student"` | required, non-null | Единственная роль Account |
+| `profile` | object | required, non-null | Reference соответствующего доменного профиля |
+| `profile.id` | UUID | required, non-null | Teacher ID при `role=teacher`, Student ID при `role=student` |
+| `profile.display_name` | string | required, non-null | Человекочитаемая подпись профиля |
 
-Не вводятся endpoints переноса, отмены, attendance, homework или статистики.
+`profile.id` не равен `account_id` по смыслу и не вычисляется из него.
 
-## Foundation
+### TeacherRefDTO
 
-### API-01 — Регистрация
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "display_name": "Анна Петрова"
+}
+```
 
-**Назначение:** создать Account в минимальном F-06. **Роль:** пользователь до входа. **Authentication:** не требуется. **Метод:** POST `/api/v1/auth/register`.
+Поля `id` и `display_name` обязательны и non-null.
 
-**Request:** path / query отсутствуют. Известная граница — JSON с `identifier: string` и `password: string`, обязательными non-null. `identifier` — техническое имя входного идентификатора, не решение использовать email / username. Тип идентификатора, нормализация / уникальность, ограничения пароля, роль и обязательные доменные данные — Q-07 / Q-08. Полный request DTO пока не определён.
+### StudentRefDTO
 
-**Успех:** 201 и AccountRefDTO; автоматический вход после регистрации не обещается, для token используется API-02. Создание доменных ресурсов зависит от Q-07.
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "display_name": "Иван Соколов"
+}
+```
 
-**Валидация:** схема — 422; правила identifier / password задаются Q-08. Пароль хешируется, не возвращается. **Ошибки:** `validation_error` 422, `internal_error` 500; условия конфликта identifier и код 409 требуют Q-08. BR-01–BR-07 напрямую не применимы (Foundation, не сценарий Lesson).
+Поля `id` и `display_name` обязательны и non-null.
 
-**Пример согласованной части запроса — не финальный исполнимый контракт:**
+### TokenDTO
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `access_token` | string | required, non-null, непустая opaque string |
+| `token_type` | string | required, literal `"bearer"` |
+
+### LessonCreateDTO
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `student_id` | UUID | required, non-null |
+| `starts_at` | timezone-aware ISO 8601 string | required, non-null |
+
+`teacher_id` в request отсутствует. Текущий Teacher определяется Backend из authentication context.
+
+### LessonDTO
+
+Используется как результат создания Lesson:
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `id` | UUID | required, non-null |
+| `teacher_id` | UUID | required, non-null |
+| `student_id` | UUID | required, non-null |
+| `starts_at` | UTC ISO 8601 string | required, non-null |
+
+### UpcomingLessonDTO
+
+Используется в сценарии Student upcoming:
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `id` | UUID | required, non-null |
+| `starts_at` | UTC ISO 8601 string | required, non-null |
+| `teacher` | TeacherRefDTO | required, non-null |
+
+Текущий Student определяется из authentication context и не дублируется как выбираемый параметр.
+
+### TeacherCalendarLessonDTO
+
+Используется в календаре Teacher:
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `id` | UUID | required, non-null |
+| `starts_at` | UTC ISO 8601 string | required, non-null |
+| `student` | StudentRefDTO | required, non-null |
+
+Текущий Teacher определяется из authentication context.
+
+Поля `duration`, `ends_at`, attendance, homework, Lesson status, price, recurrence и другие данные будущих инкрементов в DTO Sprint 1 не добавляются.
+
+## Карта операций
+
+| ID | Method / path | Роль | Связь |
+| --- | --- | --- | --- |
+| API-01 | POST `/api/v1/auth/register` | anonymous | F-06 |
+| API-02 | POST `/api/v1/auth/login` | anonymous | F-06 |
+| API-03 | GET `/api/v1/me` | authenticated Account | F-06 / F-08 |
+| API-04 | GET `/api/v1/teachers/me/students` | Teacher | F-06 / US-01 |
+| API-05 | POST `/api/v1/lessons` | Teacher | US-01 |
+| API-06 | GET `/api/v1/students/me/lessons/upcoming` | Student | US-02 |
+| API-07 | GET `/api/v1/teachers/me/lessons` | Teacher | US-03 |
+
+Endpoints переноса, отмены, recurrence, attendance, homework, статистики, управления Teacher–Student relations и расширенного Account management в Sprint 1 отсутствуют.
+
+# Foundation
+
+## API-01 — Регистрация
+
+**Method:** `POST`
+
+**Path:** `/api/v1/auth/register`
+
+**Authentication:** не требуется.
+
+**Назначение:** атомарно создать Account и ровно один соответствующий Teacher / Student profile согласно BR-09 и BR-10.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Query parameters: отсутствуют.
+
+JSON body:
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `email` | string | required, non-null; trim + lowercase; корректный email; уникален после нормализации |
+| `password` | string | required, non-null; длина 8–128; не trim-ится и не нормализуется |
+| `role` | `"teacher" \| "student"` | required, non-null |
+| `display_name` | string | required, non-null; trim; после trim непустой |
+
+Дополнительные body-поля запрещены.
+
+### Успех
+
+HTTP `201`.
+
+Response: `AccountContextDTO`.
+
+Регистрация не выдаёт access token и не означает автоматический login. Для session используется API-02.
+
+Пример:
 
 ```http
 POST /api/v1/auth/register
 Content-Type: application/json
 
-{"identifier":"demo-teacher","password":"example-only-not-a-real-secret"}
+{
+  "email": " Teacher@example.com ",
+  "password": "example-password",
+  "role": "teacher",
+  "display_name": " Анна Петрова "
+}
 ```
-
-Пример 201 response reference:
 
 ```json
-{"id":"44444444-4444-4444-8444-444444444444"}
+{
+  "account_id": "44444444-4444-4444-8444-444444444444",
+  "role": "teacher",
+  "profile": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "display_name": "Анна Петрова"
+  }
+}
 ```
 
-**Блокер:** PO должен решить Q-07 / Q-08; затем расширить полный DTO, ошибки и примеры. Не предполагать self-assigned Teacher role.
+### Проверки
 
-### API-02 — Вход
+- Account и profile создаются атомарно;
+- email сохраняется после trim + lowercase;
+- email verification не выполняется;
+- password в открытом виде не сохраняется и не возвращается;
+- роль определяет тип создаваемого profile;
+- одновременно Teacher и Student profile для одного Account не создаются;
+- `display_name` сохраняется после trim.
 
-**Назначение:** получить token для защищённых операций F-06. **Роль:** пользователь до входа. **Authentication:** не требуется. **Метод:** POST `/api/v1/auth/login`.
+### Ошибки
 
-**Request:** path / query нет; JSON `identifier: string`, `password: string`, обязательные non-null. Вход использует JSON, не скрытое form-urlencoded соглашение. Семантика identifier и ограничения — Q-08.
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `422` | `validation_error` | Некорректная schema, email, password length, role или `display_name` |
+| `409` | `email_already_registered` | Нормализованный email уже занят |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
 
-**Успех:** 200 TokenDTO. Токен непрозрачен, его срок жизни / стратегия — I-01. **Валидация:** схема 422; проверка credential Backend. **Ошибки:** 401 `invalid_credentials` без различия неизвестного пользователя и неверного пароля; 422 `validation_error`; 500 `internal_error`. BR Lesson напрямую не применимы.
+Применимые BR: BR-09, BR-10, BR-11.
 
-Пример запроса согласованной структуры, identifier пока иллюстративен:
+---
+
+## API-02 — Вход
+
+**Method:** `POST`
+
+**Path:** `/api/v1/auth/login`
+
+**Authentication:** не требуется.
+
+**Назначение:** проверить credentials Account и выдать opaque access token.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Query parameters: отсутствуют.
+
+JSON body:
+
+| Поле | Тип | Ограничение |
+| --- | --- | --- |
+| `email` | string | required, non-null; перед lookup применяется trim + lowercase; должен иметь корректный email format |
+| `password` | string | required, non-null; перед проверкой не изменяется |
 
 ```http
 POST /api/v1/auth/login
 Content-Type: application/json
 
-{"identifier":"demo-teacher","password":"example-only-not-a-real-secret"}
+{
+  "email": "TEACHER@example.com",
+  "password": "example-password"
+}
 ```
 
-Пример ответа 200 (строка токена — вымышленная, не credential):
+### Успех
+
+HTTP `200`.
+
+Response: `TokenDTO`.
 
 ```json
-{"access_token":"example-access-token","token_type":"bearer"}
+{
+  "access_token": "example-access-token",
+  "token_type": "bearer"
+}
 ```
 
-**Блокер:** Q-08 до согласования полноценной формы входа и credential lookup. I-01 — технический выбор до реализации auth, не продуктовый блокер.
+Строка примера не является реальным credential.
 
-### API-03 — Текущий контекст
+### Ошибки
 
-**Назначение:** дать UI доверенный текущий контекст для выбора сценариев. **Роль:** любой аутентифицированный Account. **Метод:** GET `/api/v1/me`; **Authentication:** Bearer.
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `422` | `validation_error` | Request schema или email format некорректны |
+| `401` | `invalid_credentials` | Well-formed email не найден либо password неверен |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
 
-**Request:** path / query / body нет. **Успех:** 200 ContextDTO; account_id определён, состав ролей и доменных references требует Q-07. **Валидация:** credential; не принимать ID текущего пользователя от клиента. **Ошибки:** 401 `authentication_required`, 500 `internal_error`. BR-01 / BR-04 / BR-07 используют получаемую сервером identity, но endpoint не возвращает чужие ресурсы.
+Неизвестный Account и неверный password не различаются публичным ответом.
+
+Token format, lifetime и Backend implementation определяются I-01 и остаются непрозрачными для Frontend.
+
+---
+
+## API-03 — Текущий контекст
+
+**Method:** `GET`
+
+**Path:** `/api/v1/me`
+
+**Authentication:** Bearer.
+
+**Роль:** любой аутентифицированный Account.
+
+**Назначение:** вернуть доверенный Account / role / domain profile context для Frontend.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Query parameters: отсутствуют.
+
+Body: отсутствует.
 
 ```http
 GET /api/v1/me
@@ -99,127 +306,398 @@ Authorization: Bearer example-access-token
 Accept: application/json
 ```
 
-Согласованная часть response 200, не полный ContextDTO:
+### Успех
+
+HTTP `200`.
+
+Response: `AccountContextDTO`.
+
+Пример Teacher:
 
 ```json
-{"account_id":"44444444-4444-4444-8444-444444444444"}
+{
+  "account_id": "44444444-4444-4444-8444-444444444444",
+  "role": "teacher",
+  "profile": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "display_name": "Анна Петрова"
+  }
+}
 ```
 
-**Блокер:** Q-07. Этот endpoint нужен UI, но получение текущего Teacher / Student внутри Backend не зависит от клиентского вызова `me`.
+Для `role=student` `profile.id` является Student ID.
 
-### API-04 — Доступные ученики
+### Ошибки
 
-**Назначение:** источник выбора Student для формы US-01, F-06. **Роль:** Teacher. **Метод:** GET `/api/v1/teachers/me/students`; **Authentication:** Bearer.
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `401` | `authentication_required` | Bearer credential отсутствует, невалиден или истёк |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
 
-**Request:** path / query / body нет. **Успех:** 200 StudentRefDTO[], пустой результат `[]`. **Валидация:** роль Teacher; выбирать только существующих Student со связью с текущим Teacher. **Ошибки:** 401 `authentication_required`, 403 `forbidden`, 500 `internal_error`. **BR:** [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика). Сортировка отображаемых имён здесь не задана до Q-09.
+Client не передаёт Account / Teacher / Student ID для определения текущего context.
 
-```http
-GET /api/v1/teachers/me/students
-Authorization: Bearer example-access-token
-Accept: application/json
-```
+---
 
-Пример reference response 200:
+## API-04 — Доступные ученики
+
+**Method:** `GET`
+
+**Path:** `/api/v1/teachers/me/students`
+
+**Authentication:** Bearer.
+
+**Роль:** Teacher.
+
+**Назначение:** вернуть Student, доступных текущему Teacher для создания Lesson.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Query parameters: отсутствуют.
+
+Body: отсутствует.
+
+### Успех
+
+HTTP `200`.
+
+Response: `StudentRefDTO[]`.
+
+Пустой список:
 
 ```json
-[{"id":"22222222-2222-4222-8222-222222222222"}]
+[]
 ```
 
-**Граница / блокер:** reference DTO согласован; подписи списка и их поля — Q-09, доверенный auth/domain context — зависимость F-06 / Q-07. Пользовательское создание связей не добавляется; текущие тестовые связи готовятся demo data.
+Пример:
 
-## Расписание
+```json
+[
+  {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "display_name": "Иван Соколов"
+  }
+]
+```
 
-### API-05 — Создать Lesson
+В выборку входят только Student, для которых существует актуальная Teacher–Student relation с текущим Teacher.
 
-**Назначение:** [US-01](../../sprints/sprint-01/scope.md#us-01--создание-занятия). **Роль:** Teacher. **Метод:** POST `/api/v1/lessons`; **Authentication:** Bearer.
+Порядок элементов API-04 не имеет отдельной продуктовой семантики Sprint 1. Frontend не должен использовать позицию элемента как идентификатор или как правило доступа.
 
-**Request:** path / query нет; LessonCreateDTO. Optional-полей нет. `teacher_id` не принимается: Teacher получается из контекста. **Успех:** 201 LessonDTO после успешного commit.
+### Ошибки
 
-**Валидация:** обязательные поля, UUID и timezone string; существующий Student со связью с Teacher; атомарное сохранение. Не проверять пересечение расписания. Ограничение даты относительно настоящего не придумано — Q-05. **BR:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания).
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `401` | `authentication_required` | Authentication отсутствует / невалидна |
+| `403` | `forbidden` | Текущий Account не имеет роли Teacher |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
 
-**Ошибки:** 422 `validation_error`; 401 `authentication_required`; 403 `forbidden`; 404 `student_not_available`; 500 `internal_error`. Ошибка не возвращает созданный Lesson как успех. Код / условие отказа для прошлого времени добавляются только после Q-05.
+Применимые BR: BR-02, BR-09, BR-11.
+
+Пользовательское создание / изменение Teacher–Student relations этим endpoint не добавляется.
+
+# Расписание
+
+## API-05 — Создать Lesson
+
+**Method:** `POST`
+
+**Path:** `/api/v1/lessons`
+
+**Authentication:** Bearer.
+
+**Роль:** Teacher.
+
+**Назначение:** создать Lesson текущего Teacher для связанного Student.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Query parameters: отсутствуют.
+
+Body: `LessonCreateDTO`.
 
 ```http
 POST /api/v1/lessons
 Authorization: Bearer example-access-token
 Content-Type: application/json
 
-{"student_id":"22222222-2222-4222-8222-222222222222","starts_at":"2026-10-10T10:00:00+04:00"}
-```
-
-Response 201:
-
-```json
 {
-  "id":"33333333-3333-4333-8333-333333333333",
-  "teacher_id":"11111111-1111-4111-8111-111111111111",
-  "student_id":"22222222-2222-4222-8222-222222222222",
-  "starts_at":"2026-10-10T06:00:00Z"
+  "student_id": "22222222-2222-4222-8222-222222222222",
+  "starts_at": "2026-10-12T10:00:00+04:00"
 }
 ```
 
-**Блокер:** Q-05 для полной бизнес-валидации; upstream F-06 / Q-07. Форма также зависит от Q-09 / Q-10. Request DTO не содержит длительность (минимум Sprint 1); расширение требует решения Q-04 / отдельного изменения.
+### Authoritative validation
 
-### API-06 — Предстоящие Lesson ученика
+Backend в рамках одной управляемой операции:
 
-**Назначение:** [US-02](../../sprints/sprint-01/scope.md#us-02--просмотр-предстоящих-занятий-учеником). **Роль:** Student. **Метод:** GET `/api/v1/students/me/lessons/upcoming`; **Authentication:** Bearer.
+1. определяет текущий Account / Teacher из Bearer credential;
+2. валидирует `student_id` и timezone-aware `starts_at`;
+3. фиксирует единое значение `now` для business validation;
+4. проверяет `starts_at >= now`;
+5. проверяет существование актуальной Teacher–Student relation;
+6. создаёт один Lesson;
+7. выполняет commit;
+8. только после успешного commit возвращает success response.
 
-**Request:** path / query / body нет. **Успех:** 200 LessonDTO[], пустой `[]`. **Валидация:** контекст Student. Выборка и порядок определены [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-занятий): текущий Student, `starts_at >= now`, сортировка `starts_at ASC, id ASC`. `now` фиксируется Backend один раз на запрос.
+`teacher_id` не принимается в request.
 
-**Ошибки:** 401 `authentication_required`, 403 `forbidden`, 500 `internal_error`. Прошедшие и чужие занятия не возвращаются.
+Пересечения расписания, длительность, повторяемость и максимальная будущая дата не проверяются в Sprint 1.
 
-```http
-GET /api/v1/students/me/lessons/upcoming
-Authorization: Bearer example-access-token
-Accept: application/json
+### Успех
+
+HTTP `201`.
+
+Response: `LessonDTO`.
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "teacher_id": "11111111-1111-4111-8111-111111111111",
+  "student_id": "22222222-2222-4222-8222-222222222222",
+  "starts_at": "2026-10-12T06:00:00Z"
+}
 ```
 
-Response 200 при контролируемом `now = 2026-10-10T06:00:00Z` включает равную границу:
+### Ошибки
+
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `422` | `validation_error` | Request schema, UUID или date-time transport некорректны |
+| `400` | `lesson_start_in_past` | Валидный `starts_at < now` |
+| `401` | `authentication_required` | Authentication отсутствует / невалидна |
+| `403` | `forbidden` | Текущий Account не имеет роли Teacher |
+| `404` | `student_not_available` | Student отсутствует либо не связан с текущим Teacher |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
+
+Любая отклонённая операция не создаёт Lesson.
+
+Применимые BR: BR-01, BR-02, BR-03, BR-08, BR-09.
+
+---
+
+## API-06 — Предстоящие Lesson ученика
+
+**Method:** `GET`
+
+**Path:** `/api/v1/students/me/lessons/upcoming`
+
+**Authentication:** Bearer.
+
+**Роль:** Student.
+
+**Назначение:** вернуть предстоящие Lesson текущего Student.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Query parameters: отсутствуют.
+
+Body: отсутствует.
+
+### Выборка
+
+Backend фиксирует одно значение `now` на запрос и возвращает только Lesson:
+
+```text
+lesson.student_id = current_student.id
+AND starts_at >= now
+```
+
+Порядок:
+
+```text
+starts_at ASC, id ASC
+```
+
+`starts_at == now` включается.
+
+### Успех
+
+HTTP `200`.
+
+Response: `UpcomingLessonDTO[]`.
+
+Пустой результат:
+
+```json
+[]
+```
+
+Пример при контролируемом `now = 2026-10-12T06:00:00Z`:
 
 ```json
 [
   {
-    "id":"33333333-3333-4333-8333-333333333333",
-    "teacher_id":"11111111-1111-4111-8111-111111111111",
-    "student_id":"22222222-2222-4222-8222-222222222222",
-    "starts_at":"2026-10-10T06:00:00Z"
+    "id": "33333333-3333-4333-8333-333333333333",
+    "starts_at": "2026-10-12T06:00:00Z",
+    "teacher": {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "display_name": "Анна Петрова"
+    }
   }
 ]
 ```
 
-**Граница / блокер:** выборка и минимальный DTO определены; Q-09 блокирует окончательный Teacher display DTO, Q-10 — отображение времени, F-06 / Q-07 — доверенный контекст. UI показывает loading / empty / error / success по scope, не придумывает имя Teacher из UUID.
+Teacher представлен `id + display_name`; UUID не используется как единственная UI-подпись.
 
-### API-07 — Lesson в календарном периоде Teacher
+### Ошибки
 
-**Назначение:** [US-03](../../sprints/sprint-01/scope.md#us-03--календарь-преподавателя). **Роль:** Teacher. **Метод:** GET `/api/v1/teachers/me/lessons`; **Authentication:** Bearer.
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `401` | `authentication_required` | Authentication отсутствует / невалидна |
+| `403` | `forbidden` | Текущий Account не имеет роли Student |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
 
-**Request:** body / path нет; query `from` и `to` — обязательные non-null timezone-aware ISO 8601 strings. Date-only не принимается. **Успех:** 200 LessonDTO[], пустой `[]`; `starts_at ASC, id ASC`.
+Применимые BR: BR-04, BR-05, BR-06, BR-09, BR-11.
 
-**Валидация:** формат query 422; `from < to` 400; серверный Teacher context; выборка по [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), `from <= starts_at < to`. Максимальная длина периода не ограничивается без требования. **Ошибки:** 422 `validation_error`, 400 `invalid_date_range`, 401 `authentication_required`, 403 `forbidden`, 500 `internal_error`.
+---
+
+## API-07 — Lesson в календарном периоде Teacher
+
+**Method:** `GET`
+
+**Path:** `/api/v1/teachers/me/lessons`
+
+**Authentication:** Bearer.
+
+**Роль:** Teacher.
+
+**Назначение:** вернуть Lesson текущего Teacher, попадающие в выбранный календарный диапазон.
+
+### Request
+
+Path parameters: отсутствуют.
+
+Body: отсутствует.
+
+Обязательные query parameters:
+
+| Параметр | Тип | Ограничение |
+| --- | --- | --- |
+| `from` | timezone-aware ISO 8601 string | required, non-null |
+| `to` | timezone-aware ISO 8601 string | required, non-null |
+
+Date-only значения не принимаются вместо абсолютных date-time.
+
+Frontend Sprint 1 формирует эти значения как границы выбранной локальной недели по BR-12. API при этом принимает абсолютные моменты и не требует передачи timezone name.
+
+Пример для локальной недели `+04:00`:
 
 ```http
-GET /api/v1/teachers/me/lessons?from=2026-10-10T00%3A00%3A00Z&to=2026-10-11T00%3A00%3A00Z
+GET /api/v1/teachers/me/lessons?from=2026-10-05T00%3A00%3A00%2B04%3A00&to=2026-10-12T00%3A00%3A00%2B04%3A00
 Authorization: Bearer example-access-token
 Accept: application/json
 ```
 
-Response 200:
+Символ `+` в query должен быть URL-encoded как `%2B`; обычно это делает API client.
+
+### Выборка
+
+Для валидного диапазона обязательно:
+
+```text
+from < to
+```
+
+Backend возвращает только Lesson:
+
+```text
+lesson.teacher_id = current_teacher.id
+AND from <= starts_at < to
+```
+
+Порядок:
+
+```text
+starts_at ASC, id ASC
+```
+
+### Успех
+
+HTTP `200`.
+
+Response: `TeacherCalendarLessonDTO[]`.
+
+Пустой результат:
+
+```json
+[]
+```
+
+Пример:
 
 ```json
 [
   {
-    "id":"33333333-3333-4333-8333-333333333333",
-    "teacher_id":"11111111-1111-4111-8111-111111111111",
-    "student_id":"22222222-2222-4222-8222-222222222222",
-    "starts_at":"2026-10-10T06:00:00Z"
+    "id": "33333333-3333-4333-8333-333333333333",
+    "starts_at": "2026-10-10T06:00:00Z",
+    "student": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "display_name": "Иван Соколов"
+    }
   }
 ]
 ```
 
-При offset `+04:00` в query кодировать `+` как `%2B`; предпочтительно поручать кодирование API-client. Пример выше задаёт UTC-диапазон, не часовой пояс UI.
+Student представлен `id + display_name`; UUID не используется как единственная UI-подпись.
 
-**Граница / блокер:** временной контракт завершён; F-06 / Q-07 остаётся upstream-зависимостью. Вид календаря / локальные границы UI — Q-10 и утверждённый дизайн L-04. В календаре нет переноса и отмены.
+### Ошибки
 
-## Проверка совместимости
+| HTTP | `error.code` | Условие |
+| ---: | --- | --- |
+| `422` | `validation_error` | `from` / `to` отсутствуют либо имеют неверный date-time transport format |
+| `400` | `invalid_date_range` | Оба момента валидны, но `from >= to` |
+| `401` | `authentication_required` | Authentication отсутствует / невалидна |
+| `403` | `forbidden` | Текущий Account не имеет роли Teacher |
+| `500` | `internal_error` | Неожиданная server-side ошибка |
 
-Для каждого endpoint сверить OpenAPI, DTO API-layer и фактический HTTP: код, схему, пустую выборку и ошибки. Для API-05 проверить отсутствие записи при rejected Student, а после успешного commit — попадание в API-06 / API-07 при подходящих границах. Граничные данные и замороженное время обязательны для BR-05 / BR-07. Полная приёмка blocked-операций проводится только после обновления контракта по решениям Q.
+Применимые BR: BR-07, BR-09, BR-11, BR-12.
+
+## Контрактные инварианты
+
+Следующие правила обязательны для Backend и Frontend:
+
+1. Account ID, Teacher ID и Student ID не взаимозаменяемы.
+2. Текущий Teacher / Student всегда определяется Backend из authentication context.
+3. `student_id` API-05 является целевым ресурсом, а не identity вызывающего пользователя.
+4. Teacher–Student relation повторно проверяется при создании Lesson.
+5. Временные значения на API-границе timezone-aware; responses возвращаются в UTC.
+6. Frontend отображает время в локальной timezone браузера, но Backend работает с абсолютными моментами.
+7. `display_name` передаётся там, где пользователь должен идентифицировать Teacher / Student.
+8. Empty collection — `200 []`.
+9. Error responses используют только общий ErrorDTO и зарегистрированные `error.code`.
+10. Runtime OpenAPI и фактический HTTP должны соответствовать этому документу.
+
+## Проверка совместимости и интеграции
+
+Перед признанием соответствующей операции готовой сверить:
+
+- method / path;
+- authentication / role requirement;
+- исчерпывающий request DTO;
+- response DTO;
+- HTTP status;
+- error codes;
+- UTC / timezone semantics;
+- sorting;
+- empty state;
+- runtime OpenAPI;
+- фактический HTTP Frontend ↔ Backend.
+
+Для API-01 проверить atomic Account + profile creation и `409 email_already_registered`.
+
+Для API-05 проверить rollback / отсутствие Lesson при rejected operation, включая `lesson_start_in_past` и `student_not_available`.
+
+После успешного API-05 созданный Lesson должен попадать:
+
+- в API-06, если он принадлежит текущему Student и `starts_at >= now`;
+- в API-07, если он принадлежит текущему Teacher и `from <= starts_at < to`.
+
+Для API-06 и API-07 использовать управляемое / замороженное `now` и fixtures на временных границах.
+
+Contract mocks допустимы только для уже определённых DTO и не заменяют проверку реального HTTP.
