@@ -332,7 +332,7 @@ Response: `AccountContextDTO`.
 | HTTP | `error.code` | Условие |
 | ---: | --- | --- |
 | `401` | `authentication_required` | Bearer credential отсутствует, невалиден или истёк |
-| `500` | `internal_error` | Неожиданная server-side ошибка |
+| `500` | `internal_error` | Неожиданная server-side ошибка, включая нарушение обязательного Account → matching profile invariant |
 
 Client не передаёт Account / Teacher / Student ID для определения текущего context.
 
