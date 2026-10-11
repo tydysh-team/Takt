@@ -6,7 +6,7 @@
 
 Этот документ фиксирует общую семантику identity, authentication и authorization для Sprint 1.
 
-Конкретные request / response DTO, HTTP status и стабильные error codes каждой операции фиксируются в [API-контрактах Sprint 1](contracts/sprint-01.md) и [реестре ошибок](errors.md).
+Конкретные request / response DTO, HTTP status и стабильные `error.code` каждой операции фиксируются в [API-контрактах Sprint 1](contracts/sprint-01.md) и [реестре ошибок](errors.md).
 
 Frontend не является источником полномочий пользователя. Доверенный Account, его роль и соответствующий Teacher / Student context определяются Backend.
 
@@ -27,15 +27,21 @@ Account ID, Teacher ID и Student ID являются разными идент�
 
 Backend после успешной authentication строит доверенный текущий context:
 
-`credential → Account → role → соответствующий Teacher / Student profile`.
+```text
+credential → Account → role → соответствующий Teacher / Student profile
+```
 
 Frontend не вычисляет Teacher ID / Student ID из Account ID и не передаёт произвольный идентификатор для определения пользователя, от имени которого выполняется защищённая операция.
+
+Если credential валиден и Account найден, но invariant BR-09 нарушен — например, отсутствует требуемый profile, profile не соответствует роли либо одновременно существуют несовместимые profiles — это **server-side inconsistency**, а не ошибка полномочий пользователя. Публично такой случай обрабатывается как `500 internal_error`; он не превращается в `403 forbidden`.
 
 ## Регистрация
 
 Sprint 1 использует:
 
-`POST /api/v1/auth/register`
+```text
+POST /api/v1/auth/register
+```
 
 Authentication для регистрации не требуется.
 
@@ -104,13 +110,15 @@ Backend не хранит открытый password. В persistence сохран
 
 `display_name` является минимальной человекочитаемой подписью профиля и не заменяется UUID в пользовательском интерфейсе.
 
-Регистрация не означает автоматический вход, если API-контракт явно не определяет иное. В Sprint 1 token получается через отдельную операцию login.
+Регистрация не означает автоматический вход. В Sprint 1 access token получается через отдельную операцию login согласно API-02.
 
 ## Вход
 
 Sprint 1 использует:
 
-`POST /api/v1/auth/login`
+```text
+POST /api/v1/auth/login
+```
 
 Authentication не требуется.
 
@@ -131,14 +139,16 @@ Email нормализуется тем же способом, что и при 
 
 Защищённый запрос передаёт:
 
-`Authorization: Bearer <access_token>`
+```text
+Authorization: Bearer <access_token>
+```
 
 Frontend рассматривает access token как непрозрачную строку.
 
 Frontend не должен:
 
-- использовать claims токена как единственный источник role / authorization;
-- вычислять из токена Teacher ID / Student ID для доверенных операций;
+- использовать claims token как единственный источник role / authorization;
+- вычислять из token Teacher ID / Student ID для доверенных операций;
 - зависеть от внутреннего формата token.
 
 Backend валидирует credential и только после этого формирует доверенный Account / role / domain context.
@@ -160,9 +170,11 @@ Backend валидирует credential и только после этого ф
 
 Sprint 1 предоставляет защищённую операцию:
 
-`GET /api/v1/me`
+```text
+GET /api/v1/me
+```
 
-Она возвращает Frontend доверенное представление текущего Account и его единственного доменного context, достаточное для role-based routing и отображения текущего пользователя.
+Она возвращает Frontend доверенное представление текущего Account и его единственного domain context, достаточное для role-based routing и отображения текущего пользователя.
 
 Response должен отражать:
 
@@ -170,11 +182,13 @@ Response должен отражать:
 - роль `teacher` или `student`;
 - reference соответствующего Teacher / Student profile.
 
-Точный состав `ContextDTO` фиксируется в [API-контракте](contracts/sprint-01.md#api-03--текущий-контекст).
+Точный состав `AccountContextDTO` фиксируется в [API-контракте](contracts/sprint-01.md#api-03--текущий-контекст).
 
 Frontend не передаёт Account ID, Teacher ID или Student ID для определения текущего пользователя в `/me`.
 
 Получение текущего domain context внутри Backend не зависит от того, выполнял ли Frontend отдельный запрос `/me`: Backend строит context непосредственно из authentication credential для каждого защищённого запроса.
+
+Если для валидного Account невозможно построить единственный соответствующий domain profile из-за нарушения BR-09, Backend возвращает `500 internal_error`; этот случай рассматривается как defect / data invariant failure и не как `403`.
 
 ## Авторизация защищённых операций
 
@@ -184,7 +198,7 @@ Authorization дополнительно проверяет:
 
 - допустима ли роль для операции;
 - принадлежит ли ресурс текущему пользователю;
-- доступен ли целевой ресурс согласно бизнес-правилам.
+- доступен ли целевой ресурс согласно Business Rules.
 
 Примеры Sprint 1:
 
@@ -208,12 +222,13 @@ Router guard, скрытая кнопка или role state во Frontend явл
 | Нет Bearer credential, token невалиден или истёк | `401 authentication_required` |
 | Неверные credentials при login | `401 invalid_credentials` |
 | Account аутентифицирован, но роль / операция запрещена | `403 forbidden` |
+| Валидный Account нарушает обязательный profile invariant BR-09 | `500 internal_error` |
 
 Для защищённого `401` Backend использует `WWW-Authenticate: Bearer`.
 
 Если существование чужого ресурса не должно раскрываться, API может возвращать согласованный `404`, например `student_not_available` для отсутствующего либо недоступного Student при создании Lesson.
 
-Регистрационный конфликт по уже используемому нормализованному email должен иметь один согласованный `409` error code, который фиксируется в [errors.md](errors.md) и API-01. До синхронизации этих двух документов нельзя вводить другой локальный код только в реализации.
+Повторная регистрация уже используемого нормализованного email возвращает согласованный `409 email_already_registered` согласно [реестру ошибок](errors.md) и API-01.
 
 ## Поведение Frontend
 
@@ -225,7 +240,9 @@ Router guard, скрытая кнопка или role state во Frontend явл
 
 Frontend отображает role-dependent сценарии по доверенному context, полученному от Backend, но окончательная авторизация каждого запроса остаётся на Backend.
 
-Пароли и Bearer tokens не включаются в application logs, browser debug artifacts, screenshots или иные QA evidence.
+Passwords, password hashes и реальные Bearer tokens не включаются в application logs, screenshots, сохраняемое / публикуемое QA evidence или другие диагностические артефакты, которые могут покинуть безопасный runtime context.
+
+При API-02 access token **законно присутствует в success response**, потому что `TokenDTO` является контрактом login. В QA / bug evidence это значение редактируется / скрывается.
 
 ## Проверки Sprint 1
 
@@ -237,19 +254,21 @@ Frontend отображает role-dependent сценарии по довере�
 - отсутствие любого обязательного регистрационного поля отклоняется;
 - email сохраняется после trim + lowercase;
 - email с отличающимся регистром не создаёт второй Account;
-- повторная регистрация уже используемого нормализованного email отклоняется;
+- повторная регистрация уже используемого нормализованного email отклоняется как `409 email_already_registered`;
 - email с некорректным форматом отклоняется;
 - password длиной `7` и `129` символов отклоняется;
 - password длиной `8` и `128` символов допускается;
 - password не изменяется системой перед проверкой credentials;
 - `display_name` trim-ится и не может стать пустым;
-- открытый password не сохраняется и не возвращается;
+- открытый password и `password_hash` не возвращаются API;
 - login использует email и одинаково отвечает на неизвестный email / неверный password;
+- успешный API-02 возвращает `TokenDTO` с `access_token` и `token_type="bearer"`;
+- реальные access tokens не попадают в logs / screenshots / сохраняемое QA evidence;
 - защищённый endpoint без token возвращает authentication error;
 - Student не получает Teacher-only операции и наоборот;
 - подмена Account / Teacher / Student ID со стороны клиента не изменяет текущую identity;
 - `/me` возвращает context только текущего Account;
-- password / token отсутствуют в API response и QA evidence.
+- нарушение invariant Account → matching profile рассматривается как `500 internal_error`, а не `403`.
 
 ## Границы Sprint 1
 
