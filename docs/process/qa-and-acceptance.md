@@ -1,391 +1,429 @@
-# Управление изменениями
+# QA и Product Acceptance
 
-[К справочнику](../README.md) · [Workflow](development-workflow.md) · [DoR / DoD](definition-of-ready-done.md) · [Code Review](code-review.md) · [QA / Acceptance](qa-and-acceptance.md) · [ADR](../architecture/decisions/README.md) · [Интеграция](../architecture/integration.md)
+[К справочнику](../README.md) · [Workflow](development-workflow.md) · [DoR / DoD](definition-of-ready-done.md) · [Code Review](code-review.md) · [Bug report](../templates/bug-report.md) · [API contracts](../api/contracts/sprint-01.md)
 
 ## Назначение
 
-Change Management нужен, чтобы согласованное изменение не появлялось только в одном месте — например, в коде, UI, OpenAPI, тесте или комментарии — и не создавало скрытое расхождение между частями проекта.
+QA проверяет, что реализованный результат соответствует согласованным Acceptance Criteria, Business Rules, API contracts и затронутому regression scope.
 
-Основной принцип:
+Product Acceptance проверяет, что пользовательский результат соответствует согласованному продуктовым scope и может быть принят Product Owner.
 
-> Сначала определяется смысл изменения и его impact, затем обновляется канонический источник и зависимые артефакты, после чего изменение реализуется и повторно проверяется.
+QA, Code Review и Product Acceptance не являются взаимозаменяемыми этапами:
 
-Нельзя вводить новое продуктовое, API, data, architecture или process rule молча только в реализации.
+- Code Review проверяет техническую корректность изменения;
+- Integration подтверждает работу затронутых системных границ;
+- QA проверяет поведение по требованиям и негативные / граничные сценарии;
+- Product Acceptance подтверждает продуктовый результат.
 
-## Что считается изменением
+Один участник может выполнять несколько ролей, но evidence и критерии каждой проверки должны оставаться различимыми.
 
-Change Management применяется, если меняется уже согласованное или используемое поведение / ограничение, например:
+## Основа QA
 
-- Acceptance Criteria;
-- Business Rule;
-- Sprint scope;
-- method / path API;
-- request / response DTO;
-- authentication / authorization semantics;
-- stable `error.code`;
-- time semantics;
-- sorting;
-- data model / DB constraint;
-- architecture baseline;
-- UI/UX behavior;
-- Definition of Ready / Definition of Done;
-- другой канонический process rule.
+QA не придумывает ожидаемое поведение самостоятельно.
 
-Обычный локальный refactoring, не меняющий observable behavior, public contract, данные, архитектурные границы или process rule, не требует отдельного продуктового change request. Он всё равно проходит обычный review.
+Источники ожидаемого результата по приоритету:
 
-## Канонический источник
+1. Acceptance Criteria соответствующей User Story / Foundation / Technical Task;
+2. подтверждённые Business Rules;
+3. утверждённый API contract;
+4. применимые architecture / data / UI rules;
+5. явно согласованные решения в текущей задаче / change record.
 
-Изменение сначала отражается в том источнике, который отвечает за соответствующее решение.
+Если источники противоречат друг другу, QA не выбирает удобную трактовку. Несогласованность фиксируется как blocker документации / требований и возвращается на уточнение.
 
-| Тип изменения | Канонический источник | Кто должен участвовать в согласовании по смыслу | Типичные зависимые артефакты |
-| --- | --- | --- | --- |
-| Product behavior / Business Rule | `docs/product/`, `docs/requirements/business-rules.md` | Product Owner; технические owners при impact на реализацию | Sprint scope, AC, API, UI, QA, tasks |
-| Sprint scope / Acceptance Criteria | Sprint Planning / Kaiten + `docs/sprints/.../scope.md` | Product Owner + команда | Tasks, SP / dependencies, API / design / QA, reporting |
-| API / DTO / HTTP semantics | `docs/api/contracts/` + общие API docs | Backend + Frontend; PO если меняется продуктовый смысл | OpenAPI, schemas, API-layer, mocks, UI mapping, tests |
-| Authentication / authorization | API auth contract + BR / architecture при необходимости | Backend; Frontend для consumer impact; PO при product behavior | `/me`, route behavior, UI role flow, tests, QA |
-| Error model | `docs/api/errors.md` + endpoint contract | Backend + Frontend | exception mapping, OpenAPI, UI error handling, tests |
-| Data model / DB invariant | `docs/architecture/data-model.md` | Backend / DB owner; PO если появляются новые доменные данные / правила | Alembic migration, ORM, DTO при влиянии, fixtures, persistence tests |
-| Architecture baseline | architecture docs + ADR, если применимы критерии ADR | затронутые technical owners; PO при product / API impact | module boundaries, setup, tasks, review checklist |
-| UX / UI behavior | утверждённый design source + применимые product / scope docs | UX/UI + Frontend; PO для пользовательского поведения | UI task, API/data при влиянии, AC, QA |
-| Process rule | `docs/process/` | команда; владельцы затронутого процесса | DoR / DoD, templates, Kaiten workflow usage |
-| Defect fix без изменения требования | исходный requirement остаётся каноничным | owner + reviewer + QA по задаче | tests, code, bug card, regression evidence |
+Неблокирующий implementation detail проверяется только в той степени, в которой он влияет на observable behavior, безопасность, данные или agreed technical contract.
 
-Kaiten хранит фактическое состояние change / task / blocker. GitHub хранит implementation history и review. `/docs` хранит согласованные правила.
+## Подготовка к проверке
 
-## Change request и defect — не одно и то же
+Перед началом QA должны быть известны по применимости:
 
-**Defect** — фактическое поведение не соответствует уже согласованному ожидаемому поведению.
-
-**Change request** — требуется изменить само согласованное ожидаемое поведение.
-
-Пример:
-
-- API должен возвращать `409 email_already_registered`, но возвращает `500` → defect;
-- команда решает вместо `409` использовать другую согласованную semantics → change request.
-
-Нельзя закрывать defect изменением документации задним числом только для того, чтобы текущее поведение стало «правильным», без явного решения о смене требования.
-
-И наоборот, новое пожелание не должно автоматически объявляться дефектом старой корректной реализации.
-
-## Классификация impact
-
-Перед реализацией инициатор и применимые owners определяют, какие области затронуты.
-
-Минимальный impact checklist:
-
-- Product / BR;
-- Sprint scope / AC;
-- Backend;
-- Frontend;
+- проверяемая задача / User Story / Foundation;
+- актуальные AC;
+- применимые BR;
 - API contract;
-- authentication / authorization;
-- ErrorDTO / error codes;
-- data model / migration;
-- demo / test fixtures;
-- UI / UX;
-- integration;
-- QA / regression;
-- docs;
-- task dependencies / sequence;
-- Story Points / estimate;
-- ADR / architecture decision.
+- branch / commit / merged revision;
+- окружение;
+- используемые demo / test data;
+- auth role / account context;
+- внешние зависимости;
+- известные limitations;
+- ожидаемый набор проверок;
+- фактический build / version, на котором выполняется QA.
 
-Необязательно затрагивать все пункты. В change record должно быть понятно, какие пункты `affected`, а какие `N/A`.
+QA evidence без указания проверяемой версии нельзя считать воспроизводимым.
 
-## Порядок изменения
+Если изменение после начала QA затронуло проверяемое поведение, применимые проверки выполняются повторно на актуальной версии.
 
-### 1. Зафиксировать инициатор и причину
+## Минимальная структура QA evidence
 
-Change должен иметь понятный источник:
+Для ручной проверки либо test run фиксируются:
 
-- новый product decision;
-- уточнение requirement;
-- обнаруженное противоречие;
-- technical limitation;
-- integration finding;
-- QA finding;
-- architecture decision;
-- dependency change.
+- что проверяется;
+- source requirement / AC / BR / contract;
+- environment;
+- branch / commit / build;
+- test data / account role;
+- шаги или достаточно точное описание действия;
+- expected result;
+- actual result;
+- итог `PASS / FAIL / BLOCKED`;
+- приложенный evidence при необходимости.
 
-Зафиксировать кратко:
+`BLOCKED` означает, что проверка не может быть завершена из-за внешней причины / зависимости. Он не равен `PASS` и не должен скрываться как успешная проверка.
 
-- **before** — что согласовано сейчас;
-- **after** — что предлагается;
-- **reason** — почему требуется изменение;
-- **affected scope** — какие User Story / Foundation / Technical Tasks / компоненты затронуты.
+## Обязательные классы проверок
 
-### 2. Выполнить impact analysis
+Набор ниже применяется по смыслу конкретной задачи.
 
-До implementation определить:
+### Positive path
 
-- меняется ли пользовательское поведение;
-- меняются ли Acceptance Criteria;
-- является ли изменение breaking для существующего consumer;
-- нужна ли DB migration;
-- затрагиваются ли уже начатые Backend / Frontend tasks;
-- делает ли изменение старые tests / mocks / evidence неактуальными;
-- требуется ли re-estimation / изменение dependency order;
-- требуется ли ADR.
+Проверить основной успешный сценарий:
 
-Если impact невозможно определить из-за неизвестного продуктового решения, change остаётся blocker до уточнения.
+- операция доступна допустимой роли;
+- корректный request принимается;
+- данные сохраняются / возвращаются ожидаемо;
+- UI отображает требуемый результат;
+- последующие связанные сценарии видят обновлённое состояние.
 
-### 3. Получить необходимое решение
+Успешный HTTP status без проверки результата в persistence / dependent read scenario недостаточен там, где AC требует сохранение данных.
 
-Участники определяются типом изменения, а не только тем, кто первым написал код.
+### Validation
 
-Принцип:
+Проверить применимые transport / field validation cases:
 
-- Product Owner принимает продуктовые решения и изменения AC / scope;
-- Backend / Frontend согласуют cross-component contract;
-- применимый technical owner участвует в изменении своей technical boundary;
-- UX/UI участвует в изменении согласованного UI behavior;
-- QA участвует в определении regression impact, но не придумывает новое expected behavior;
-- существенное architecture decision проходит ADR process.
+- missing required field;
+- unexpected field;
+- invalid type;
+- invalid UUID;
+- invalid email;
+- invalid / naive date-time;
+- min / max length;
+- invalid enum / role value;
+- пустое значение после нормализации / trim, если применимо.
 
-Scrum Master помогает сделать change и blocker прозрачными, но не заменяет Product Owner, reviewer или technical owner.
+Для API проверяются HTTP status, `error.code`, `details` и отсутствие framework default shape.
 
-### 4. Обновить канонический источник
+### Authentication и authorization
 
-До либо одновременно с implementation обновляется документ, который определяет новое правило.
+Проверить по применимости:
 
-Нельзя считать достаточным:
+- отсутствующий credential;
+- невалидный / истёкший credential;
+- неверная роль;
+- попытка получить / изменить чужой ресурс;
+- подмена client-side Account / Teacher / Student ID;
+- отсутствие утечки существования защищённого ресурса там, где contract требует единый `404`.
 
-- устный договор;
-- комментарий в PR;
-- изменение OpenAPI без contract update;
-- изменение Figma без обновления затронутого AC / scope;
-- новый test, который единолично вводит новое требование;
-- код, который «заодно» меняет behavior.
+Frontend hiding / router guard не считается доказательством Backend authorization.
 
-Исторический Q-ID / ADR / решение не удаляется так, будто его не существовало, если он нужен для понимания истории. Для ADR используется lifecycle из ADR registry.
+### Business Rules
 
-### 5. Синхронизировать зависимые артефакты
+QA строит отдельные проверки для применимых BR, особенно если правило не полностью покрывается schema validation.
 
-После изменения canonical source обновляются все реально затронутые consumers.
+Для Sprint 1 минимум:
 
-Примеры:
+- Teacher создаёт Lesson только от собственного authenticated context;
+- Student должен быть связан с текущим Teacher;
+- Lesson creation атомарна;
+- `starts_at >= now`;
+- Student upcoming содержит только собственные Lesson;
+- upcoming использует `starts_at >= now`;
+- upcoming сортируется `starts_at ASC, id ASC`;
+- Teacher calendar использует `[from, to)`;
+- один Account имеет одну роль и один соответствующий profile;
+- registration использует `email / password / role / display_name`;
+- `display_name` используется как человекочитаемая подпись;
+- UI работает в browser-local timezone по BR-12.
 
-**BR change**
+### Boundary testing
+
+Граничные значения обязательны там, где правило зависит от границы.
+
+Для времени Sprint 1 проверить как минимум:
+
+- `starts_at < now`;
+- `starts_at == now`;
+- `starts_at > now`;
+- `starts_at == from`;
+- `from < starts_at < to`;
+- `starts_at == to`;
+- `from >= to`;
+- эквивалентные абсолютные моменты с разными offsets;
+- локальные календарные границы недели;
+- переход UTC offset / DST, если окружение позволяет воспроизвести соответствующую timezone.
+
+`now` в boundary tests должен быть управляемым / фиксированным настолько, чтобы тест был воспроизводим.
+
+### Empty state
+
+Для collection endpoints и UI проверить:
+
+- HTTP `200`;
+- пустой массив `[]`;
+- корректный empty UI state;
+- отсутствие ложной `404`.
+
+### Error handling
+
+Проверить:
+
+- ожидаемый HTTP status;
+- зарегистрированный `error.code`;
+- безопасный `message`;
+- корректный `details` для field errors;
+- отсутствие stack trace / SQL / secrets / constraint names;
+- Frontend branch по status / code, а не по тексту `message`;
+- неизвестный code / transport error обрабатывается безопасно.
+
+### UI states
+
+По применимости проверить:
+
+- loading;
+- empty;
+- error;
+- success;
+- submit / disabled state;
+- повторное действие;
+- stale response protection;
+- role-specific navigation / visibility;
+- human-readable labels вместо UUID;
+- browser-local date-time display.
+
+UI validation является UX-проверкой и не заменяет Backend validation.
+
+### Integration
+
+Если задача затрагивает Frontend ↔ Backend boundary, mock-only проверка недостаточна.
+
+Минимально проверить реальный HTTP flow:
+
+- Frontend использует корректный Backend origin / `/api/v1`;
+- CORS не блокирует допустимый origin;
+- Bearer header передаётся через API-layer;
+- DTO соответствует contract;
+- ErrorDTO корректно читается Frontend;
+- identity определяется Backend;
+- date-time roundtrip сохраняет абсолютный момент;
+- UI корректно обрабатывает empty / error / success.
+
+Для Sprint 1 основной сквозной сценарий:
 
 ```text
-BR
-→ Sprint AC / scope
-→ API contract
-→ Backend / Frontend tasks
-→ QA cases
+Teacher login
+→ получить доступных Students
+→ создать Lesson
+→ Lesson сохранён
+→ Student видит его в upcoming при выполнении BR-05
+→ Teacher видит его в calendar при попадании в [from, to)
 ```
 
-**API change**
+### Regression
 
-```text
-API contract
-→ Backend schemas / routes / OpenAPI
-→ Frontend API-layer / DTO mapping
-→ mocks
-→ integration checks
-→ QA
-```
+Regression scope определяется влиянием изменения.
 
-**Data model change**
+Минимально перепроверяются:
 
-```text
-data-model.md
-→ migration
-→ ORM / persistence
-→ fixtures / seed
-→ API contract, если внешний DTO затронут
-→ tests
-```
+- непосредственно изменённый сценарий;
+- зависимые API / UI consumers;
+- permissions;
+- persistence behavior;
+- общий error handling, если изменён ErrorDTO / exception mapping;
+- time behavior, если изменена date-time logic.
 
-**UI behavior change**
+Не нужно прогонять весь продукт без причины, но нельзя ограничиваться только строкой, которую исправляли, если изменение затронуло общий компонент.
 
-```text
-product / AC
-→ design
-→ Frontend task
-→ API / data, если нужны новые данные
-→ QA
-```
+## Автоматизация
 
-## Изменение во время активного Sprint
+Для Backend применяется `pytest` и подходящие уровни tests согласно architecture:
 
-Изменение Sprint 1 не должно появляться только потому, что исполнитель заметил «как будет удобнее».
+- unit;
+- API;
+- persistence;
+- integration.
 
-Если change влияет на текущий Sprint:
+Frontend automation / E2E вводится по необходимости и в рамках отдельного technical scope.
 
-1. определить, является ли это defect существующего scope или новым requirement;
-2. оценить impact на Sprint Goal, текущие tasks, dependencies и SP;
-3. согласовать изменение scope с Product Owner и командой;
-4. обновить Kaiten / Sprint Planning artifacts и `scope.md`, если scope действительно изменился;
-5. обновить затронутые technical contracts / docs;
-6. только после этого использовать новое правило как основу реализации / QA.
+Наличие automated test не отменяет ручную проверку пользовательского результата там, где она необходима для Product Acceptance.
 
-Нельзя сохранять старый scope в документации и одновременно реализовывать другой scope «по договорённости».
+Ручной test не заменяет обязательный automated regression test, если он входит в согласованный scope задачи / DoD.
 
-Если новый request не нужен для Sprint Goal и не входит в принятый Sprint scope, он может быть вынесен в Product Backlog / future scope вместо скрытого расширения текущей задачи.
+## Defect vs change request
 
-## Изменение задачи после Ready
+Дефект существует, если фактическое поведение расходится с уже согласованным ожидаемым поведением:
 
-Если после Ready меняются условия, влияющие на реализацию, задача повторно проверяется по DoR.
-
-Особенно если изменились:
-
-- Acceptance Criteria;
+- AC;
+- BR;
 - API contract;
-- design;
-- data model;
-- dependency;
-- security / authorization semantics;
-- объём работ.
+- утверждённым design / process rule;
+- иным каноническим source.
 
-Задача не сохраняет статус Ready автоматически после изменения, которое сделало предыдущую подготовку неактуальной.
+Новое пожелание, которого не было в согласованном scope, не объявляется дефектом автоматически.
 
-Если change существенно увеличивает scope, работа может быть разделена на отдельные Technical Tasks.
+Если во время QA обнаружена неоднозначность requirement, это сначала вопрос на уточнение, а не попытка выбрать трактовку через severity.
 
-## Изменение после Code Review / QA
+## Severity
 
-Старое evidence не считается актуальным автоматически после изменения.
+Severity описывает влияние дефекта на систему / пользователя, а не желаемый срок исправления.
 
-После изменения повторяются все проверки, на которые оно могло повлиять.
+| Severity | Критерий |
+| --- | --- |
+| `Blocker` | Невозможно продолжить критичную проверку / сценарий без обходного пути либо результат спринта принципиально непроверяем |
+| `Critical` | Потеря / повреждение данных, серьёзное нарушение authorization / confidentiality, тяжёлый отказ ключевого сценария |
+| `Major` | Существенное нарушение Acceptance Criteria или основного поведения; сценарий сломан полностью либо имеет ограниченный workaround |
+| `Minor` | Ограниченное визуальное / текстовое / локальное отклонение, не разрушающее основной согласованный сценарий |
 
-Примеры:
+Severity не снижается только потому, что исправление неудобно или не помещается по времени.
 
-- изменился DTO → повторный Code Review + Frontend / Backend Integration + QA;
-- изменилась migration → повторный persistence review / test;
-- изменилось BR → повторные business-rule tests + QA + Product Acceptance при необходимости;
-- изменился UI behavior → Design Review / Frontend review / QA в затронутом scope;
-- изменился только комментарий / naming без behavior impact → повторный scope проверки может быть минимальным.
+Priority — отдельное управленческое решение о порядке исправления. Она определяется командой / Product Owner с учётом severity, Sprint Goal, зависимостей и стоимости задержки.
 
-Решение о повторной проверке основывается на impact, а не на желании сохранить старый `PASS`.
+## Когда дефект блокирует Done
 
-## API compatibility
+Следующие случаи несовместимы с Done соответствующей задачи:
 
-API change считается значимым, если меняет хотя бы одну публичную часть:
+- Blocker;
+- Critical;
+- Major, нарушающий Acceptance Criteria;
+- defect, нарушающий authorization / data integrity;
+- известное расхождение фактического API с утверждённым contract;
+- defect, делающий Product Acceptance невозможной.
 
-- method;
-- path;
-- authentication requirement;
-- role semantics;
-- request field;
-- response field;
-- required / nullable semantics;
-- type;
-- HTTP success status;
-- error status / stable `error.code`;
-- sorting;
-- time semantics.
+Minor либо иной неблокирующий дефект допускается только по правилам DoD: отдельная карточка, честно зафиксированный impact и согласованное решение применимых участников.
 
-Во время параллельной разработки Backend и Frontend согласуют новую редакцию contract **до того, как обе стороны начнут расходиться по разным версиям**.
+## Жизненный цикл дефекта
 
-Для изменения указать:
+Логический lifecycle:
 
-- old contract behavior;
-- new contract behavior;
-- affected Backend / Frontend tasks;
-- порядок обновления;
-- необходимость временной совместимости;
-- integration check;
-- какую редакцию контракта использует каждая сторона до завершения перехода.
+```text
+Registered
+→ Triage
+→ Assigned
+→ In progress
+→ Ready for retest
+→ Retest
+→ Closed
+```
 
-Для Sprint 1, пока публичных внешних consumers нет, синхронное breaking change внутри `/api/v1` допустимо только как согласованное изменение команды с одновременным обновлением contract и consumers. Это не делает молчаливое изменение допустимым.
+Если defect воспроизводится после исправления:
 
-Runtime OpenAPI является отражением реализации, а не самостоятельным источником нового решения.
+```text
+Retest → Reopened
+```
 
-## Data / migration changes
+Это логическая модель и не требует создания отдельных Kaiten columns для каждого состояния.
 
-При изменении persisted schema определить:
+При triage уточняются:
 
-- новое / изменённое поле или relation;
-- constraint;
-- необходимость migration;
-- поведение существующих данных;
-- seed / demo / test fixture impact;
-- rollback / failure risks;
-- API impact;
-- Business Rule impact.
+- reproducibility;
+- affected scope;
+- severity;
+- priority;
+- owner;
+- dependency / blocker impact;
+- duplicate status;
+- необходимость product clarification.
 
-Нельзя добавлять доменное поле только потому, что оно удобно ORM / UI, если соответствующего requirement нет.
+## Bug report
 
-Если migration реализует новое Business Rule, BR должен быть согласован до того, как constraint становится единственным источником этого правила.
+Bug report оформляется по [шаблону](../templates/bug-report.md) и содержит минимум:
 
-## Architecture changes и ADR
+- краткий понятный title;
+- environment;
+- branch / commit / build;
+- preconditions;
+- steps;
+- expected result;
+- actual result;
+- reproducibility;
+- severity;
+- evidence;
+- affected task / US / BR / API contract;
+- дополнительные диагностические данные без secrets.
 
-Не каждое техническое изменение требует ADR.
+Для API-defect желательно приложить:
 
-ADR создаётся, если change соответствует критериям из [ADR registry](../architecture/decisions/README.md), например:
+- method / path;
+- sanitized request;
+- HTTP status;
+- sanitized response;
+- relevant `error.code`.
 
-- меняет утверждённый architecture baseline;
-- имеет несколько значимых альтернатив;
-- создаёт долгосрочное ограничение;
-- влияет на несколько частей системы;
-- должно оставаться объяснимым после завершения текущей задачи.
+Не прикладывать реальные passwords, Bearer tokens, private data или server secrets.
 
-ADR объясняет **почему** принято решение и его последствия.
+## Retest
 
-После принятия ADR всё равно обновляются канонические architecture / API / BR документы, которые определяют текущее действующее поведение.
+Retest выполняется на версии, содержащей заявленное исправление.
 
-ADR не заменяет API contract или Business Rule.
+QA проверяет:
 
-## Срочное исправление
+1. исходный defect case;
+2. ожидаемый исправленный результат;
+3. применимую regression затронутого поведения.
 
-Даже срочный defect fix не должен создавать неизвестное постоянное правило.
+Автор исправления не заменяет QA retest сообщением «у меня работает».
 
-Для срочного исправления допускается сократить административный объём, но минимум сохраняется:
+Если QA и автор исправления — один человек по фактическому назначению, evidence всё равно должно позволять независимо понять, что именно было проверено и на какой версии.
 
-- проблема и impact понятны;
-- затронутый canonical contract известен;
-- fix проходит review;
-- применимые tests / regression выполняются;
-- docs обновляются, если реальное согласованное поведение изменилось.
+Duplicate / rejected / cannot reproduce закрываются только с причиной и достаточным context.
 
-Если срочный fix временно отличается от желаемой architecture / design, это фиксируется как technical follow-up, а не забывается после merge.
+## Product Acceptance
 
-## Что должно остаться после change
+Product Acceptance выполняется после применимой QA либо на этапе, определённом workflow для конкретной задачи.
 
-После завершённого изменения должно быть возможно ответить:
+Product Owner проверяет:
 
-- что изменилось;
-- почему;
-- кто принял применимое решение;
-- какой canonical source теперь действующий;
-- какие tasks / components были затронуты;
-- какие dependent artifacts обновлены;
-- какая версия / PR реализует change;
-- какие review / tests / QA были повторены;
-- остались ли follow-up items.
+- достигнут ли ожидаемый пользовательский результат;
+- соблюдены ли согласованные границы scope;
+- отсутствуют ли незакрытые продуктовые blockers;
+- понятны ли известные defects / limitations;
+- не подменён ли Acceptance Criterion другим технически удобным поведением.
 
-Историю не нужно дублировать во всех документах: достаточно актуального canonical state и ссылок на task / PR / ADR / change context там, где это необходимо.
+Результат Product Acceptance:
 
-## Запрещённые практики
+- **Accepted** — пользовательский результат принят в текущем scope;
+- **Returned** — есть конкретное несоответствие согласованному result / AC;
+- **Change requested** — возникло новое пожелание вне старого scope.
 
-Не допускается:
+`Change requested` не превращает корректную старую реализацию в defect автоматически.
 
-- менять requirement только в коде;
-- менять API только в OpenAPI / Pydantic schema без contract update;
-- менять DTO независимо на Backend и Frontend;
-- использовать новый QA test как единственный источник нового требования;
-- менять Sprint scope без синхронизации Kaiten / scope docs;
-- закрывать defect переписыванием AC задним числом без product decision;
-- считать всех уведомлёнными только потому, что PR открыт;
-- сохранять старое QA evidence после влияющего change без анализа regression impact;
-- оставлять одновременно две противоречащие канонические версии правила.
+Для чисто технической / документационной задачи Product Acceptance может быть `N/A`, если это соответствует задаче и зафиксирована причина.
 
-## Минимальный change checklist
+## Evidence Product Acceptance
 
-Перед завершением change ответить на применимые вопросы:
+По применимости фиксируется:
 
-- Before / after определены?
-- Причина изменения понятна?
-- Canonical source определён?
-- Product impact согласован?
-- API impact согласован Backend / Frontend?
-- DB / migration impact учтён?
-- UI / design impact учтён?
-- Sprint scope / dependencies актуальны?
-- ADR нужен / не нужен осознанно?
-- Зависимые docs / tasks обновлены?
-- Implementation прошла Code Review?
-- Integration повторена, если граница затронута?
-- QA / regression повторены?
-- Product Acceptance повторена при product impact?
-- Kaiten отражает фактическое состояние?
+- проверяемая User Story / task;
+- версия / build;
+- сценарий;
+- результат;
+- известные неблокирующие defects;
+- решение Product Owner.
+
+Product Acceptance не заменяется фактом merge PR или сообщением «QA passed».
+
+## TestRail
+
+TestRail не является обязательным инструментом до его фактического принятия / настройки командой.
+
+Если TestRail будет использоваться:
+
+- переиспользуемые test cases и test runs могут храниться там;
+- Kaiten продолжает хранить фактическое task / defect state;
+- `/docs` хранит process rules, а не дублирует все test cases;
+- карточки / PR содержат ссылки на relevant TestRail evidence;
+- один и тот же набор тестов не копируется вручную в несколько источников без необходимости.
+
+## Завершение QA
+
+QA для задачи считается завершённой, когда:
+
+- все обязательные проверки выполнены;
+- результаты относятся к актуальной версии;
+- FAIL cases зарегистрированы как defects;
+- исправленные blocking defects прошли retest;
+- применимая regression выполнена;
+- blockers явно отражены;
+- evidence достаточно для повторного понимания результата;
+- фактический статус синхронизирован с Kaiten.
+
+`QA complete` не означает автоматически `Done`, если остаются незавершённые Product Acceptance или другие применимые пункты Definition of Done.
