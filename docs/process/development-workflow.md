@@ -50,7 +50,7 @@ Done
 | Product Acceptance | Проверяется пользовательский результат и соответствие согласованному scope | PO принимает результат либо фиксирует конкретные замечания | Product Owner |
 | Done | Выполняется финальная проверка Definition of Done | Все применимые пункты DoD выполнены, evidence и фактический статус зафиксированы | Исполнитель / проверяющий по карточке |
 
-Зоны общей ответственности команды описаны в [product overview](../product/overview.md#ответственность-команды). Они не заменяют конкретные назначения owner / reviewer / QA / Product Review в Sprint Planning и Kaiten.
+Зоны общей ответственности команды описаны в [product overview](../product/overview.md#ответственность-команды). Они не заменяют конкретные назначения owner / reviewer / QA / Product Acceptance в Sprint Planning и Kaiten.
 
 Вероника как Scrum Master помогает поддерживать прозрачность flow, blockers и договорённостей процесса, но не подменяет технического reviewer, QA или Product Owner.
 

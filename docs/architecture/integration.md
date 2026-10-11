@@ -39,7 +39,7 @@ CORS является механизмом браузерного транспо
 
 Текущий пользователь определяется Backend из authentication context. Переданный клиентом Account / Teacher / Student ID не переопределяет identity текущего пользователя.
 
-Пароли, Bearer tokens и другие секреты не включаются в application logs, browser debug artifacts или QA evidence.
+Passwords, password hashes, реальные Bearer tokens и другие credentials не сохраняются в application logs, screenshots, публикуемом / сохраняемом QA evidence или bug reports. При диагностике runtime-запросов credential должен быть redacted перед сохранением или публикацией evidence.
 
 ## Семантика данных на границе
 

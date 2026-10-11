@@ -55,7 +55,7 @@ Sprint Goal считается достигнутым только при сов
 - password хранится только как hash;
 - Account + matching profile создаются атомарно;
 - `/me` возвращает доверенный Account / role / profile context;
-- demo data содержит данные, достаточные для Teacher–Student и Lesson scenarios Sprint 1.
+- базовый demo data F-06 содержит 1 Teacher и не менее 3 Students, соответствующие Account / profiles и Teacher–Student relations, позволяющие проверить как связанные, так и несвязанные пары. Lesson fixtures добавляются отдельно после появления модели Lesson в US-01.
 
 Подтверждение email, password recovery / reset, refresh token, server-side logout / revocation и расширенное Account management в Sprint 1 не входят.
 
