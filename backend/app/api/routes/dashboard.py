@@ -8,7 +8,11 @@ from app.repositories.teacher_student_relations import ConnectionRecord
 from app.schemas.connections import StudentListItem, TeacherListItem
 from app.schemas.dashboard import StudentDashboardResponse, TeacherDashboardResponse
 from app.schemas.error import ErrorResponse
-from app.services.dashboard import DashboardService, StudentDashboard, TeacherDashboard
+from app.services.dashboard import (
+    DashboardService,
+    StudentDashboard,
+    TeacherDashboard,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 

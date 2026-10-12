@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import type { ApplicationRole } from "../api/types";
 import { LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
+import { canAccessRole } from "../features/auth/roles";
 import { ForbiddenPage } from "../pages/ForbiddenPage";
 
 export function SessionGate({ publicOnly = false, children }: PropsWithChildren<{ publicOnly?: boolean }>) {
@@ -22,6 +23,6 @@ export function SessionGate({ publicOnly = false, children }: PropsWithChildren<
 
 export function RoleGate({ allowed }: { allowed: ApplicationRole[] }) {
   const { user } = useAuth();
-  if (!user || !allowed.includes(user.role as ApplicationRole)) return <ForbiddenPage />;
+  if (!canAccessRole(user, allowed)) return <ForbiddenPage />;
   return <Outlet />;
 }

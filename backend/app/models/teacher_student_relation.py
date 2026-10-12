@@ -41,12 +41,12 @@ class TeacherStudentRelation(Base):
     )
     teacher_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("teacher_profiles.user_id", ondelete="CASCADE"),
         nullable=False,
     )
     student_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("student_profiles.user_id", ondelete="CASCADE"),
         nullable=False,
     )
     status: Mapped[RelationStatus] = mapped_column(

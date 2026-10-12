@@ -13,7 +13,7 @@ from jwt import InvalidTokenError
 
 from app.core.config import Settings
 from app.core.exceptions import AuthenticationRequiredError
-from app.models.enums import UserRole
+from app.models.enums import RoleCode
 
 
 def utc_now() -> datetime:
@@ -59,7 +59,7 @@ class AccessToken:
 @dataclass(frozen=True, slots=True)
 class AccessTokenClaims:
     user_id: UUID
-    role: UserRole
+    role: RoleCode
     token_id: UUID
 
 
@@ -76,7 +76,7 @@ class TokenService:
         self,
         *,
         user_id: UUID,
-        role: UserRole,
+        role: RoleCode,
         now: datetime | None = None,
     ) -> AccessToken:
         issued_at = now or utc_now()
@@ -110,7 +110,10 @@ class TokenService:
             if claims.get("type") != "access":
                 raise AuthenticationRequiredError()
             user_id = UUID(str(claims["sub"]))
-            role = UserRole(str(claims["role"]))
+            raw_role = claims["role"]
+            if not isinstance(raw_role, str):
+                raise AuthenticationRequiredError()
+            role = RoleCode(raw_role)
             token_id = UUID(str(claims["jti"]))
         except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
             raise AuthenticationRequiredError() from exc

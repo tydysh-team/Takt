@@ -1,7 +1,7 @@
-import type { UserRole } from "../api/types";
+import type { RoleCode } from "../api/types";
 
-export function roleLabel(role: UserRole): string {
-  const labels: Record<UserRole, string> = {
+export function roleLabel(role: RoleCode): string {
+  const labels: Record<RoleCode, string> = {
     TEACHER: "Преподаватель",
     STUDENT: "Ученик",
     ADMIN: "Администратор",
@@ -18,5 +18,12 @@ export function formatDate(value: string): string {
 }
 
 export function fullName(person: { first_name: string; last_name: string }): string {
-  return `${person.first_name} ${person.last_name}`;
+  return [person.first_name, person.last_name].map((part) => part.trim()).filter(Boolean).join(" ");
+}
+
+export function formatFullName(person: { first_name: string; last_name: string; middle_name?: string | null }): string {
+  return [person.last_name, person.first_name, person.middle_name]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
 }

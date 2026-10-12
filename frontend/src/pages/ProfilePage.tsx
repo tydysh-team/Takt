@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 
 import { readableError } from "../api/client";
 import { api, queryKeys } from "../api/queries";
@@ -12,21 +11,17 @@ import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
-import { Input, Textarea } from "../components/ui/FormField";
+import { Input, Select, Textarea } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
-import { fullName, roleLabel } from "../shared/format";
-
-const schema = z.object({
-  first_name: z.string().trim().min(1, "Введите имя").max(100),
-  last_name: z.string().trim().min(1, "Введите фамилию").max(100),
-  bio: z.string().max(2000, "Не более 2000 символов"),
-  timezone: z.string().trim().min(1, "Укажите IANA часовой пояс").max(64),
-});
-
-type FormValues = z.infer<typeof schema>;
+import { profileSchema, type ProfileFormValues } from "../features/profile/profile-schema";
+import { formatFullName, roleLabel } from "../shared/format";
+import { TIMEZONE_OPTIONS } from "../shared/timezones";
 type ProfileTab = "main" | "security" | "notifications";
 
 function ProfileForm({ profile }: { profile: Profile }) {
+  const timezoneOptions = TIMEZONE_OPTIONS.some((option) => option.value === profile.timezone)
+    ? TIMEZONE_OPTIONS
+    : [{ value: profile.timezone, label: profile.timezone }, ...TIMEZONE_OPTIONS];
   const queryClient = useQueryClient();
   const { user, updateCurrentUser } = useAuth();
   const [saved, setSaved] = useState(false);
@@ -34,20 +29,28 @@ function ProfileForm({ profile }: { profile: Profile }) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
     defaultValues: {
       first_name: profile.first_name,
       last_name: profile.last_name,
+      middle_name: profile.middle_name ?? "",
       bio: profile.bio ?? "",
       timezone: profile.timezone,
     },
   });
   const update = useMutation({
-    mutationFn: (values: FormValues) => api.updateProfile({ ...values, bio: values.bio.trim() || null }),
+    mutationFn: (values: ProfileFormValues) => api.updateProfile({
+      ...values,
+      middle_name: values.middle_name || null,
+      bio: values.bio.trim() || null,
+    }),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.profile, data);
-      if (user) updateCurrentUser({ ...user, first_name: data.first_name, last_name: data.last_name });
+      if (user) updateCurrentUser({
+        ...user, first_name: data.first_name, last_name: data.last_name,
+        middle_name: data.middle_name,
+      });
       setSaved(true);
     },
   });
@@ -69,17 +72,21 @@ function ProfileForm({ profile }: { profile: Profile }) {
         <Input label="Имя" autoComplete="given-name" error={errors.first_name?.message} {...register("first_name")} />
         <Input label="Фамилия" autoComplete="family-name" error={errors.last_name?.message} {...register("last_name")} />
       </div>
+      <Input label="Отчество" hint="Необязательно" autoComplete="additional-name" error={errors.middle_name?.message} {...register("middle_name")} />
       <div className="form-grid">
         <Input label="Email" value={profile.email} readOnly disabled />
         <Input label="Роль" value={roleLabel(profile.role)} readOnly disabled />
       </div>
       <Textarea label="О себе" rows={5} placeholder="Расскажите немного о себе…" error={errors.bio?.message} {...register("bio")} />
-      <Input
+      <Select
         label="Часовой пояс"
-        hint="Используйте IANA формат, например Europe/Samara."
         error={errors.timezone?.message}
         {...register("timezone")}
-      />
+      >
+        {timezoneOptions.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </Select>
       <div><Button type="submit" loading={update.isPending}>Сохранить изменения</Button></div>
     </form>
   );
@@ -99,7 +106,7 @@ export function ProfilePage() {
       <PageHeader eyebrow="Настройки" title="Профиль" description="Ваши данные и настройки аккаунта." />
       <div className="profile-hero">
         <Avatar firstName={data.first_name} lastName={data.last_name} size="large" />
-        <div><strong>{fullName(data)}</strong><span>{roleLabel(data.role)}</span></div>
+        <div><strong>{formatFullName(data)}</strong><span>{roleLabel(data.role)}</span></div>
       </div>
       <div className="tabs" role="tablist" aria-label="Настройки профиля">
         {(["main", "security", "notifications"] as const).map((value) => (
@@ -109,7 +116,7 @@ export function ProfilePage() {
         ))}
       </div>
       {tab === "main" ? (
-        <Card className="profile-card"><ProfileForm key={`${data.first_name}-${data.last_name}-${data.timezone}`} profile={data} /></Card>
+        <Card className="profile-card"><ProfileForm key={`${data.first_name}-${data.last_name}-${data.middle_name ?? ""}-${data.timezone}`} profile={data} /></Card>
       ) : (
         <Card className="placeholder-panel">
           <span className="badge">Скоро</span>

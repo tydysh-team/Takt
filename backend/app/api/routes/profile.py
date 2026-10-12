@@ -22,6 +22,7 @@ def _profile_response(user: User, profile: Profile) -> ProfileResponse:
     return ProfileResponse(
         first_name=profile.first_name,
         last_name=profile.last_name,
+        middle_name=profile.middle_name,
         email=user.email,
         role=user.role,
         bio=profile.bio,
@@ -48,7 +49,7 @@ async def get_profile(
     "",
     response_model=ProfileResponse,
     summary="Update the current user's profile",
-    description="Updates only first_name, last_name, bio, and timezone.",
+    description="Updates only first_name, last_name, middle_name, bio, and timezone.",
     responses={
         **profile_errors,
         422: {"model": ErrorResponse, "description": "Request validation failed"},

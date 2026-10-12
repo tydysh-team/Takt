@@ -8,9 +8,20 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
-from app.models import Profile, RefreshSession, TeacherInvitation, TeacherStudentRelation, User
+from app.models import (
+    Profile,
+    RefreshSession,
+    StudentProfile,
+    TeacherInvitation,
+    TeacherProfile,
+    TeacherStudentRelation,
+    User,
+)
 
-_registered_models = (Profile, RefreshSession, TeacherInvitation, TeacherStudentRelation, User)
+_registered_models = (
+    Profile, RefreshSession, StudentProfile, TeacherInvitation,
+    TeacherProfile, TeacherStudentRelation, User,
+)
 
 config = context.config
 

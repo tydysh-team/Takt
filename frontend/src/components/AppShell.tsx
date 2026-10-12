@@ -2,7 +2,8 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../features/auth/auth-context";
-import { roleLabel } from "../shared/format";
+import { hasRole } from "../features/auth/roles";
+import { fullName, roleLabel } from "../shared/format";
 import { Avatar } from "./ui/Avatar";
 import { Button } from "./ui/Button";
 
@@ -20,11 +21,10 @@ export function AppShell() {
 
   if (!user) return null;
 
-  const roleItem =
-    user.role === "TEACHER"
-      ? { to: "/students", label: "Ученики", mark: "◇" }
-      : { to: "/teachers", label: "Преподаватели", mark: "◇" };
-  const items = [commonItems[0], roleItem, ...commonItems.slice(1)];
+  const roleItem = hasRole(user, "TEACHER")
+    ? { to: "/students", label: "Ученики", mark: "◇" }
+    : { to: "/teachers", label: "Преподаватели", mark: "◇" };
+  const items = [...commonItems.slice(0, 1), roleItem, ...commonItems.slice(1)];
 
   const handleLogout = async () => {
     try {
@@ -55,7 +55,7 @@ export function AppShell() {
           <span>Takt</span>
         </NavLink>
         <nav className="sidebar__nav" aria-label="Основная навигация">
-          {items.map((item) => item ? (
+          {items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -65,13 +65,13 @@ export function AppShell() {
               <span className="nav-item__mark" aria-hidden="true">{item.mark}</span>
               {item.label}
             </NavLink>
-          ) : null)}
+          ))}
         </nav>
         <div className="sidebar__footer">
           <div className="user-summary">
             <Avatar firstName={user.first_name} lastName={user.last_name} size="small" />
             <div>
-              <strong>{user.first_name} {user.last_name}</strong>
+              <strong>{fullName(user)}</strong>
               <span>{roleLabel(user.role)}</span>
             </div>
           </div>
@@ -84,7 +84,7 @@ export function AppShell() {
         <header className="workspace__topbar">
           <div>
             <span className="workspace__greeting">Рабочее пространство</span>
-            <strong>{user.first_name} {user.last_name}</strong>
+            <strong>{fullName(user)}</strong>
           </div>
           <Avatar firstName={user.first_name} lastName={user.last_name} />
         </header>

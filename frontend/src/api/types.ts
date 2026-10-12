@@ -1,5 +1,5 @@
-export type UserRole = "TEACHER" | "STUDENT" | "ADMIN";
-export type ApplicationRole = Exclude<UserRole, "ADMIN">;
+export type RoleCode = "TEACHER" | "STUDENT" | "ADMIN";
+export type ApplicationRole = Exclude<RoleCode, "ADMIN">;
 
 export interface ApiErrorDetail {
   location: (string | number)[];
@@ -24,9 +24,10 @@ export interface AccessTokenResponse {
 export interface CurrentUser {
   id: string;
   email: string;
-  role: UserRole;
+  role: RoleCode;
   first_name: string;
   last_name: string;
+  middle_name: string | null;
 }
 
 export interface RegisterPayload {
@@ -34,6 +35,8 @@ export interface RegisterPayload {
   password: string;
   first_name: string;
   last_name: string;
+  middle_name?: string | null;
+  timezone: string;
   role: ApplicationRole;
 }
 
@@ -50,8 +53,9 @@ export interface LoginPayload {
 export interface Profile {
   first_name: string;
   last_name: string;
+  middle_name: string | null;
   email: string;
-  role: UserRole;
+  role: RoleCode;
   bio: string | null;
   timezone: string;
 }
@@ -59,6 +63,7 @@ export interface Profile {
 export interface ProfileUpdate {
   first_name: string;
   last_name: string;
+  middle_name: string | null;
   bio: string | null;
   timezone: string;
 }

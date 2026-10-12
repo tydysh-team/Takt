@@ -33,4 +33,3 @@ class UserRepository:
 
     def add(self, user: User) -> None:
         self._session.add(user)
-

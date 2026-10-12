@@ -11,6 +11,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { AcceptInvitationDialog } from "../features/connections/AcceptInvitationDialog";
 import { useAuth } from "../features/auth/auth-context";
+import { hasRole } from "../features/auth/roles";
 import { InvitationDialog } from "../features/invitations/InvitationDialog";
 
 export function DashboardPage() {
@@ -20,7 +21,7 @@ export function DashboardPage() {
 
   if (!user) return null;
 
-  const teacher = user.role === "TEACHER";
+  const teacher = hasRole(user, "TEACHER");
   const action = (
     <Button onClick={() => { setDialogOpen(true); }}>
       {teacher ? "Пригласить ученика" : "Подключиться к преподавателю"}

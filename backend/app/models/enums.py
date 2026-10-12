@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class UserRole(StrEnum):
+class RoleCode(StrEnum):
     ADMIN = "ADMIN"
     TEACHER = "TEACHER"
     STUDENT = "STUDENT"

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ForbiddenError
 from app.core.security import utc_now
-from app.models.enums import UserRole
+from app.models.enums import RoleCode
 from app.models.user import User
 from app.repositories.teacher_invitations import TeacherInvitationRepository
 from app.repositories.teacher_student_relations import (
@@ -35,7 +35,7 @@ class DashboardService:
 
     async def summary(self, user: User) -> TeacherDashboard | StudentDashboard:
         now = utc_now()
-        if user.role == UserRole.TEACHER:
+        if user.role == RoleCode.TEACHER:
             return TeacherDashboard(
                 students_count=await self._relations.count_students(user.id),
                 new_students_30d=await self._relations.count_new_students(
@@ -48,7 +48,7 @@ class DashboardService:
                 ),
                 recent_students=await self._relations.list_students(user.id, limit=5),
             )
-        if user.role == UserRole.STUDENT:
+        if user.role == RoleCode.STUDENT:
             return StudentDashboard(
                 teachers_count=await self._relations.count_teachers(user.id),
                 recent_teachers=await self._relations.list_teachers(user.id, limit=5),

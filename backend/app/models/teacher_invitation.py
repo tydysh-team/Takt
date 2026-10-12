@@ -29,7 +29,7 @@ class TeacherInvitation(Base):
     )
     teacher_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("teacher_profiles.user_id", ondelete="CASCADE"),
         nullable=False,
     )
     code_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -38,7 +38,7 @@ class TeacherInvitation(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     used_by_student_id: Mapped[UUID | None] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="RESTRICT"),
+        ForeignKey("student_profiles.user_id", ondelete="RESTRICT"),
         nullable=True,
     )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

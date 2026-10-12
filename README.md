@@ -78,7 +78,15 @@ Authentication and persistence tests require a separate PostgreSQL database. Set
 `TEST_DATABASE_URL`, apply migrations to that database, and then run pytest. SQLite is not
 supported as an application or test database. The Alembic history contains the baseline,
 authentication/profile, and teacher-student connection migrations; `alembic upgrade head`
-is the supported way to create or update a database.
+is the supported way to create or update a database. The role/profile migrations
+upgrade existing PostgreSQL data in place; do not remove volumes to apply them.
+
+User represents account identity and authentication. Profile stores common personal data:
+first name, last name, optional middle name, bio, and an IANA timezone (default:
+`Europe/Moscow`). `User.role` is the single authorization source of truth: one account has
+exactly one role (`ADMIN`, `TEACHER`, or `STUDENT`). `TeacherProfile` and `StudentProfile`
+are role-specific domain identities, one of which is created for each public registration.
+ADMIN cannot be selected publicly.
 
 ## Authentication API
 

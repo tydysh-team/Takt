@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import PasswordService, utc_now
-from app.models.enums import UserRole
+from app.models.enums import RoleCode
 from app.models.profile import Profile
 from app.models.teacher_invitation import TeacherInvitation
 from app.models.user import User
@@ -358,10 +358,10 @@ async def test_admin_can_authenticate_to_admin(api_context: ApiTestContext) -> N
     admin = User(
         email=email,
         password_hash=PasswordService().hash(PASSWORD),
-        role=UserRole.ADMIN,
+        role=RoleCode.ADMIN,
         is_active=True,
     )
-    admin.profile = Profile(first_name="Admin", last_name="User", timezone="UTC")
+    admin.profile = Profile(first_name="Admin", last_name="User", timezone="Europe/Moscow")
     api_context.session.add(admin)
     await api_context.session.commit()
 

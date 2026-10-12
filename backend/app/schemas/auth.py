@@ -4,7 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 
-from app.models.enums import UserRole
+from app.core.timezones import DEFAULT_TIMEZONE, validate_timezone
+from app.models.enums import RoleCode
 
 
 def _normalize_email(value: object) -> object:
@@ -43,7 +44,9 @@ class RegisterRequest(BaseModel):
     password: SecretStr
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
-    role: Literal[UserRole.TEACHER, UserRole.STUDENT]
+    middle_name: str | None = Field(default=None, max_length=100)
+    timezone: str = Field(default=DEFAULT_TIMEZONE, max_length=64)
+    role: Literal[RoleCode.TEACHER, RoleCode.STUDENT]
 
     _email_normalizer = field_validator("email", mode="before")(_normalize_email)
     _password_policy = field_validator("password", mode="before")(_validate_password)
@@ -53,15 +56,26 @@ class RegisterRequest(BaseModel):
     def normalize_name(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
 
+    @field_validator("middle_name", mode="before")
+    @classmethod
+    def normalize_middle_name(cls, value: object) -> object:
+        return value.strip() or None if isinstance(value, str) else value
+
+    @field_validator("timezone")
+    @classmethod
+    def normalize_timezone(cls, value: str) -> str:
+        return validate_timezone(value)
+
 
 class RegisterResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     id: UUID
     email: EmailStr
-    role: UserRole
+    role: RoleCode
     first_name: str
     last_name: str
+    middle_name: str | None
     created_at: datetime
 
 
@@ -87,7 +101,8 @@ class CurrentUserResponse(BaseModel):
 
     id: UUID
     email: EmailStr
-    role: UserRole
+    role: RoleCode
     first_name: str
     last_name: str
+    middle_name: str | None
 

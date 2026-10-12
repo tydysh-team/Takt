@@ -77,6 +77,7 @@ async def register(
         role=result.user.role,
         first_name=result.profile.first_name,
         last_name=result.profile.last_name,
+        middle_name=result.profile.middle_name,
         created_at=result.user.created_at,
     )
 
@@ -196,5 +197,6 @@ async def current_user(
         role=user.role,
         first_name=user.profile.first_name,
         last_name=user.profile.last_name,
+        middle_name=user.profile.middle_name,
     )
 

@@ -5,9 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import PasswordService, utc_now
+from app.core.timezones import DEFAULT_TIMEZONE
 from app.db.session import session_factory
-from app.models.enums import RelationStatus, UserRole
+from app.models.enums import RelationStatus, RoleCode
 from app.models.profile import Profile
+from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
 from app.models.user import User
 from app.repositories.teacher_student_relations import TeacherStudentRelationRepository
@@ -19,17 +21,18 @@ DEMO_PASSWORD = "TaktDemo!2026"
 @dataclass(frozen=True, slots=True)
 class DemoUser:
     email: str
-    role: UserRole
+    role: RoleCode
     first_name: str
     last_name: str
+    middle_name: str | None = None
 
 
 DEMO_USERS = (
-    DemoUser("admin@demo.example.com", UserRole.ADMIN, "Demo", "Administrator"),
-    DemoUser("teacher@demo.example.com", UserRole.TEACHER, "Demo", "Teacher"),
-    DemoUser("student1@demo.example.com", UserRole.STUDENT, "Alice", "Student"),
-    DemoUser("student2@demo.example.com", UserRole.STUDENT, "Bob", "Student"),
-    DemoUser("student3@demo.example.com", UserRole.STUDENT, "Carol", "Student"),
+    DemoUser("admin@demo.example.com", RoleCode.ADMIN, "Demo", "Administrator"),
+    DemoUser("teacher@demo.example.com", RoleCode.TEACHER, "Demo", "Teacher", "Senior"),
+    DemoUser("student1@demo.example.com", RoleCode.STUDENT, "Alice", "Student"),
+    DemoUser("student2@demo.example.com", RoleCode.STUDENT, "Bob", "Student", "Junior"),
+    DemoUser("student3@demo.example.com", RoleCode.STUDENT, "Carol", "Student"),
 )
 
 
@@ -50,8 +53,13 @@ async def _ensure_user(
         user.profile = Profile(
             first_name=definition.first_name,
             last_name=definition.last_name,
-            timezone="UTC",
+            middle_name=definition.middle_name,
+            timezone=DEFAULT_TIMEZONE,
         )
+        if definition.role == RoleCode.TEACHER:
+            user.teacher_profile = TeacherProfile()
+        elif definition.role == RoleCode.STUDENT:
+            user.student_profile = StudentProfile()
         users.add(user)
         await session.flush()
         return user
@@ -61,9 +69,14 @@ async def _ensure_user(
         user.profile = Profile(
             first_name=definition.first_name,
             last_name=definition.last_name,
-            timezone="UTC",
+            middle_name=definition.middle_name,
+            timezone=DEFAULT_TIMEZONE,
         )
         await session.flush()
+    if definition.role == RoleCode.TEACHER and await session.get(TeacherProfile, user.id) is None:
+        session.add(TeacherProfile(user_id=user.id))
+    if definition.role == RoleCode.STUDENT and await session.get(StudentProfile, user.id) is None:
+        session.add(StudentProfile(user_id=user.id))
     return user
 
 

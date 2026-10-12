@@ -10,7 +10,7 @@ from starlette.requests import Request
 from app.core.config import get_settings
 from app.core.security import PasswordService
 from app.db.session import engine, session_factory
-from app.models.enums import UserRole
+from app.models.enums import RoleCode
 from app.models.profile import Profile
 from app.models.refresh_session import RefreshSession
 from app.models.teacher_invitation import TeacherInvitation
@@ -46,14 +46,15 @@ class AdminAuthentication(AuthenticationBackend):
         email = str(form.get("username", "")).strip().lower()
         password = str(form.get("password", ""))
         async with self._sessions() as session:
-            user = await session.scalar(select(User).where(User.email == email))
+            user = await session.scalar(
+                select(User).where(User.email == email, User.role == RoleCode.ADMIN)
+            )
             if user is None:
                 self._passwords.verify_dummy(password)
                 return False
             if (
                 not self._passwords.verify(user.password_hash, password)
                 or not user.is_active
-                or user.role != UserRole.ADMIN
             ):
                 return False
             if self._passwords.needs_rehash(user.password_hash):
@@ -77,10 +78,10 @@ class AdminAuthentication(AuthenticationBackend):
             request.session.clear()
             return False
         async with self._sessions() as session:
-            user = await session.scalar(select(User).where(User.id == user_id))
-            authenticated = bool(
-                user is not None and user.is_active and user.role == UserRole.ADMIN
+            user = await session.scalar(
+                select(User).where(User.id == user_id, User.role == RoleCode.ADMIN)
             )
+            authenticated = bool(user is not None and user.is_active)
         if not authenticated:
             request.session.clear()
         return authenticated
@@ -100,24 +101,27 @@ class UserAdmin(ModelView, model=User):
         User.updated_at,
     ]
     column_details_list = column_list
-    form_columns = [User.email, User.role, User.is_active, User.email_verified_at]
+    form_columns = [User.email, User.is_active, User.email_verified_at]
 
 
 class ProfileAdmin(ModelView, model=Profile):
     name = "Profile"
     name_plural = "Profiles"
     can_create = False
+    can_delete = False
     column_list = [
-        Profile.id,
         Profile.user_id,
         Profile.first_name,
         Profile.last_name,
+        Profile.middle_name,
         Profile.timezone,
         Profile.created_at,
         Profile.updated_at,
     ]
     column_details_list = [*column_list, Profile.bio]
-    form_columns = [Profile.first_name, Profile.last_name, Profile.bio, Profile.timezone]
+    form_columns = [
+        Profile.first_name, Profile.last_name, Profile.middle_name, Profile.bio, Profile.timezone
+    ]
 
 
 class RelationAdmin(ModelView, model=TeacherStudentRelation):

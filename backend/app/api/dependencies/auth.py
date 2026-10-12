@@ -16,7 +16,7 @@ from app.core.invitation_codes import InvitationCodeService
 from app.core.rate_limit import InMemoryRateLimiter, RateLimiter, RateLimitKeyFactory
 from app.core.security import PasswordService, TokenService
 from app.db.session import get_db_session
-from app.models.enums import UserRole
+from app.models.enums import RoleCode
 from app.models.user import User
 from app.repositories.users import UserRepository
 from app.services.auth import AuthService
@@ -110,7 +110,7 @@ async def get_current_active_user(
     return user
 
 
-def _require_role(user: User, role: UserRole) -> User:
+def require_role(user: User, role: RoleCode) -> User:
     if user.role != role:
         raise ForbiddenError()
     return user
@@ -119,19 +119,19 @@ def _require_role(user: User, role: UserRole) -> User:
 async def get_current_teacher(
     user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    return _require_role(user, UserRole.TEACHER)
+    return require_role(user, RoleCode.TEACHER)
 
 
 async def get_current_student(
     user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    return _require_role(user, UserRole.STUDENT)
+    return require_role(user, RoleCode.STUDENT)
 
 
 async def get_current_admin(
     user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    return _require_role(user, UserRole.ADMIN)
+    return require_role(user, RoleCode.ADMIN)
 
 
 def validate_csrf(request: Request, settings: Settings, tokens: TokenService) -> None:

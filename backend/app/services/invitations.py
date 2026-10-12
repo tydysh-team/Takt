@@ -15,7 +15,7 @@ from app.core.exceptions import (
 )
 from app.core.invitation_codes import InvitationCodeService
 from app.core.security import utc_now
-from app.models.enums import RelationStatus, UserRole
+from app.models.enums import RelationStatus, RoleCode
 from app.models.profile import Profile
 from app.models.teacher_invitation import TeacherInvitation
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -61,7 +61,7 @@ class InvitationService:
         self._users = UserRepository(session)
 
     async def create(self, teacher: User) -> CreatedInvitation:
-        self._ensure_role(teacher, UserRole.TEACHER)
+        self._ensure_role(teacher, RoleCode.TEACHER)
         now = utc_now()
         generated = self._codes.generate()
         invitation = TeacherInvitation(
@@ -79,7 +79,7 @@ class InvitationService:
         return CreatedInvitation(invitation=invitation, raw_code=generated.raw)
 
     async def list_for_teacher(self, teacher: User) -> list[ListedInvitation]:
-        self._ensure_role(teacher, UserRole.TEACHER)
+        self._ensure_role(teacher, RoleCode.TEACHER)
         now = utc_now()
         invitations = await self._invitations.list_for_teacher(teacher.id)
         return [
@@ -88,7 +88,7 @@ class InvitationService:
         ]
 
     async def revoke(self, teacher: User, invitation_id: UUID) -> None:
-        self._ensure_role(teacher, UserRole.TEACHER)
+        self._ensure_role(teacher, RoleCode.TEACHER)
         now = utc_now()
         try:
             invitation = await self._invitations.get_owned_by_id(
@@ -113,7 +113,7 @@ class InvitationService:
             raise
 
     async def accept(self, student: User, raw_code: str) -> AcceptedConnection:
-        self._ensure_role(student, UserRole.STUDENT)
+        self._ensure_role(student, RoleCode.STUDENT)
         try:
             code_digest = self._codes.digest(raw_code)
         except ValueError as exc:
@@ -134,7 +134,7 @@ class InvitationService:
             teacher_profile = teacher.profile if teacher is not None else None
             if (
                 teacher is None
-                or teacher.role != UserRole.TEACHER
+                or teacher.role != RoleCode.TEACHER
                 or not teacher.is_active
                 or teacher_profile is None
             ):
@@ -184,7 +184,7 @@ class InvitationService:
         )
 
     @staticmethod
-    def _ensure_role(user: User, expected: UserRole) -> None:
+    def _ensure_role(user: User, expected: RoleCode) -> None:
         if user.role != expected or not user.is_active:
             raise ForbiddenError()
 
