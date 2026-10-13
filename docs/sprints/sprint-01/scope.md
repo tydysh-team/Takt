@@ -74,11 +74,24 @@ Mocks допустимы для разработки, но не считаютс
 - timezone-aware date-time;
 - empty / error / success behavior.
 
+# Пользовательские сценарии
+
+Для быстрого чтения каждая User Story содержит краткую сводку основного поведения. Связанные Business Rules и API contracts приведены ниже как канонические источники деталей и технических ограничений; для понимания базового сценария не требуется собирать его вручную по нескольким документам.
+
 # US-01 — Создание занятия
 
 ## User Story
 
 Как Teacher, я хочу создать занятие для связанного со мной Student, чтобы запланировать учебную встречу.
+
+## Краткая сводка сценария
+
+- **Кто:** аутентифицированный Teacher.
+- **Что делает:** создаёт Lesson для связанного с ним Student.
+- **Основные данные:** выбранный Student и `starts_at`.
+- **Ключевые проверки:** роль Teacher, существование Student, актуальная Teacher–Student relation и `starts_at >= now`.
+- **Результат:** при успешных проверках создаётся ровно один Lesson текущего Teacher.
+- **Время:** Frontend использует локальное время браузера и передаёт timezone-aware значение; Backend работает с абсолютным моментом времени.
 
 ## Предусловия
 
@@ -146,15 +159,23 @@ Mocks допустимы для разработки, но не считаютс
 - homework;
 - Lesson status.
 
-**Business Rules:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания), [BR-08](../../requirements/business-rules.md#br-08--допустимый-момент-начала-при-создании-lesson), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student).
-
-**API:** [API-04](../../api/contracts/sprint-01.md#api-04--доступные-ученики), [API-05](../../api/contracts/sprint-01.md#api-05--создать-lesson).
+**Связанные спецификации:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания), [BR-08](../../requirements/business-rules.md#br-08--допустимый-момент-начала-при-создании-lesson), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [API-04](../../api/contracts/sprint-01.md#api-04--доступные-ученики), [API-05](../../api/contracts/sprint-01.md#api-05--создать-lesson).
 
 # US-02 — Просмотр предстоящих занятий учеником
 
 ## User Story
 
 Как Student, я хочу видеть свои предстоящие занятия, чтобы знать время встречи и преподавателя.
+
+## Краткая сводка сценария
+
+- **Кто:** аутентифицированный Student.
+- **Что получает:** только собственные предстоящие Lesson.
+- **Предстоящее занятие:** `starts_at >= now`.
+- **Сортировка:** `starts_at ASC`, при равенстве — `id ASC`.
+- **Что отображается:** Teacher, дата и время занятия.
+- **Timezone:** Backend сравнивает абсолютные моменты времени, Frontend отображает их в локальной timezone браузера.
+- **Состояния UI:** `loading / empty / error / success`.
 
 ## Минимальный сценарий
 
@@ -195,15 +216,24 @@ Student видит только собственные предстоящие Le
 
 Backend фиксирует `now` один раз на операцию. Для воспроизводимых boundary tests используется управляемое / замороженное время.
 
-**Business Rules:** [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-предстоящих-занятий), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
-
-**API:** [API-06](../../api/contracts/sprint-01.md#api-06--предстоящие-lesson-ученика).
+**Связанные спецификации:** [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-предстоящих-занятий), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь), [API-06](../../api/contracts/sprint-01.md#api-06--предстоящие-lesson-ученика).
 
 # US-03 — Календарь преподавателя
 
 ## User Story
 
 Как Teacher, я хочу видеть свои занятия за выбранную неделю в календаре, чтобы ориентироваться в расписании.
+
+## Краткая сводка сценария
+
+- **Кто:** аутентифицированный Teacher.
+- **Что получает:** только собственные Lesson за выбранную локальную неделю.
+- **Диапазон Backend:** `from <= starts_at < to`.
+- **Сортировка:** `starts_at ASC`, при равенстве — `id ASC`.
+- **Что отображается:** Student, локальные дата и время занятия.
+- **Навигация:** текущая, предыдущая и следующая неделя.
+- **Timezone:** недельные границы рассчитываются во временной зоне браузера и передаются Backend как timezone-aware absolute moments.
+- **Состояния UI:** `loading / empty / error / success`.
 
 ## UI-период Sprint 1
 
@@ -273,9 +303,7 @@ starts_at ASC, id ASC
 
 API-07 технически принимает любой валидный абсолютный диапазон `[from, to)`, но пользовательский UI Sprint 1 формирует недельные диапазоны согласно BR-12.
 
-**Business Rules:** [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
-
-**API:** [API-07](../../api/contracts/sprint-01.md#api-07--lesson-в-календарном-периоде-teacher).
+**Связанные спецификации:** [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь), [API-07](../../api/contracts/sprint-01.md#api-07--lesson-в-календарном-периоде-teacher).
 
 # Сквозная приёмка Sprint 1
 
