@@ -138,6 +138,7 @@ contract ≠ implementation
 ## Sprint
 
 - [Sprint 1 scope](sprints/sprint-01/scope.md)
+- [US-01 — Создание занятия: функциональная спецификация](sprints/sprint-01/us-01-functional-spec.md)
 
 ## Templates
 
