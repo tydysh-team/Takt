@@ -17,7 +17,7 @@ E-ID является идентификатором записи в этом р
 | E-03 | API обменивается timezone-aware абсолютными моментами; Backend сравнивает и возвращает их в UTC, UI использует локальную timezone браузера; календарные диапазоны полуоткрытые `[from, to)` | [API conventions](../../api/conventions.md#даты-и-время), [BR-05 / BR-07 / BR-12](../../requirements/business-rules.md), [Frontend](../frontend.md#даты-и-календарь) |
 | E-04 | Ошибки Backend имеют единую оболочку и стабильный машинный `error.code`; Frontend не зависит от текста `message` или FastAPI default shape | [Error model](../../api/errors.md) |
 | E-05 | Backend разделяет API / Services / Persistence, транзакционной границей use case владеет Service; Frontend взаимодействует с Backend через централизованный API-layer | [Backend](../backend.md), [Frontend](../frontend.md) |
-| E-06 | User, Teacher, Student и Lesson имеют отдельные серверные UUID; модель Lesson Sprint 1 минимальна и не содержит длительность, `ends_at` и другие поля будущих инкрементов | [Модель данных](../data-model.md) |
+| E-06 | User, Profile, TeacherProfile, StudentProfile и Lesson имеют отдельные серверные UUID; модель Lesson Sprint 1 минимальна и не содержит длительность, `ends_at` и другие поля будущих инкрементов | [Модель данных](../data-model.md) |
 | E-07 | Защищённые операции используют Bearer token; token непрозрачен для Frontend, а доверенный User / role / domain context определяется Backend | [Authentication](../../api/authentication.md), [Backend](../backend.md#валидация-и-доступ) |
 | E-08 | Frontend и Backend работают contract-first: согласованный API-контракт фиксируется до параллельной реализации, а runtime OpenAPI и фактический HTTP-обмен должны ему соответствовать | [Интеграция](../integration.md) |
 
