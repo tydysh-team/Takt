@@ -39,33 +39,39 @@ teacher | student
 | --- | --- | --- | --- |
 | `user_id` | UUID | required, non-null | ID текущего / созданного User |
 | `role` | `"teacher" \| "student"` | required, non-null | Единственная роль User |
-| `profile` | object | required, non-null | Reference соответствующего доменного профиля |
-| `profile.id` | UUID | required, non-null | Teacher ID при `role=teacher`, Student ID при `role=student` |
-| `profile.display_name` | string | required, non-null | Человекочитаемая подпись профиля |
+| `profile` | object | required, non-null | Reference соответствующего ролевого доменного профиля с общими данными имени |
+| `profile.id` | UUID | required, non-null | `TeacherProfile.id` при `role=teacher`, `StudentProfile.id` при `role=student` |
+| `profile.first_name` | string | required, non-null | Имя из общего Profile |
+| `profile.last_name` | string | required, non-null | Фамилия из общего Profile |
+| `profile.middle_name` | string \| null | required, nullable | Отчество из общего Profile либо `null` |
 
-`profile.id` не равен `user_id` по смыслу и не вычисляется из него.
+`profile.id` не равен `user_id` и `Profile.id` по смыслу и не вычисляется из них.
 
 ### TeacherRefDTO
 
 ```json
 {
   "id": "11111111-1111-4111-8111-111111111111",
-  "display_name": "Анна Петрова"
+  "first_name": "Анна",
+  "last_name": "Петрова",
+  "middle_name": "Сергеевна"
 }
 ```
 
-Поля `id` и `display_name` обязательны и non-null.
+`id` соответствует `TeacherProfile.id`. Поля `id`, `first_name`, `last_name` обязательны и non-null; `middle_name` обязателен в response shape, но может быть `null`.
 
 ### StudentRefDTO
 
 ```json
 {
   "id": "22222222-2222-4222-8222-222222222222",
-  "display_name": "Иван Соколов"
+  "first_name": "Иван",
+  "last_name": "Соколов",
+  "middle_name": null
 }
 ```
 
-Поля `id` и `display_name` обязательны и non-null.
+`id` соответствует `StudentProfile.id`. Поля `id`, `first_name`, `last_name` обязательны и non-null; `middle_name` обязателен в response shape, но может быть `null`.
 
 ### TokenDTO
 
@@ -93,6 +99,8 @@ teacher | student
 | `teacher_id` | UUID | required, non-null |
 | `student_id` | UUID | required, non-null |
 | `starts_at` | UTC ISO 8601 string | required, non-null |
+
+`teacher_id` соответствует `TeacherProfile.id`, `student_id` — `StudentProfile.id`.
 
 ### UpcomingLessonDTO
 
@@ -144,7 +152,7 @@ Endpoints переноса, отмены, recurrence, attendance, homework, ст
 
 **Authentication:** не требуется.
 
-**Назначение:** атомарно создать User и ровно один соответствующий Teacher / Student profile согласно BR-09 и BR-10.
+**Назначение:** атомарно создать User, общий Profile и ровно один соответствующий TeacherProfile / StudentProfile согласно BR-09 и BR-10.
 
 ### Request
 
@@ -159,7 +167,9 @@ JSON body:
 | `email` | string | required, non-null; trim + lowercase; корректный email; уникален после нормализации |
 | `password` | string | required, non-null; длина 8–128; не trim-ится и не нормализуется |
 | `role` | `"teacher" \| "student"` | required, non-null |
-| `display_name` | string | required, non-null; trim; после trim непустой |
+| `first_name` | string | required, non-null; trim; после trim непустой |
+| `last_name` | string | required, non-null; trim; после trim непустой |
+| `middle_name` | string \| null | optional, nullable; если строка — trim; пустое после trim → `null` |
 
 Дополнительные body-поля запрещены.
 
@@ -181,7 +191,9 @@ Content-Type: application/json
   "email": " Teacher@example.com ",
   "password": "example-password",
   "role": "teacher",
-  "display_name": " Анна Петрова "
+  "first_name": " Анна ",
+  "last_name": " Петрова ",
+  "middle_name": " Сергеевна "
 }
 ```
 
@@ -191,26 +203,29 @@ Content-Type: application/json
   "role": "teacher",
   "profile": {
     "id": "11111111-1111-4111-8111-111111111111",
-    "display_name": "Анна Петрова"
+    "first_name": "Анна",
+    "last_name": "Петрова",
+    "middle_name": "Сергеевна"
   }
 }
 ```
 
 ### Проверки
 
-- User и profile создаются атомарно;
+- User, Profile и соответствующий role profile создаются атомарно;
 - email сохраняется после trim + lowercase;
 - email verification не выполняется;
 - password в открытом виде не сохраняется и не возвращается;
-- роль определяет тип создаваемого profile;
-- одновременно Teacher и Student profile для одного User не создаются;
-- `display_name` сохраняется после trim.
+- роль определяет тип создаваемого role profile;
+- для одного Profile не создаются одновременно TeacherProfile и StudentProfile;
+- `first_name` и `last_name` сохраняются после trim и остаются непустыми;
+- `middle_name` допускает отсутствие / `null`, а пустая после trim строка нормализуется в `null`.
 
 ### Ошибки
 
 | HTTP | `error.code` | Условие |
 | ---: | --- | --- |
-| `422` | `validation_error` | Некорректная schema, email, password length, role или `display_name` |
+| `422` | `validation_error` | Некорректная schema, email, password length, role, `first_name`, `last_name` или `middle_name` |
 | `409` | `email_already_registered` | Нормализованный email уже занят |
 | `500` | `internal_error` | Неожиданная server-side ошибка |
 
@@ -290,7 +305,7 @@ Token format, lifetime и Backend implementation определяются I-01 �
 
 **Роль:** любой аутентифицированный User.
 
-**Назначение:** вернуть доверенный User / role / domain profile context для Frontend.
+**Назначение:** вернуть доверенный User / role / role-profile context для Frontend с общими полями имени из Profile.
 
 ### Request
 
@@ -320,21 +335,23 @@ Response: `UserContextDTO`.
   "role": "teacher",
   "profile": {
     "id": "11111111-1111-4111-8111-111111111111",
-    "display_name": "Анна Петрова"
+    "first_name": "Анна",
+    "last_name": "Петрова",
+    "middle_name": "Сергеевна"
   }
 }
 ```
 
-Для `role=student` `profile.id` является Student ID.
+Для `role=student` `profile.id` является `StudentProfile.id`; для `role=teacher` — `TeacherProfile.id`. Generic `Profile.id` наружу этим DTO не передаётся.
 
 ### Ошибки
 
 | HTTP | `error.code` | Условие |
 | ---: | --- | --- |
 | `401` | `authentication_required` | Bearer credential отсутствует, невалиден или истёк |
-| `500` | `internal_error` | Неожиданная server-side ошибка, включая нарушение обязательного User → matching profile invariant |
+| `500` | `internal_error` | Неожиданная server-side ошибка, включая нарушение обязательного User → Profile → matching role profile invariant |
 
-Client не передаёт User / Teacher / Student ID для определения текущего context.
+Client не передаёт User / TeacherProfile / StudentProfile ID для определения текущего context.
 
 ---
 
@@ -376,7 +393,9 @@ Response: `StudentRefDTO[]`.
 [
   {
     "id": "22222222-2222-4222-8222-222222222222",
-    "display_name": "Иван Соколов"
+    "first_name": "Иван",
+    "last_name": "Соколов",
+    "middle_name": null
   }
 ]
 ```
@@ -537,13 +556,15 @@ Response: `UpcomingLessonDTO[]`.
     "starts_at": "2026-10-12T06:00:00Z",
     "teacher": {
       "id": "11111111-1111-4111-8111-111111111111",
-      "display_name": "Анна Петрова"
+      "first_name": "Анна",
+      "last_name": "Петрова",
+      "middle_name": "Сергеевна"
     }
   }
 ]
 ```
 
-Teacher представлен `id + display_name`; UUID не используется как единственная UI-подпись.
+Teacher представлен ролевым `id` и структурированными полями `first_name`, `last_name`, `middle_name`; UUID не используется как единственная UI-подпись.
 
 ### Ошибки
 
@@ -638,13 +659,15 @@ Response: `TeacherCalendarLessonDTO[]`.
     "starts_at": "2026-10-10T06:00:00Z",
     "student": {
       "id": "22222222-2222-4222-8222-222222222222",
-      "display_name": "Иван Соколов"
+      "first_name": "Иван",
+      "last_name": "Соколов",
+      "middle_name": null
     }
   }
 ]
 ```
 
-Student представлен `id + display_name`; UUID не используется как единственная UI-подпись.
+Student представлен ролевым `id` и структурированными полями `first_name`, `last_name`, `middle_name`; UUID не используется как единственная UI-подпись.
 
 ### Ошибки
 
@@ -662,13 +685,13 @@ Student представлен `id + display_name`; UUID не используе
 
 Следующие правила обязательны для Backend и Frontend:
 
-1. User ID, Teacher ID и Student ID не взаимозаменяемы.
+1. User ID, Profile ID, TeacherProfile ID и StudentProfile ID не взаимозаменяемы; API `teacher_id` / `student_id` соответствуют ролевым profile ID.
 2. Текущий Teacher / Student всегда определяется Backend из authentication context.
 3. `student_id` API-05 является целевым ресурсом, а не identity вызывающего пользователя.
 4. Teacher–Student relation повторно проверяется при создании Lesson.
 5. Временные значения на API-границе timezone-aware; responses возвращаются в UTC.
 6. Frontend отображает время в локальной timezone браузера, но Backend работает с абсолютными моментами.
-7. `display_name` передаётся там, где пользователь должен идентифицировать Teacher / Student.
+7. `first_name`, `last_name`, `middle_name` передаются там, где пользователь должен идентифицировать Teacher / Student; отдельное `display_name` не требуется.
 8. Empty collection — `200 []`.
 9. Error responses используют только общий ErrorDTO и зарегистрированные `error.code`.
 10. Runtime OpenAPI и фактический HTTP должны соответствовать этому документу.
@@ -689,7 +712,7 @@ Student представлен `id + display_name`; UUID не используе
 - runtime OpenAPI;
 - фактический HTTP Frontend ↔ Backend.
 
-Для API-01 проверить atomic User + profile creation и `409 email_already_registered`.
+Для API-01 проверить atomic User + Profile + matching TeacherProfile / StudentProfile creation и `409 email_already_registered`.
 
 Для API-05 проверить rollback / отсутствие Lesson при rejected operation, включая `lesson_start_in_past` и `student_not_available`.
 

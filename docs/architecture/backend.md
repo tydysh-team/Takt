@@ -40,7 +40,7 @@ Repositories и SQLAlchemy-модели не зависят от API-layer и н
 
 Request DTO проверяет форму, типы и transport-level ограничения входных данных.
 
-Authentication dependency определяет доверенный User context. Service на его основе определяет текущую роль и соответствующий Teacher / Student context и выполняет бизнес-проверки и авторизацию над ресурсами.
+Authentication dependency определяет доверенный User context. Service на его основе загружает обязательный Profile, определяет текущую роль и соответствующий TeacherProfile / StudentProfile context и выполняет бизнес-проверки и авторизацию над ресурсами.
 
 Клиентский `teacher_id` / `student_id` не используется для определения того, от имени какого пользователя выполняется защищённая операция.
 
@@ -54,7 +54,7 @@ Service определяет границу атомарной бизнес-оп
 
 В частности:
 
-- регистрация атомарно создаёт User и ровно один соответствующий Teacher / Student profile;
+- регистрация атомарно создаёт User, Profile и ровно один соответствующий TeacherProfile / StudentProfile;
 - создание Lesson выполняет проверку текущего Teacher, доступности Student, допустимости `starts_at` и сохранение Lesson в одной управляемой операции.
 
 Repositories не выполняют независимый `commit`, способный разрушить атомарность use case.
@@ -95,9 +95,9 @@ OpenAPI генерируется из фактических FastAPI routes и P
 
 ## Границы тестирования
 
-- **Unit / Service:** бизнес-правила, role/resource authorization, управляемый источник `now`, регистрация User + profile как один use case, создание Lesson и негативные сценарии без HTTP.
+- **Unit / Service:** бизнес-правила, role/resource authorization, управляемый источник `now`, регистрация User + Profile + role profile как один use case, создание Lesson и негативные сценарии без HTTP.
 - **API:** реальные HTTP-запросы через test client, request / response DTO, status codes, authentication header, role context и единая модель ошибок.
-- **Persistence:** foreign keys, unique constraints, Teacher–Student relation, User↔profile ограничения, запросы по доверенным domain IDs и rollback на изолированной PostgreSQL.
+- **Persistence:** foreign keys, unique constraints, Teacher–Student relation, User ↔ Profile ↔ TeacherProfile / StudentProfile invariants, запросы по доверенным domain IDs и rollback на изолированной PostgreSQL.
 - **Integration:** Backend + PostgreSQL и реальный HTTP transport; для интеграционного сценария Sprint 1 — также фактический Frontend ↔ Backend запрос через согласованный API.
 
 pytest является базовым инструментом Backend.

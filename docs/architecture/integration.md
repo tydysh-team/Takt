@@ -37,7 +37,7 @@ CORS является механизмом браузерного транспо
 
 В Sprint 1 защищённые запросы используют Bearer header. Cookie credentials не добавляются без отдельного изменения authentication contract.
 
-Текущий пользователь определяется Backend из authentication context. Переданный клиентом User / Teacher / Student ID не переопределяет identity текущего пользователя.
+Текущий пользователь определяется Backend из authentication context. Переданный клиентом User / Profile / TeacherProfile / StudentProfile ID не переопределяет identity текущего пользователя. В API `teacher_id` / `student_id` соответствуют ролевым profile ID.
 
 Passwords, password hashes, реальные Bearer tokens и другие credentials не сохраняются в application logs, screenshots, публикуемом / сохраняемом QA evidence или bug reports. При диагностике runtime-запросов credential должен быть redacted перед сохранением или публикацией evidence.
 
@@ -53,7 +53,7 @@ API-layer различает:
 
 Frontend не определяет программное поведение по тексту `message`; используются HTTP status и стабильный `error.code`.
 
-UUID является техническим идентификатором. Если UI должен показать Teacher или Student пользователю, соответствующий API DTO должен содержать согласованное человекочитаемое представление, например `display_name`; Frontend не заменяет отсутствующее имя UUID.
+UUID является техническим идентификатором. Если UI должен показать Teacher или Student пользователю, соответствующий API DTO должен содержать `first_name`, `last_name` и nullable `middle_name`; Frontend формирует из них человекочитаемое имя и не заменяет отсутствующие данные UUID.
 
 Date-time передаётся как timezone-aware ISO 8601 значение с явным offset или `Z`.
 
@@ -102,7 +102,7 @@ sequenceDiagram
 - Backend определяет текущий пользовательский context независимо от клиентских ID;
 - успешный response разбирается Frontend согласно DTO;
 - ErrorDTO корректно обрабатывается по HTTP status и `error.code`;
-- `display_name` участников проходит через API и отображается в UI;
+- структурированные поля имени участников (`first_name`, `last_name`, `middle_name`) проходят через API и отображаются в UI;
 - timezone-aware date-time проходит Frontend → Backend → Frontend без изменения абсолютного момента;
 - empty collection отображается как корректное пустое состояние;
 - проверка выполняется реальным HTTP-запросом, а не только mock-ответами.

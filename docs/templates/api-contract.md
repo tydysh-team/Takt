@@ -82,9 +82,9 @@
 Authorization: Bearer <access_token>
 ```
 
-Backend определяет current User и domain context из credential.
+Backend определяет current User и domain context из credential; при ролевой модели context может проходить через User → Profile → TeacherProfile / StudentProfile.
 
-Client-supplied User / Teacher / Student ID не может переопределять identity текущего пользователя.
+Client-supplied User / Profile / TeacherProfile / StudentProfile ID не может переопределять identity текущего пользователя.
 
 ## Role
 
@@ -297,7 +297,7 @@ Field details должны соответствовать [ErrorDTO](../api/erro
 | --- | --- | --- | --- | --- |
 | `<field>` | `<type>` | `yes` | `no` | `<...>` |
 
-Если DTO содержит Teacher / Student, которого пользователь должен идентифицировать, reference должен включать человекочитаемый `display_name` согласно BR-11.
+Если DTO содержит Teacher / Student, которого пользователь должен идентифицировать, reference должен включать `first_name`, `last_name` и nullable `middle_name` согласно BR-11.
 
 UUID не используется как единственная UI-подпись.
 

@@ -13,7 +13,7 @@
 - Request DTO содержит только поля, объявленные контрактом. Неизвестные body-поля отклоняются с HTTP `422`.
 - Обязательность поля, его тип и допустимость `null` определяются конкретным API-контрактом. Отсутствие поля, `null`, пустая строка и пустой массив `[]` не считаются взаимозаменяемыми значениями.
 - Доменные идентификаторы передаются как UUID-строки согласно [модели данных](../architecture/data-model.md).
-- ID создаются Backend. Frontend не вычисляет Teacher ID или Student ID из User ID.
+- ID создаются Backend. Frontend не вычисляет TeacherProfile ID или StudentProfile ID из User ID / Profile ID. В API `teacher_id` и `student_id` ссылаются на соответствующие ролевые profile ID.
 - Успешный response возвращает конкретный DTO или массив DTO без общей `data`-оболочки.
 - Пустая успешная коллекция возвращается как HTTP `200` и `[]`, а не `404`.
 - Пагинация не входит в Sprint 1 и не добавляется без отдельного требования.
@@ -29,7 +29,7 @@ Frontend рассматривает access token как непрозрачную
 
 Backend определяет текущий User, его роль и соответствующий Teacher / Student context из authentication context.
 
-Клиентский User ID, Teacher ID или Student ID не переопределяет identity текущего пользователя.
+Клиентский User ID, Profile ID, TeacherProfile ID или StudentProfile ID не переопределяет identity текущего пользователя.
 
 Если operation DTO содержит `student_id` или другой domain ID, он обозначает целевой ресурс операции, а не пользователя, от имени которого выполняется запрос.
 
@@ -167,7 +167,7 @@ Error responses и другие диагностические ответы API 
 
 API DTO не равен SQLAlchemy persistence model. Внешний контракт определяется отдельно от структуры ORM.
 
-Если UI должен идентифицировать Teacher или Student пользователю, соответствующий response DTO предоставляет согласованное человекочитаемое представление (`display_name`) согласно BR-11; UUID не используется как единственная UI-подпись.
+Если UI должен идентифицировать Teacher или Student пользователю, соответствующий response DTO предоставляет `first_name`, `last_name` и nullable `middle_name` согласно BR-11; Frontend формирует человекочитаемую подпись из этих полей, а UUID не используется как единственная UI-подпись.
 
 ## Контракт, OpenAPI и изменения
 

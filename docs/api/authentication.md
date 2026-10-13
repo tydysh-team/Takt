@@ -17,23 +17,26 @@ Frontend не является источником полномочий пол�
 - `teacher`;
 - `student`.
 
-User роли `teacher` связан ровно с одним соответствующим Teacher profile.
+Каждый User связан ровно с одним Profile, содержащим общие данные человека.
 
-User роли `student` связан ровно с одним соответствующим Student profile.
+Для Profile существует ровно один ролевой профиль, соответствующий `User.role`:
+
+- `TeacherProfile` для роли `teacher`;
+- `StudentProfile` для роли `student`.
 
 Один User не совмещает обе роли. Переключение или изменение роли после регистрации в Sprint 1 не поддерживается.
 
-User ID, Teacher ID и Student ID являются разными идентификаторами и не взаимозаменяются.
+User ID, Profile ID, TeacherProfile ID и StudentProfile ID являются разными идентификаторами и не взаимозаменяются. В API `teacher_id` и `student_id` обозначают идентификаторы соответствующих ролевых профилей.
 
 Backend после успешной authentication строит доверенный текущий context:
 
 ```text
-credential → User → role → соответствующий Teacher / Student profile
+credential → User → Profile → role → TeacherProfile / StudentProfile
 ```
 
-Frontend не вычисляет Teacher ID / Student ID из User ID и не передаёт произвольный идентификатор для определения пользователя, от имени которого выполняется защищённая операция.
+Frontend не вычисляет TeacherProfile ID / StudentProfile ID из User ID и не передаёт произвольный идентификатор для определения пользователя, от имени которого выполняется защищённая операция.
 
-Если credential валиден и User найден, но invariant BR-09 нарушен — например, отсутствует требуемый profile, profile не соответствует роли либо одновременно существуют несовместимые profiles — это **server-side inconsistency**, а не ошибка полномочий пользователя. Публично такой случай обрабатывается как `500 internal_error`; он не превращается в `403 forbidden`.
+Если credential валиден и User найден, но invariant BR-09 нарушен — например, отсутствует обязательный Profile, отсутствует ролевой профиль, ролевой профиль не соответствует роли либо одновременно существуют TeacherProfile и StudentProfile — это **server-side inconsistency**, а не ошибка полномочий пользователя. Публично такой случай обрабатывается как `500 internal_error`; он не превращается в `403 forbidden`.
 
 ## Регистрация
 
@@ -50,7 +53,10 @@ Authentication для регистрации не требуется.
 - `email`;
 - `password`;
 - `role`;
-- `display_name`.
+- `first_name`;
+- `last_name`.
+
+`middle_name` является опциональным.
 
 ### Email
 
@@ -98,17 +104,24 @@ Backend не хранит открытый password. В persistence сохран
 Регистрация атомарно создаёт:
 
 - User;
-- ровно один соответствующий Teacher или Student profile.
+- Profile;
+- ровно один соответствующий TeacherProfile или StudentProfile.
 
-Частичное состояние `User без требуемого profile`, profile несоответствующей роли либо одновременные Teacher и Student для одного User не является допустимым результатом.
+Частичное состояние `User без Profile`, Profile без требуемого ролевого профиля, ролевой профиль несоответствующей роли либо одновременные TeacherProfile и StudentProfile для одного Profile не является допустимым результатом.
 
-### Display name
+### Имя пользователя
 
-`display_name` обязателен для создаваемого Teacher / Student.
+Общие данные имени сохраняются в Profile структурированно:
 
-Перед сохранением удаляются пробельные символы в начале и конце. После этого значение должно оставаться непустым.
+- `first_name` — required, non-null;
+- `last_name` — required, non-null;
+- `middle_name` — optional, nullable.
 
-`display_name` является минимальной человекочитаемой подписью профиля и не заменяется UUID в пользовательском интерфейсе.
+Перед сохранением `first_name` и `last_name` trim-ятся и после trim должны оставаться непустыми.
+
+Если `middle_name` передан строкой, он trim-ится; пустое после trim значение нормализуется в `null`.
+
+Отдельное persisted-поле `display_name` в Sprint 1 не используется. Человекочитаемое имя в UI формируется из структурированных полей имени.
 
 Регистрация не означает автоматический вход. В Sprint 1 access token получается через отдельную операцию login согласно API-02.
 
@@ -148,7 +161,7 @@ Frontend рассматривает access token как непрозрачную
 Frontend не должен:
 
 - использовать claims token как единственный источник role / authorization;
-- вычислять из token Teacher ID / Student ID для доверенных операций;
+- вычислять из token TeacherProfile ID / StudentProfile ID для доверенных операций;
 - зависеть от внутреннего формата token.
 
 Backend валидирует credential и только после этого формирует доверенный User / role / domain context.
@@ -180,15 +193,15 @@ Response должен отражать:
 
 - User ID;
 - роль `teacher` или `student`;
-- reference соответствующего Teacher / Student profile.
+- reference соответствующего TeacherProfile / StudentProfile с полями имени из общего Profile.
 
 Точный состав `UserContextDTO` фиксируется в [API-контракте](contracts/sprint-01.md#api-03--текущий-контекст).
 
-Frontend не передаёт User ID, Teacher ID или Student ID для определения текущего пользователя в `/me`.
+Frontend не передаёт User ID, TeacherProfile ID или StudentProfile ID для определения текущего пользователя в `/me`.
 
 Получение текущего domain context внутри Backend не зависит от того, выполнял ли Frontend отдельный запрос `/me`: Backend строит context непосредственно из authentication credential для каждого защищённого запроса.
 
-Если для валидного User невозможно построить единственный соответствующий domain profile из-за нарушения BR-09, Backend возвращает `500 internal_error`; этот случай рассматривается как defect / data invariant failure и не как `403`.
+Если для валидного User невозможно построить обязательный Profile и единственный соответствующий ролевой domain profile из-за нарушения BR-09, Backend возвращает `500 internal_error`; этот случай рассматривается как defect / data invariant failure и не как `403`.
 
 ## Авторизация защищённых операций
 
@@ -222,7 +235,7 @@ Router guard, скрытая кнопка или role state во Frontend явл
 | Нет Bearer credential, token невалиден или истёк | `401 authentication_required` |
 | Неверные credentials при login | `401 invalid_credentials` |
 | User аутентифицирован, но роль / операция запрещена | `403 forbidden` |
-| Валидный User нарушает обязательный profile invariant BR-09 | `500 internal_error` |
+| Валидный User нарушает обязательный Profile / role-profile invariant BR-09 | `500 internal_error` |
 
 Для защищённого `401` Backend использует `WWW-Authenticate: Bearer`.
 
@@ -248,8 +261,8 @@ Passwords, password hashes и реальные Bearer tokens не включаю
 
 Минимально проверить:
 
-- регистрация с ролью `teacher` создаёт User и ровно один Teacher profile;
-- регистрация с ролью `student` создаёт User и ровно один Student profile;
+- регистрация с ролью `teacher` создаёт User, Profile и ровно один TeacherProfile;
+- регистрация с ролью `student` создаёт User, Profile и ровно один StudentProfile;
 - другая роль отклоняется;
 - отсутствие любого обязательного регистрационного поля отклоняется;
 - email сохраняется после trim + lowercase;
@@ -259,16 +272,17 @@ Passwords, password hashes и реальные Bearer tokens не включаю
 - password длиной `7` и `129` символов отклоняется;
 - password длиной `8` и `128` символов допускается;
 - password не изменяется системой перед проверкой credentials;
-- `display_name` trim-ится и не может стать пустым;
+- `first_name` и `last_name` trim-ятся и не могут стать пустыми;
+- `middle_name` допускает отсутствие / `null`, а пустая после trim строка нормализуется в `null`;
 - открытый password и `password_hash` не возвращаются API;
 - login использует email и одинаково отвечает на неизвестный email / неверный password;
 - успешный API-02 возвращает `TokenDTO` с `access_token` и `token_type="bearer"`;
 - реальные access tokens не попадают в logs / screenshots / сохраняемое QA evidence;
 - защищённый endpoint без token возвращает authentication error;
 - Student не получает Teacher-only операции и наоборот;
-- подмена User / Teacher / Student ID со стороны клиента не изменяет текущую identity;
+- подмена User / TeacherProfile / StudentProfile ID со стороны клиента не изменяет текущую identity;
 - `/me` возвращает context только текущего User;
-- нарушение invariant User → matching profile рассматривается как `500 internal_error`, а не `403`.
+- нарушение invariant User → Profile → matching TeacherProfile / StudentProfile рассматривается как `500 internal_error`, а не `403`.
 
 ## Границы Sprint 1
 
@@ -282,6 +296,6 @@ Passwords, password hashes и реальные Bearer tokens не включаю
 - refresh token;
 - серверный logout / token revocation;
 - OAuth / внешний identity provider;
-- расширенное управление User / profile.
+- расширенное управление User / Profile / role profiles.
 
 Добавление этих возможностей требует отдельного требования, API-контракта и применимого изменения модели / архитектуры.

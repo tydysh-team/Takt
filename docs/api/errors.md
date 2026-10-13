@@ -102,7 +102,8 @@ Backend преобразует framework validation errors в этот набо�
 - `password` короче 8 символов → `422 validation_error` + `too_short`;
 - `password` длиннее 128 символов → `422 validation_error` + `too_long`;
 - `role`, отличный от `teacher` / `student` → `422 validation_error` + `invalid_value`;
-- `display_name`, который после trim становится пустым → `422 validation_error` + `invalid_value`.
+- `first_name` или `last_name`, которые после trim становятся пустыми → `422 validation_error` + `invalid_value`;
+- `middle_name`, состоящий только из пробелов, нормализуется в `null` и сам по себе не является validation error.
 
 ## Реестр ошибок Sprint 1
 

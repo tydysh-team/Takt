@@ -42,17 +42,17 @@ Frontend получает access token как непрозрачную стро�
 
 Claims токена, если выбранный механизм вообще их содержит, не являются самостоятельным источником продуктовых полномочий Frontend.
 
-Текущий User, его роль и соответствующий Teacher / Student context определяются Backend и получаются через согласованный API.
+Текущий User, его роль и соответствующий Teacher / Student context определяются Backend через цепочку User → Profile → TeacherProfile / StudentProfile и получаются через согласованный API.
 
 Role-based routing и отображение доступных сценариев строятся на текущем серверном контексте.
 
 В Sprint 1 User имеет одну роль `teacher` или `student`. Переключатель роли после регистрации и одновременный Teacher / Student UI для одного User не требуются.
 
-Клиент не вычисляет `teacher_id` / `student_id` из User ID и не использует произвольные идентификаторы как источник текущей пользовательской identity.
+Клиент не вычисляет `teacher_id` / `student_id` из User ID или Profile ID и не использует произвольные идентификаторы как источник текущей пользовательской identity. `teacher_id` / `student_id` соответствуют ролевым TeacherProfile / StudentProfile ID.
 
 При `401` защищённой операции Frontend прекращает использование недействительной сессии и переводит пользователя к повторной аутентификации.
 
-`403` означает, что аутентифицированному User запрещена конкретная операция из-за роли / полномочий, и не должен автоматически запускать повторный login. Если валидный User не имеет обязательного matching Teacher / Student profile по BR-09, это server-side invariant failure и обрабатывается как `500 internal_error`.
+`403` означает, что аутентифицированному User запрещена конкретная операция из-за роли / полномочий, и не должен автоматически запускать повторный login. Если валидный User не имеет обязательного Profile или matching TeacherProfile / StudentProfile по BR-09, это server-side invariant failure и обрабатывается как `500 internal_error`.
 
 Конкретный способ token storage, routing library и request tooling определяется I-02 до соответствующей реализации.
 
@@ -60,13 +60,13 @@ Role-based routing и отображение доступных сценарие
 
 Frontend использует UUID как технический идентификатор ресурса, но не как основную пользовательскую подпись.
 
-Когда пользователь должен идентифицировать Teacher или Student, UI отображает `display_name`, полученный из API DTO.
+Когда пользователь должен идентифицировать Teacher или Student, UI формирует человекочитаемое имя из `first_name`, `last_name` и опционального `middle_name`, полученных из API DTO.
 
 В частности:
 
-- Teacher выбирает доступного Student по человекочитаемому `display_name`;
-- Student видит `display_name` Teacher в предстоящем Lesson;
-- Teacher видит `display_name` Student в календарном Lesson.
+- Teacher выбирает доступного Student по человекочитаемому имени из структурированных полей;
+- Student видит человекочитаемое имя Teacher в предстоящем Lesson;
+- Teacher видит человекочитаемое имя Student в календарном Lesson.
 
 Frontend не подменяет отсутствующее человекочитаемое представление UUID.
 
@@ -116,7 +116,7 @@ Frontend validation помогает пользователю, но не зам�
 - формы регистрации, входа и создания Lesson;
 - состояния `loading / empty / error / success`;
 - role-based navigation и текущий пользовательский context;
-- отображение `display_name`;
+- отображение `first_name` / `last_name` / `middle_name` как человекочитаемого имени;
 - mapping Backend errors;
 - преобразование date-time в обе стороны;
 - границы недели и поведение при изменении timezone offset / DST;

@@ -111,7 +111,7 @@ QA evidence без указания проверяемой версии нель
 - невалидный / истёкший credential;
 - неверная роль;
 - попытка получить / изменить чужой ресурс;
-- подмена client-side User / Teacher / Student ID;
+- подмена client-side User / Profile / TeacherProfile / StudentProfile ID;
 - отсутствие утечки существования защищённого ресурса там, где contract требует единый `404`.
 
 Frontend hiding / router guard не считается доказательством Backend authorization.
@@ -130,9 +130,9 @@ QA строит отдельные проверки для применимых 
 - upcoming использует `starts_at >= now`;
 - upcoming сортируется `starts_at ASC, id ASC`;
 - Teacher calendar использует `[from, to)`;
-- один User имеет одну роль и один соответствующий profile;
-- registration использует `email / password / role / display_name`;
-- `display_name` используется как человекочитаемая подпись;
+- один User имеет один Profile и ровно один соответствующий TeacherProfile / StudentProfile по роли;
+- registration использует `email / password / role / first_name / last_name`, `middle_name` опционален;
+- человекочитаемая подпись формируется из `first_name` / `last_name` / `middle_name`, а UUID не подменяет имя;
 - UI работает в browser-local timezone по BR-12.
 
 ### Boundary testing

@@ -33,7 +33,7 @@ Sprint Goal считается достигнутым только при сов
 | F-03 | Инициализация Backend | Создана основа Backend на Python 3.12 / FastAPI с согласованными слоями, `/api/v1`, базовой обработкой ошибок, health check и pytest setup. |
 | F-04 | Инициализация Frontend | Создана основа Frontend на React + TypeScript с routing, layout, environment config и централизованным API-layer. |
 | F-05 | PostgreSQL / SQLAlchemy / Alembic / локальное окружение | Подготовлены persistence layer, PostgreSQL, миграции и локальный запуск через Docker / Docker Compose. |
-| F-06 | User / Teacher / Student / authentication / demo data | Реализованы User, роли `teacher` / `student`, соответствующие profiles, Teacher–Student relation, регистрация, login, `/me` и demo data для сценариев спринта. |
+| F-06 | User / Profile / role profiles / authentication / demo data | Реализованы User, общий Profile, роли `teacher` / `student`, соответствующие TeacherProfile / StudentProfile, Teacher–Student relation, регистрация, login, `/me` и demo data для сценариев спринта. |
 | F-07 | UI/UX base | Подготовлена UI/UX-основа пользовательских сценариев Sprint 1 и необходимые состояния интерфейса. |
 | F-08 | Frontend ↔ Backend integration | Frontend и Backend работают через согласованные API contracts; проверены реальный HTTP exchange, auth context, DTO, errors и базовый integration smoke. |
 
@@ -41,21 +41,21 @@ Sprint Goal считается достигнутым только при сов
 
 ## Foundation boundaries
 
-### F-06 — User / authentication
+### F-06 — User / Profile / authentication
 
 Для Sprint 1 действует следующий минимум:
 
 - каждый User имеет ровно одну роль: `teacher` либо `student`;
-- User связан ровно с одним соответствующим Teacher или Student profile;
+- каждый User связан ровно с одним общим Profile и ровно одним соответствующим TeacherProfile или StudentProfile;
 - роль выбирается при регистрации;
 - multi-role и смена роли не входят в Sprint 1;
-- регистрация использует `email`, `password`, `role`, `display_name`;
+- регистрация использует `email`, `password`, `role`, `first_name`, `last_name`; `middle_name` опционален;
 - email нормализуется через trim + lowercase и является login identifier;
 - password имеет длину `8–128`, не trim-ится и не нормализуется;
 - password хранится только как hash;
-- User + matching profile создаются атомарно;
-- `/me` возвращает доверенный User / role / profile context;
-- базовый demo data F-06 содержит 1 Teacher и не менее 3 Students, соответствующие User / profiles и Teacher–Student relations, позволяющие проверить как связанные, так и несвязанные пары. Lesson fixtures добавляются отдельно после появления модели Lesson в US-01.
+- User + Profile + matching TeacherProfile / StudentProfile создаются атомарно;
+- `/me` возвращает доверенный User / role / role-profile context с полями имени из Profile;
+- базовый demo data F-06 содержит 1 Teacher и не менее 3 Students, соответствующие User / Profile / TeacherProfile / StudentProfile и Teacher–Student relations, позволяющие проверить как связанные, так и несвязанные пары. Lesson fixtures добавляются отдельно после появления модели Lesson в US-01.
 
 Подтверждение email, password recovery / reset, refresh token, server-side logout / revocation и расширенное User management в Sprint 1 не входят.
 
@@ -70,7 +70,7 @@ Mocks допустимы для разработки, но не считаютс
 - trusted server-side identity;
 - success DTO;
 - ErrorDTO;
-- человекочитаемые `display_name`;
+- структурированные `first_name`, `last_name`, `middle_name` для человекочитаемого представления;
 - timezone-aware date-time;
 - empty / error / success behavior.
 
@@ -85,7 +85,7 @@ Mocks допустимы для разработки, но не считаютс
 - Teacher аутентифицирован.
 - В системе существует Student, связанный с текущим Teacher.
 - Frontend может получить доступных Student через API-04.
-- Пользователь выбирает Student по человекочитаемому `display_name`, а не только по UUID.
+- Пользователь выбирает Student по человекочитаемому имени, сформированному из `first_name`, `last_name`, `middle_name`, а не только по UUID.
 
 ## Минимальный сценарий
 
@@ -146,7 +146,7 @@ Mocks допустимы для разработки, но не считаютс
 - homework;
 - Lesson status.
 
-**Business Rules:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания), [BR-08](../../requirements/business-rules.md#br-08--допустимый-момент-начала-при-создании-lesson), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника).
+**Business Rules:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания), [BR-08](../../requirements/business-rules.md#br-08--допустимый-момент-начала-при-создании-lesson), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student).
 
 **API:** [API-04](../../api/contracts/sprint-01.md#api-04--доступные-ученики), [API-05](../../api/contracts/sprint-01.md#api-05--создать-lesson).
 
@@ -172,7 +172,7 @@ starts_at >= now
 starts_at ASC, id ASC
 ```
 
-5. Для каждого Lesson API возвращает Teacher как `id + display_name`.
+5. Для каждого Lesson API возвращает Teacher как ролевой `id` + `first_name` + `last_name` + nullable `middle_name`.
 6. Frontend преобразует UTC / timezone-aware moment в локальное время браузера.
 7. Frontend отображает Teacher, дату и время.
 8. Frontend поддерживает `loading / empty / error / success`.
@@ -189,13 +189,13 @@ Student видит только собственные предстоящие Le
 - Lesson другого Student отсутствует;
 - несколько Lesson отсортированы по `starts_at ASC`, а при равном `starts_at` — по `id ASC`;
 - одинаковый абсолютный момент с разными timezone offsets трактуется одинаково;
-- Teacher отображается человекочитаемо через `display_name`;
+- Teacher отображается человекочитаемо через структурированные поля имени;
 - пустой результат отображается как корректный empty state;
 - authentication / role errors отображаются как error state.
 
 Backend фиксирует `now` один раз на операцию. Для воспроизводимых boundary tests используется управляемое / замороженное время.
 
-**Business Rules:** [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-предстоящих-занятий), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
+**Business Rules:** [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-предстоящих-занятий), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
 
 **API:** [API-06](../../api/contracts/sprint-01.md#api-06--предстоящие-lesson-ученика).
 
@@ -246,7 +246,7 @@ from <= starts_at < to
 starts_at ASC, id ASC
 ```
 
-8. Для каждого Lesson Student представлен как `id + display_name`.
+8. Для каждого Lesson Student представлен как ролевой `id` + `first_name` + `last_name` + nullable `middle_name`.
 9. Frontend отображает Lesson в локальном времени браузера.
 10. При переключении недели новый результат не должен быть заменён более старым запоздавшим response.
 11. Frontend поддерживает `loading / empty / error / success`.
@@ -265,7 +265,7 @@ starts_at ASC, id ASC
 - соседние недели не дублируют Lesson на общей границе;
 - `from >= to` отклоняется;
 - timezone-aware values с разными offsets сравниваются как абсолютные моменты;
-- Student отображается через `display_name`;
+- Student отображается человекочитаемо через структурированные поля имени;
 - current / previous / next week используют browser-local boundaries;
 - DST transition не ломает вычисление недельных границ;
 - stale response не подменяет результат более новой выбранной недели;
@@ -273,7 +273,7 @@ starts_at ASC, id ASC
 
 API-07 технически принимает любой валидный абсолютный диапазон `[from, to)`, но пользовательский UI Sprint 1 формирует недельные диапазоны согласно BR-12.
 
-**Business Rules:** [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
+**Business Rules:** [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-teacher-и-student), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
 
 **API:** [API-07](../../api/contracts/sprint-01.md#api-07--lesson-в-календарном-периоде-teacher).
 
@@ -298,11 +298,11 @@ Teacher registers / logs in
 
 - Bearer authentication;
 - role authorization;
-- User / Teacher / Student ID separation;
+- User / Profile / TeacherProfile / StudentProfile ID separation;
 - Teacher–Student relation;
 - Lesson persistence;
 - ErrorDTO;
-- `display_name`;
+- `first_name` / `last_name` / `middle_name`;
 - UTC / browser-local conversion;
 - upcoming `starts_at >= now`;
 - weekly calendar `[from, to)`;
@@ -330,7 +330,8 @@ Teacher registers / logs in
 - server-side logout / token revocation;
 - OAuth / внешний identity provider;
 - пользовательское управление Teacher–Student relations;
-- расширенные профили;
+- расширенные Profile / TeacherProfile / StudentProfile данные;
+- поиск Teacher / Student по имени / фамилии;
 - admin panel;
 - расширенное User management.
 
@@ -341,7 +342,7 @@ Teacher registers / logs in
 К завершению Sprint 1 должна существовать техническая основа Takt и проверяемый сквозной сценарий:
 
 - пользователь может зарегистрироваться и войти;
-- Backend формирует доверенный User / role / profile context;
+- Backend формирует доверенный User / role / role-profile context через User → Profile → TeacherProfile / StudentProfile;
 - Teacher работает только со связанными Student;
 - Teacher создаёт допустимый Lesson;
 - Lesson сохраняется в PostgreSQL;

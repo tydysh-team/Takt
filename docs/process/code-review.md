@@ -93,7 +93,7 @@ Reviewer проверяет только применимые области, н
 - stable `error.code`;
 - sorting;
 - time semantics;
-- human-readable `display_name`, где он требуется;
+- структурированные человекочитаемые поля имени (`first_name`, `last_name`, `middle_name`), где они требуются;
 - runtime OpenAPI impact;
 - синхронизацию Frontend / Backend / docs.
 
@@ -118,7 +118,7 @@ Reviewer проверяет только применимые области, н
 - сетевые запросы идут через централизованный API-layer;
 - UI не является источником authorization;
 - role / profile context берётся из Backend;
-- User / Teacher / Student IDs не смешиваются;
+- User / Profile / TeacherProfile / StudentProfile IDs не смешиваются;
 - API DTO преобразуется в UI state явно;
 - предусмотрены нужные `loading / empty / error / success` states;
 - error handling использует HTTP status / `error.code`, а не текст message;
