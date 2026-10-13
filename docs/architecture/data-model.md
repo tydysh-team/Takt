@@ -6,24 +6,24 @@
 
 | Понятие | Требование Sprint 1 | Граница / примечание |
 | --- | --- | --- |
-| Account | Аутентифицируемая учётная запись с уникальным `id`, нормализованным уникальным `email`, `password_hash` и одной ролью `teacher` или `student` | Один Account не совмещает несколько ролей в Sprint 1 |
-| Teacher | Доменный профиль преподавателя с собственным `id` и обязательным `display_name` | Связан ровно с одним Account роли `teacher` |
-| Student | Доменный профиль ученика с собственным `id` и обязательным `display_name` | Связан ровно с одним Account роли `student` |
+| User | Аутентифицируемая учётная запись с уникальным `id`, нормализованным уникальным `email`, `password_hash` и одной ролью `teacher` или `student` | Один User не совмещает несколько ролей в Sprint 1 |
+| Teacher | Доменный профиль преподавателя с собственным `id` и обязательным `display_name` | Связан ровно с одним User роли `teacher` |
+| Student | Доменный профиль ученика с собственным `id` и обязательным `display_name` | Связан ровно с одним User роли `student` |
 | Teacher–Student relation | Связывает Teacher и Student и определяет доступность Student для сценария создания Lesson | Пользовательское управление связями не входит в Sprint 1 |
 | Lesson | Связан ровно с одним Teacher, одним Student и содержит обязательный `starts_at` | `duration` и `ends_at` в минимальную модель Sprint 1 не входят |
 
-Идентификаторы Account, Teacher и Student являются отдельными и не взаимозаменяемыми.
+Идентификаторы User, Teacher и Student являются отдельными и не взаимозаменяемыми.
 
-Каждый Account в Sprint 1 имеет ровно одну роль и ровно один соответствующий доменный профиль: Teacher для роли `teacher` или Student для роли `student`.
+Каждый User в Sprint 1 имеет ровно одну роль и ровно один соответствующий доменный профиль: Teacher для роли `teacher` или Student для роли `student`.
 
-Один Teacher или Student не может быть связан с несколькими Account.
+Один Teacher или Student не может быть связан с несколькими User.
 
 Teacher–Student relation является отношением многие-ко-многим: Teacher может быть связан с несколькими Student, а Student — с несколькими Teacher. Ограничение «один Teacher на Student» в Sprint 1 не вводится.
 
 ```mermaid
 erDiagram
-    Account ||--o| Teacher : "profile if role=teacher"
-    Account ||--o| Student : "profile if role=student"
+    User ||--o| Teacher : "profile if role=teacher"
+    User ||--o| Student : "profile if role=student"
 
     Teacher ||--o{ TeacherStudentRelation : has
     Student ||--o{ TeacherStudentRelation : has
@@ -31,7 +31,7 @@ erDiagram
     Teacher ||--o{ Lesson : schedules
     Student ||--o{ Lesson : participates
 
-    Account {
+    User {
         uuid id PK
         string email UK
         string password_hash
@@ -40,13 +40,13 @@ erDiagram
 
     Teacher {
         uuid id PK
-        uuid account_id FK, UK
+        uuid user_id FK, UK
         string display_name
     }
 
     Student {
         uuid id PK
-        uuid account_id FK, UK
+        uuid user_id FK, UK
         string display_name
     }
 
@@ -63,16 +63,16 @@ erDiagram
     }
 ```
 
-Mermaid ER показывает две условные one-to-one связи отдельно и не выражает XOR между ними. Канонический инвариант BR-09 остаётся обязательным: каждый Account имеет ровно один profile, соответствующий `role`; состояние без matching profile либо с двумя profiles недопустимо.
+Mermaid ER показывает две условные one-to-one связи отдельно и не выражает XOR между ними. Канонический инвариант BR-09 остаётся обязательным: каждый User имеет ровно один profile, соответствующий `role`; состояние без matching profile либо с двумя profiles недопустимо.
 
-Связь Account с доменным профилем является one-to-one: `Teacher.account_id` и `Student.account_id` обязательны для соответствующего профиля и уникальны.
+Связь User с доменным профилем является one-to-one: `Teacher.user_id` и `Student.user_id` обязательны для соответствующего профиля и уникальны.
 
-Для каждого Account должен существовать ровно один профиль, соответствующий его `role`:
+Для каждого User должен существовать ровно один профиль, соответствующий его `role`:
 
 - `teacher` → Teacher;
 - `student` → Student.
 
-Одновременное наличие Teacher и Student для одного Account в Sprint 1 не допускается. Проверка согласованности `Account.role` и типа профиля является системным инвариантом регистрации.
+Одновременное наличие Teacher и Student для одного User в Sprint 1 не допускается. Проверка согласованности `User.role` и типа профиля является системным инвариантом регистрации.
 
 Teacher–Student relation представляет отношение многие-ко-многим. Пара `(teacher_id, student_id)` должна быть уникальной; отдельный продуктовый смысл дубликата связи отсутствует.
 
@@ -82,9 +82,9 @@ Lesson хранит прямые ссылки на Teacher и Student. Нали�
 
 ## Инженерный baseline хранения
 
-- Идентификаторы Account, Teacher, Student и Lesson — серверные UUID. В JSON они передаются строками. Frontend не вычисляет доменные идентификаторы из Account ID.
+- Идентификаторы User, Teacher, Student и Lesson — серверные UUID. В JSON они передаются строками. Frontend не вычисляет доменные идентификаторы из User ID.
 
-- Минимальная схема Account содержит:
+- Минимальная схема User содержит:
   - `id`;
   - нормализованный уникальный `email`;
   - `password_hash`;
@@ -96,17 +96,17 @@ Lesson хранит прямые ссылки на Teacher и Student. Нали�
 
 - Минимальная схема Teacher содержит:
   - `id`;
-  - обязательный уникальный `account_id`;
+  - обязательный уникальный `user_id`;
   - обязательный `display_name`.
 
 - Минимальная схема Student содержит:
   - `id`;
-  - обязательный уникальный `account_id`;
+  - обязательный уникальный `user_id`;
   - обязательный `display_name`.
 
 - `display_name` сохраняется после удаления внешних пробелов и не может быть пустым согласно BR-10.
 
-- Регистрация должна атомарно создавать Account и ровно один соответствующий доменный профиль. Частичное состояние, при котором Account создан без требуемого Teacher / Student или создан профиль несоответствующей роли, не считается допустимым результатом регистрации.
+- Регистрация должна атомарно создавать User и ровно один соответствующий доменный профиль. Частичное состояние, при котором User создан без требуемого Teacher / Student или создан профиль несоответствующей роли, не считается допустимым результатом регистрации.
 
 - Для Teacher–Student relation используются внешние ключи на Teacher и Student и обеспечивается уникальность пары `(teacher_id, student_id)`. Конкретный способ задания ключа — составной primary key либо отдельный surrogate key с unique constraint — является техническим выбором реализации. Ограничение «один Teacher на Student» не вводится.
 
@@ -124,9 +124,9 @@ Lesson хранит прямые ссылки на Teacher и Student. Нали�
 
 - SQLAlchemy-модели являются persistence-моделью и не определяют публичный API DTO.
 
-- Открытый пароль в БД не хранится. Account содержит только безопасный `password_hash`; конкретный hashing-механизм определяется I-01.
+- Открытый пароль в БД не хранится. User содержит только безопасный `password_hash`; конкретный hashing-механизм определяется I-01.
 
-Изменения схемы Sprint 1 оформляются Alembic-миграциями в соответствующих задачах. F-05 подготавливает механизм работы с PostgreSQL / SQLAlchemy / Alembic; F-06 добавляет Account, Teacher, Student и их связи; реализация US-01 добавляет Lesson.
+Изменения схемы Sprint 1 оформляются Alembic-миграциями в соответствующих задачах. F-05 подготавливает механизм работы с PostgreSQL / SQLAlchemy / Alembic; F-06 добавляет User, Teacher, Student и их связи; реализация US-01 добавляет Lesson.
 
 Не добавлять в схему без отдельного требования посещаемость, homework, статусы Lesson, цены, отдельные названия Lesson, длительность, `ends_at`, пользовательскую timezone и другие поля будущих инкрементов.
 
@@ -136,7 +136,7 @@ F-06 подготавливает воспроизводимый синтети�
 
 - 1 Teacher;
 - не менее 3 Students;
-- соответствующие им Account с корректными ролями и доменными профилями;
+- соответствующие им User с корректными ролями и доменными профилями;
 - Teacher–Student relations, позволяющие проверить как связанную, так и несвязанную пару.
 
 Для demo data не используются реальные персональные данные.
@@ -150,7 +150,7 @@ Lesson не является обязательной частью базово�
 - Lesson на границах календарного диапазона `from` / `to`;
 - Lesson разных Teacher / Student для проверки изоляции пользовательского контекста.
 
-I-04 определяет конкретный Account-набор, распределение Teacher–Student relations и дополнительные Lesson / test fixtures сверх базового объёма F-06.
+I-04 определяет конкретный User-набор, распределение Teacher–Student relations и дополнительные Lesson / test fixtures сверх базового объёма F-06.
 
 Наличие Teacher–Student relations в seed / fixtures не добавляет пользовательский сценарий создания, изменения или удаления этих связей.
 

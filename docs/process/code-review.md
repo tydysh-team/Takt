@@ -118,7 +118,7 @@ Reviewer проверяет только применимые области, н
 - сетевые запросы идут через централизованный API-layer;
 - UI не является источником authorization;
 - role / profile context берётся из Backend;
-- Account / Teacher / Student IDs не смешиваются;
+- User / Teacher / Student IDs не смешиваются;
 - API DTO преобразуется в UI state явно;
 - предусмотрены нужные `loading / empty / error / success` states;
 - error handling использует HTTP status / `error.code`, а не текст message;

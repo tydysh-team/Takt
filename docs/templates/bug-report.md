@@ -99,7 +99,7 @@ API-07 включает Lesson с starts_at == to
 По применимости:
 
 - роль пользователя;
-- какой Account / Teacher / Student context используется;
+- какой User / Teacher / Student context используется;
 - необходимые Teacher–Student relations;
 - существующие Lesson;
 - seed / fixture;
@@ -112,7 +112,7 @@ API-07 включает Lesson с starts_at == to
 Пример:
 
 ```text
-- Current Account role: teacher.
+- Current User role: teacher.
 - Current Teacher связан со Student A.
 - Student B существует, но relation с текущим Teacher отсутствует.
 - now = 2026-10-12T06:00:00Z.

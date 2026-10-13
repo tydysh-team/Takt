@@ -33,7 +33,7 @@ Sprint Goal считается достигнутым только при сов
 | F-03 | Инициализация Backend | Создана основа Backend на Python 3.12 / FastAPI с согласованными слоями, `/api/v1`, базовой обработкой ошибок, health check и pytest setup. |
 | F-04 | Инициализация Frontend | Создана основа Frontend на React + TypeScript с routing, layout, environment config и централизованным API-layer. |
 | F-05 | PostgreSQL / SQLAlchemy / Alembic / локальное окружение | Подготовлены persistence layer, PostgreSQL, миграции и локальный запуск через Docker / Docker Compose. |
-| F-06 | Account / Teacher / Student / authentication / demo data | Реализованы Account, роли `teacher` / `student`, соответствующие profiles, Teacher–Student relation, регистрация, login, `/me` и demo data для сценариев спринта. |
+| F-06 | User / Teacher / Student / authentication / demo data | Реализованы User, роли `teacher` / `student`, соответствующие profiles, Teacher–Student relation, регистрация, login, `/me` и demo data для сценариев спринта. |
 | F-07 | UI/UX base | Подготовлена UI/UX-основа пользовательских сценариев Sprint 1 и необходимые состояния интерфейса. |
 | F-08 | Frontend ↔ Backend integration | Frontend и Backend работают через согласованные API contracts; проверены реальный HTTP exchange, auth context, DTO, errors и базовый integration smoke. |
 
@@ -41,23 +41,23 @@ Sprint Goal считается достигнутым только при сов
 
 ## Foundation boundaries
 
-### F-06 — Account / authentication
+### F-06 — User / authentication
 
 Для Sprint 1 действует следующий минимум:
 
-- каждый Account имеет ровно одну роль: `teacher` либо `student`;
-- Account связан ровно с одним соответствующим Teacher или Student profile;
+- каждый User имеет ровно одну роль: `teacher` либо `student`;
+- User связан ровно с одним соответствующим Teacher или Student profile;
 - роль выбирается при регистрации;
 - multi-role и смена роли не входят в Sprint 1;
 - регистрация использует `email`, `password`, `role`, `display_name`;
 - email нормализуется через trim + lowercase и является login identifier;
 - password имеет длину `8–128`, не trim-ится и не нормализуется;
 - password хранится только как hash;
-- Account + matching profile создаются атомарно;
-- `/me` возвращает доверенный Account / role / profile context;
-- базовый demo data F-06 содержит 1 Teacher и не менее 3 Students, соответствующие Account / profiles и Teacher–Student relations, позволяющие проверить как связанные, так и несвязанные пары. Lesson fixtures добавляются отдельно после появления модели Lesson в US-01.
+- User + matching profile создаются атомарно;
+- `/me` возвращает доверенный User / role / profile context;
+- базовый demo data F-06 содержит 1 Teacher и не менее 3 Students, соответствующие User / profiles и Teacher–Student relations, позволяющие проверить как связанные, так и несвязанные пары. Lesson fixtures добавляются отдельно после появления модели Lesson в US-01.
 
-Подтверждение email, password recovery / reset, refresh token, server-side logout / revocation и расширенное Account management в Sprint 1 не входят.
+Подтверждение email, password recovery / reset, refresh token, server-side logout / revocation и расширенное User management в Sprint 1 не входят.
 
 ### F-08 — Integration
 
@@ -146,7 +146,7 @@ Mocks допустимы для разработки, но не считаютс
 - homework;
 - Lesson status.
 
-**Business Rules:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания), [BR-08](../../requirements/business-rules.md#br-08--допустимый-момент-начала-при-создании-lesson), [BR-09](../../requirements/business-rules.md#br-09--роль-account-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника).
+**Business Rules:** [BR-01](../../requirements/business-rules.md#br-01--автор-создания-занятия), [BR-02](../../requirements/business-rules.md#br-02--выбор-ученика), [BR-03](../../requirements/business-rules.md#br-03--данные-и-результат-создания), [BR-08](../../requirements/business-rules.md#br-08--допустимый-момент-начала-при-создании-lesson), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника).
 
 **API:** [API-04](../../api/contracts/sprint-01.md#api-04--доступные-ученики), [API-05](../../api/contracts/sprint-01.md#api-05--создать-lesson).
 
@@ -195,7 +195,7 @@ Student видит только собственные предстоящие Le
 
 Backend фиксирует `now` один раз на операцию. Для воспроизводимых boundary tests используется управляемое / замороженное время.
 
-**Business Rules:** [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-предстоящих-занятий), [BR-09](../../requirements/business-rules.md#br-09--роль-account-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
+**Business Rules:** [BR-04](../../requirements/business-rules.md#br-04--принадлежность-занятий-ученику), [BR-05](../../requirements/business-rules.md#br-05--предстоящие-занятия), [BR-06](../../requirements/business-rules.md#br-06--порядок-предстоящих-занятий), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
 
 **API:** [API-06](../../api/contracts/sprint-01.md#api-06--предстоящие-lesson-ученика).
 
@@ -273,7 +273,7 @@ starts_at ASC, id ASC
 
 API-07 технически принимает любой валидный абсолютный диапазон `[from, to)`, но пользовательский UI Sprint 1 формирует недельные диапазоны согласно BR-12.
 
-**Business Rules:** [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), [BR-09](../../requirements/business-rules.md#br-09--роль-account-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
+**Business Rules:** [BR-07](../../requirements/business-rules.md#br-07--календарная-выборка), [BR-09](../../requirements/business-rules.md#br-09--роль-user-и-доменный-контекст), [BR-11](../../requirements/business-rules.md#br-11--человекочитаемое-представление-участника), [BR-12](../../requirements/business-rules.md#br-12--локальная-временная-зона-ui-и-недельный-календарь).
 
 **API:** [API-07](../../api/contracts/sprint-01.md#api-07--lesson-в-календарном-периоде-teacher).
 
@@ -298,7 +298,7 @@ Teacher registers / logs in
 
 - Bearer authentication;
 - role authorization;
-- Account / Teacher / Student ID separation;
+- User / Teacher / Student ID separation;
 - Teacher–Student relation;
 - Lesson persistence;
 - ErrorDTO;
@@ -324,7 +324,7 @@ Teacher registers / logs in
 - password recovery / reset;
 - email confirmation;
 - изменение password;
-- multi-role Account;
+- multi-role User;
 - смена роли;
 - refresh token;
 - server-side logout / token revocation;
@@ -332,7 +332,7 @@ Teacher registers / logs in
 - пользовательское управление Teacher–Student relations;
 - расширенные профили;
 - admin panel;
-- расширенное Account management.
+- расширенное User management.
 
 Эти возможности не являются критериями приёмки Sprint 1. Их требования и сроки определяются отдельными backlog items / будущими инкрементами.
 
@@ -341,7 +341,7 @@ Teacher registers / logs in
 К завершению Sprint 1 должна существовать техническая основа Takt и проверяемый сквозной сценарий:
 
 - пользователь может зарегистрироваться и войти;
-- Backend формирует доверенный Account / role / profile context;
+- Backend формирует доверенный User / role / profile context;
 - Teacher работает только со связанными Student;
 - Teacher создаёт допустимый Lesson;
 - Lesson сохраняется в PostgreSQL;

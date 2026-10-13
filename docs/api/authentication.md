@@ -8,32 +8,32 @@
 
 Конкретные request / response DTO, HTTP status и стабильные `error.code` каждой операции фиксируются в [API-контрактах Sprint 1](contracts/sprint-01.md) и [реестре ошибок](errors.md).
 
-Frontend не является источником полномочий пользователя. Доверенный Account, его роль и соответствующий Teacher / Student context определяются Backend.
+Frontend не является источником полномочий пользователя. Доверенный User, его роль и соответствующий Teacher / Student context определяются Backend.
 
-## Account, роль и доменный контекст
+## User, роль и доменный контекст
 
-В Sprint 1 каждый Account имеет ровно одну роль:
+В Sprint 1 каждый User имеет ровно одну роль:
 
 - `teacher`;
 - `student`.
 
-Account роли `teacher` связан ровно с одним соответствующим Teacher profile.
+User роли `teacher` связан ровно с одним соответствующим Teacher profile.
 
-Account роли `student` связан ровно с одним соответствующим Student profile.
+User роли `student` связан ровно с одним соответствующим Student profile.
 
-Один Account не совмещает обе роли. Переключение или изменение роли после регистрации в Sprint 1 не поддерживается.
+Один User не совмещает обе роли. Переключение или изменение роли после регистрации в Sprint 1 не поддерживается.
 
-Account ID, Teacher ID и Student ID являются разными идентификаторами и не взаимозаменяются.
+User ID, Teacher ID и Student ID являются разными идентификаторами и не взаимозаменяются.
 
 Backend после успешной authentication строит доверенный текущий context:
 
 ```text
-credential → Account → role → соответствующий Teacher / Student profile
+credential → User → role → соответствующий Teacher / Student profile
 ```
 
-Frontend не вычисляет Teacher ID / Student ID из Account ID и не передаёт произвольный идентификатор для определения пользователя, от имени которого выполняется защищённая операция.
+Frontend не вычисляет Teacher ID / Student ID из User ID и не передаёт произвольный идентификатор для определения пользователя, от имени которого выполняется защищённая операция.
 
-Если credential валиден и Account найден, но invariant BR-09 нарушен — например, отсутствует требуемый profile, profile не соответствует роли либо одновременно существуют несовместимые profiles — это **server-side inconsistency**, а не ошибка полномочий пользователя. Публично такой случай обрабатывается как `500 internal_error`; он не превращается в `403 forbidden`.
+Если credential валиден и User найден, но invariant BR-09 нарушен — например, отсутствует требуемый profile, profile не соответствует роли либо одновременно существуют несовместимые profiles — это **server-side inconsistency**, а не ошибка полномочий пользователя. Публично такой случай обрабатывается как `500 internal_error`; он не превращается в `403 forbidden`.
 
 ## Регистрация
 
@@ -54,7 +54,7 @@ Authentication для регистрации не требуется.
 
 ### Email
 
-`email` является идентификатором Account для последующего входа.
+`email` является идентификатором User для последующего входа.
 
 Перед проверкой уникальности и сохранением Backend приводит email к каноническому виду:
 
@@ -65,11 +65,11 @@ Authentication для регистрации не требуется.
 
 - должен иметь корректный формат адреса электронной почты;
 - должен быть уникальным;
-- одинаковый адрес в другом регистре не создаёт отдельный Account.
+- одинаковый адрес в другом регистре не создаёт отдельный User.
 
 Подтверждение владения email в Sprint 1 не требуется.
 
-При login введённый email приводится к той же канонической форме перед поиском Account.
+При login введённый email приводится к той же канонической форме перед поиском User.
 
 ### Password
 
@@ -97,10 +97,10 @@ Backend не хранит открытый password. В persistence сохран
 
 Регистрация атомарно создаёт:
 
-- Account;
+- User;
 - ровно один соответствующий Teacher или Student profile.
 
-Частичное состояние `Account без требуемого profile`, profile несоответствующей роли либо одновременные Teacher и Student для одного Account не является допустимым результатом.
+Частичное состояние `User без требуемого profile`, profile несоответствующей роли либо одновременные Teacher и Student для одного User не является допустимым результатом.
 
 ### Display name
 
@@ -133,7 +133,7 @@ Email нормализуется тем же способом, что и при 
 
 При успешной проверке credentials Backend выдаёт access token согласно `TokenDTO`, определённому API-контрактом.
 
-При неверном email либо неверном password возвращается одинаковая ошибка `401 invalid_credentials`. Ответ не должен раскрывать, существует ли Account с указанным email.
+При неверном email либо неверном password возвращается одинаковая ошибка `401 invalid_credentials`. Ответ не должен раскрывать, существует ли User с указанным email.
 
 ## Access token
 
@@ -151,7 +151,7 @@ Frontend не должен:
 - вычислять из token Teacher ID / Student ID для доверенных операций;
 - зависеть от внутреннего формата token.
 
-Backend валидирует credential и только после этого формирует доверенный Account / role / domain context.
+Backend валидирует credential и только после этого формирует доверенный User / role / domain context.
 
 Конкретные:
 
@@ -174,21 +174,21 @@ Sprint 1 предоставляет защищённую операцию:
 GET /api/v1/me
 ```
 
-Она возвращает Frontend доверенное представление текущего Account и его единственного domain context, достаточное для role-based routing и отображения текущего пользователя.
+Она возвращает Frontend доверенное представление текущего User и его единственного domain context, достаточное для role-based routing и отображения текущего пользователя.
 
 Response должен отражать:
 
-- Account ID;
+- User ID;
 - роль `teacher` или `student`;
 - reference соответствующего Teacher / Student profile.
 
-Точный состав `AccountContextDTO` фиксируется в [API-контракте](contracts/sprint-01.md#api-03--текущий-контекст).
+Точный состав `UserContextDTO` фиксируется в [API-контракте](contracts/sprint-01.md#api-03--текущий-контекст).
 
-Frontend не передаёт Account ID, Teacher ID или Student ID для определения текущего пользователя в `/me`.
+Frontend не передаёт User ID, Teacher ID или Student ID для определения текущего пользователя в `/me`.
 
 Получение текущего domain context внутри Backend не зависит от того, выполнял ли Frontend отдельный запрос `/me`: Backend строит context непосредственно из authentication credential для каждого защищённого запроса.
 
-Если для валидного Account невозможно построить единственный соответствующий domain profile из-за нарушения BR-09, Backend возвращает `500 internal_error`; этот случай рассматривается как defect / data invariant failure и не как `403`.
+Если для валидного User невозможно построить единственный соответствующий domain profile из-за нарушения BR-09, Backend возвращает `500 internal_error`; этот случай рассматривается как defect / data invariant failure и не как `403`.
 
 ## Авторизация защищённых операций
 
@@ -221,8 +221,8 @@ Router guard, скрытая кнопка или role state во Frontend явл
 | --- | --- |
 | Нет Bearer credential, token невалиден или истёк | `401 authentication_required` |
 | Неверные credentials при login | `401 invalid_credentials` |
-| Account аутентифицирован, но роль / операция запрещена | `403 forbidden` |
-| Валидный Account нарушает обязательный profile invariant BR-09 | `500 internal_error` |
+| User аутентифицирован, но роль / операция запрещена | `403 forbidden` |
+| Валидный User нарушает обязательный profile invariant BR-09 | `500 internal_error` |
 
 Для защищённого `401` Backend использует `WWW-Authenticate: Bearer`.
 
@@ -248,12 +248,12 @@ Passwords, password hashes и реальные Bearer tokens не включаю
 
 Минимально проверить:
 
-- регистрация с ролью `teacher` создаёт Account и ровно один Teacher profile;
-- регистрация с ролью `student` создаёт Account и ровно один Student profile;
+- регистрация с ролью `teacher` создаёт User и ровно один Teacher profile;
+- регистрация с ролью `student` создаёт User и ровно один Student profile;
 - другая роль отклоняется;
 - отсутствие любого обязательного регистрационного поля отклоняется;
 - email сохраняется после trim + lowercase;
-- email с отличающимся регистром не создаёт второй Account;
+- email с отличающимся регистром не создаёт второй User;
 - повторная регистрация уже используемого нормализованного email отклоняется как `409 email_already_registered`;
 - email с некорректным форматом отклоняется;
 - password длиной `7` и `129` символов отклоняется;
@@ -266,9 +266,9 @@ Passwords, password hashes и реальные Bearer tokens не включаю
 - реальные access tokens не попадают в logs / screenshots / сохраняемое QA evidence;
 - защищённый endpoint без token возвращает authentication error;
 - Student не получает Teacher-only операции и наоборот;
-- подмена Account / Teacher / Student ID со стороны клиента не изменяет текущую identity;
-- `/me` возвращает context только текущего Account;
-- нарушение invariant Account → matching profile рассматривается как `500 internal_error`, а не `403`.
+- подмена User / Teacher / Student ID со стороны клиента не изменяет текущую identity;
+- `/me` возвращает context только текущего User;
+- нарушение invariant User → matching profile рассматривается как `500 internal_error`, а не `403`.
 
 ## Границы Sprint 1
 
@@ -278,10 +278,10 @@ Passwords, password hashes и реальные Bearer tokens не включаю
 - восстановление / reset password;
 - изменение password;
 - изменение или переключение роли;
-- multi-role Account;
+- multi-role User;
 - refresh token;
 - серверный logout / token revocation;
 - OAuth / внешний identity provider;
-- расширенное управление Account / profile.
+- расширенное управление User / profile.
 
 Добавление этих возможностей требует отдельного требования, API-контракта и применимого изменения модели / архитектуры.

@@ -82,16 +82,16 @@
 Authorization: Bearer <access_token>
 ```
 
-Backend определяет current Account и domain context из credential.
+Backend определяет current User и domain context из credential.
 
-Client-supplied Account / Teacher / Student ID не может переопределять identity текущего пользователя.
+Client-supplied User / Teacher / Student ID не может переопределять identity текущего пользователя.
 
 ## Role
 
 Допустимая роль:
 
 ```text
-<teacher / student / любой authenticated Account / anonymous>
+<teacher / student / любой authenticated User / anonymous>
 ```
 
 ## Authorization rules

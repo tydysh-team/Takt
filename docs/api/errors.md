@@ -113,7 +113,7 @@ Backend преобразует framework validation errors в этот набо�
 | `lesson_start_in_past` | `400` | При создании Lesson валидный `starts_at` удовлетворяет `starts_at < now` |
 | `authentication_required` | `401` | Bearer credential отсутствует, невалиден или истёк |
 | `invalid_credentials` | `401` | Login с неизвестным email либо неверным password |
-| `forbidden` | `403` | Account аутентифицирован, но роль / операция не разрешена |
+| `forbidden` | `403` | User аутентифицирован, но роль / операция не разрешена |
 | `student_not_available` | `404` | Student не существует либо не связан с текущим Teacher |
 | `not_found` | `404` | Запрошенный ресурс / route не найден и нет более специфичного project code |
 | `method_not_allowed` | `405` | HTTP method не поддерживается данным route |
@@ -130,7 +130,7 @@ Backend преобразует framework validation errors в этот набо�
 
 Регистрация нормализует email по BR-10 через trim + lowercase.
 
-Если после нормализации Account с таким email уже существует, операция отклоняется:
+Если после нормализации User с таким email уже существует, операция отклоняется:
 
 - HTTP `409`;
 - `error.code = "email_already_registered"`.
@@ -171,7 +171,7 @@ Backend может преобразовать ожидаемое нарушен�
 
 `invalid_credentials` относится к операции login.
 
-Неизвестный email и неверный password при login дают одинаковый `401 invalid_credentials`, чтобы login API не раскрывал существование Account разными ответами.
+Неизвестный email и неверный password при login дают одинаковый `401 invalid_credentials`, чтобы login API не раскрывал существование User разными ответами.
 
 ### `forbidden`
 

@@ -164,7 +164,7 @@ Backend и Frontend не определяют неизвестные части 
 Указать по применимости:
 
 - какая роль выполняет операцию;
-- как определяется current Account / domain profile;
+- как определяется current User / domain profile;
 - проверяется ли ownership / relation;
 - какие client-supplied IDs являются target resource, а какие **не могут** определять identity;
 - ожидаемые `401 / 403 / concealed 404` cases.

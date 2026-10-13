@@ -44,7 +44,7 @@ QA не придумывает ожидаемое поведение самос�
 - branch / commit / merged revision;
 - окружение;
 - используемые demo / test data;
-- auth role / account context;
+- auth role / user context;
 - внешние зависимости;
 - известные limitations;
 - ожидаемый набор проверок;
@@ -62,7 +62,7 @@ QA evidence без указания проверяемой версии нель
 - source requirement / AC / BR / contract;
 - environment;
 - branch / commit / build;
-- test data / account role;
+- test data / user role;
 - шаги или достаточно точное описание действия;
 - expected result;
 - actual result;
@@ -111,7 +111,7 @@ QA evidence без указания проверяемой версии нель
 - невалидный / истёкший credential;
 - неверная роль;
 - попытка получить / изменить чужой ресурс;
-- подмена client-side Account / Teacher / Student ID;
+- подмена client-side User / Teacher / Student ID;
 - отсутствие утечки существования защищённого ресурса там, где contract требует единый `404`.
 
 Frontend hiding / router guard не считается доказательством Backend authorization.
@@ -130,7 +130,7 @@ QA строит отдельные проверки для применимых 
 - upcoming использует `starts_at >= now`;
 - upcoming сортируется `starts_at ASC, id ASC`;
 - Teacher calendar использует `[from, to)`;
-- один Account имеет одну роль и один соответствующий profile;
+- один User имеет одну роль и один соответствующий profile;
 - registration использует `email / password / role / display_name`;
 - `display_name` используется как человекочитаемая подпись;
 - UI работает в browser-local timezone по BR-12.

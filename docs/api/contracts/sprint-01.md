@@ -33,17 +33,17 @@
 teacher | student
 ```
 
-### AccountContextDTO
+### UserContextDTO
 
 | Поле | Тип | Обязательность | Семантика |
 | --- | --- | --- | --- |
-| `account_id` | UUID | required, non-null | ID текущего / созданного Account |
-| `role` | `"teacher" \| "student"` | required, non-null | Единственная роль Account |
+| `user_id` | UUID | required, non-null | ID текущего / созданного User |
+| `role` | `"teacher" \| "student"` | required, non-null | Единственная роль User |
 | `profile` | object | required, non-null | Reference соответствующего доменного профиля |
 | `profile.id` | UUID | required, non-null | Teacher ID при `role=teacher`, Student ID при `role=student` |
 | `profile.display_name` | string | required, non-null | Человекочитаемая подпись профиля |
 
-`profile.id` не равен `account_id` по смыслу и не вычисляется из него.
+`profile.id` не равен `user_id` по смыслу и не вычисляется из него.
 
 ### TeacherRefDTO
 
@@ -126,13 +126,13 @@ teacher | student
 | --- | --- | --- | --- |
 | API-01 | POST `/api/v1/auth/register` | anonymous | F-06 |
 | API-02 | POST `/api/v1/auth/login` | anonymous | F-06 |
-| API-03 | GET `/api/v1/me` | authenticated Account | F-06 / F-08 |
+| API-03 | GET `/api/v1/me` | authenticated User | F-06 / F-08 |
 | API-04 | GET `/api/v1/teachers/me/students` | Teacher | F-06 / US-01 |
 | API-05 | POST `/api/v1/lessons` | Teacher | US-01 |
 | API-06 | GET `/api/v1/students/me/lessons/upcoming` | Student | US-02 |
 | API-07 | GET `/api/v1/teachers/me/lessons` | Teacher | US-03 |
 
-Endpoints переноса, отмены, recurrence, attendance, homework, статистики, управления Teacher–Student relations и расширенного Account management в Sprint 1 отсутствуют.
+Endpoints переноса, отмены, recurrence, attendance, homework, статистики, управления Teacher–Student relations и расширенного User management в Sprint 1 отсутствуют.
 
 # Foundation
 
@@ -144,7 +144,7 @@ Endpoints переноса, отмены, recurrence, attendance, homework, ст
 
 **Authentication:** не требуется.
 
-**Назначение:** атомарно создать Account и ровно один соответствующий Teacher / Student profile согласно BR-09 и BR-10.
+**Назначение:** атомарно создать User и ровно один соответствующий Teacher / Student profile согласно BR-09 и BR-10.
 
 ### Request
 
@@ -167,7 +167,7 @@ JSON body:
 
 HTTP `201`.
 
-Response: `AccountContextDTO`.
+Response: `UserContextDTO`.
 
 Регистрация не выдаёт access token и не означает автоматический login. Для session используется API-02.
 
@@ -187,7 +187,7 @@ Content-Type: application/json
 
 ```json
 {
-  "account_id": "44444444-4444-4444-8444-444444444444",
+  "user_id": "44444444-4444-4444-8444-444444444444",
   "role": "teacher",
   "profile": {
     "id": "11111111-1111-4111-8111-111111111111",
@@ -198,12 +198,12 @@ Content-Type: application/json
 
 ### Проверки
 
-- Account и profile создаются атомарно;
+- User и profile создаются атомарно;
 - email сохраняется после trim + lowercase;
 - email verification не выполняется;
 - password в открытом виде не сохраняется и не возвращается;
 - роль определяет тип создаваемого profile;
-- одновременно Teacher и Student profile для одного Account не создаются;
+- одновременно Teacher и Student profile для одного User не создаются;
 - `display_name` сохраняется после trim.
 
 ### Ошибки
@@ -226,7 +226,7 @@ Content-Type: application/json
 
 **Authentication:** не требуется.
 
-**Назначение:** проверить credentials Account и выдать opaque access token.
+**Назначение:** проверить credentials User и выдать opaque access token.
 
 ### Request
 
@@ -274,7 +274,7 @@ Response: `TokenDTO`.
 | `401` | `invalid_credentials` | Well-formed email не найден либо password неверен |
 | `500` | `internal_error` | Неожиданная server-side ошибка |
 
-Неизвестный Account и неверный password не различаются публичным ответом.
+Неизвестный User и неверный password не различаются публичным ответом.
 
 Token format, lifetime и Backend implementation определяются I-01 и остаются непрозрачными для Frontend.
 
@@ -288,9 +288,9 @@ Token format, lifetime и Backend implementation определяются I-01 �
 
 **Authentication:** Bearer.
 
-**Роль:** любой аутентифицированный Account.
+**Роль:** любой аутентифицированный User.
 
-**Назначение:** вернуть доверенный Account / role / domain profile context для Frontend.
+**Назначение:** вернуть доверенный User / role / domain profile context для Frontend.
 
 ### Request
 
@@ -310,13 +310,13 @@ Accept: application/json
 
 HTTP `200`.
 
-Response: `AccountContextDTO`.
+Response: `UserContextDTO`.
 
 Пример Teacher:
 
 ```json
 {
-  "account_id": "44444444-4444-4444-8444-444444444444",
+  "user_id": "44444444-4444-4444-8444-444444444444",
   "role": "teacher",
   "profile": {
     "id": "11111111-1111-4111-8111-111111111111",
@@ -332,9 +332,9 @@ Response: `AccountContextDTO`.
 | HTTP | `error.code` | Условие |
 | ---: | --- | --- |
 | `401` | `authentication_required` | Bearer credential отсутствует, невалиден или истёк |
-| `500` | `internal_error` | Неожиданная server-side ошибка, включая нарушение обязательного Account → matching profile invariant |
+| `500` | `internal_error` | Неожиданная server-side ошибка, включая нарушение обязательного User → matching profile invariant |
 
-Client не передаёт Account / Teacher / Student ID для определения текущего context.
+Client не передаёт User / Teacher / Student ID для определения текущего context.
 
 ---
 
@@ -390,7 +390,7 @@ Response: `StudentRefDTO[]`.
 | HTTP | `error.code` | Условие |
 | ---: | --- | --- |
 | `401` | `authentication_required` | Authentication отсутствует / невалидна |
-| `403` | `forbidden` | Текущий Account не имеет роли Teacher |
+| `403` | `forbidden` | Текущий User не имеет роли Teacher |
 | `500` | `internal_error` | Неожиданная server-side ошибка |
 
 Применимые BR: BR-02, BR-09, BR-11.
@@ -434,7 +434,7 @@ Content-Type: application/json
 
 Backend в рамках одной управляемой операции:
 
-1. определяет текущий Account / Teacher из Bearer credential;
+1. определяет текущий User / Teacher из Bearer credential;
 2. валидирует `student_id` и timezone-aware `starts_at`;
 3. фиксирует единое значение `now` для business validation;
 4. проверяет `starts_at >= now`;
@@ -469,7 +469,7 @@ Response: `LessonDTO`.
 | `422` | `validation_error` | Request schema, UUID или date-time transport некорректны |
 | `400` | `lesson_start_in_past` | Валидный `starts_at < now` |
 | `401` | `authentication_required` | Authentication отсутствует / невалидна |
-| `403` | `forbidden` | Текущий Account не имеет роли Teacher |
+| `403` | `forbidden` | Текущий User не имеет роли Teacher |
 | `404` | `student_not_available` | Student отсутствует либо не связан с текущим Teacher |
 | `500` | `internal_error` | Неожиданная server-side ошибка |
 
@@ -550,7 +550,7 @@ Teacher представлен `id + display_name`; UUID не используе
 | HTTP | `error.code` | Условие |
 | ---: | --- | --- |
 | `401` | `authentication_required` | Authentication отсутствует / невалидна |
-| `403` | `forbidden` | Текущий Account не имеет роли Student |
+| `403` | `forbidden` | Текущий User не имеет роли Student |
 | `500` | `internal_error` | Неожиданная server-side ошибка |
 
 Применимые BR: BR-04, BR-05, BR-06, BR-09, BR-11.
@@ -653,7 +653,7 @@ Student представлен `id + display_name`; UUID не используе
 | `422` | `validation_error` | `from` / `to` отсутствуют либо имеют неверный date-time transport format |
 | `400` | `invalid_date_range` | Оба момента валидны, но `from >= to` |
 | `401` | `authentication_required` | Authentication отсутствует / невалидна |
-| `403` | `forbidden` | Текущий Account не имеет роли Teacher |
+| `403` | `forbidden` | Текущий User не имеет роли Teacher |
 | `500` | `internal_error` | Неожиданная server-side ошибка |
 
 Применимые BR: BR-07, BR-09, BR-11, BR-12.
@@ -662,7 +662,7 @@ Student представлен `id + display_name`; UUID не используе
 
 Следующие правила обязательны для Backend и Frontend:
 
-1. Account ID, Teacher ID и Student ID не взаимозаменяемы.
+1. User ID, Teacher ID и Student ID не взаимозаменяемы.
 2. Текущий Teacher / Student всегда определяется Backend из authentication context.
 3. `student_id` API-05 является целевым ресурсом, а не identity вызывающего пользователя.
 4. Teacher–Student relation повторно проверяется при создании Lesson.
@@ -689,7 +689,7 @@ Student представлен `id + display_name`; UUID не используе
 - runtime OpenAPI;
 - фактический HTTP Frontend ↔ Backend.
 
-Для API-01 проверить atomic Account + profile creation и `409 email_already_registered`.
+Для API-01 проверить atomic User + profile creation и `409 email_already_registered`.
 
 Для API-05 проверить rollback / отсутствие Lesson при rejected operation, включая `lesson_start_in_past` и `student_not_available`.
 
