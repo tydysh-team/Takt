@@ -15,6 +15,7 @@ venv/
 .ruff_cache/
 .coverage
 coverage.xml
+coverage/
 htmlcov/
 *.egg-info/
 dist/
@@ -36,4 +37,21 @@ Thumbs.db
 *.log
 logs/
 *.pid
+
+# Local data, exports, and secret material
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+screenshots/
+exports/
+tmp/
+.tmp/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+cookies*.json
+session-dump*.json
 
