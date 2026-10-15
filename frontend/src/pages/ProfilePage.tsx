@@ -10,7 +10,7 @@ import { PageHeader } from "../components/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
+import { ErrorState, LoadingState } from "../components/ui/Feedback";
 import { Input, Select, Textarea } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
 import { profileSchema, type ProfileFormValues } from "../features/profile/profile-schema";
@@ -62,6 +62,14 @@ function ProfileForm({ profile }: { profile: Profile }) {
       setSaved(true);
     },
   });
+  const feedback = update.isPending
+    ? ""
+    : saved
+      ? "Изменения сохранены"
+      : update.error
+        ? readableError(update.error)
+        : "";
+  const hasError = update.isError && !saved;
 
   const submit = handleSubmit(async (values) => {
     setSaved(false);
@@ -73,11 +81,12 @@ function ProfileForm({ profile }: { profile: Profile }) {
   });
 
   return (
-    <form className="profile-form" onSubmit={(event) => void submit(event)} noValidate>
-      <div className="profile-form__feedback">
-        {saved ? <Alert>Изменения сохранены.</Alert> : null}
-        {!saved && update.error ? <Alert tone="error">{readableError(update.error)}</Alert> : null}
-      </div>
+    <form
+      className="profile-form"
+      onChange={() => { if (saved) setSaved(false); }}
+      onSubmit={(event) => void submit(event)}
+      noValidate
+    >
       <div className="form-grid">
         <Input label="Имя" autoComplete="given-name" error={errors.first_name?.message} {...register("first_name")} />
         <Input label="Фамилия" autoComplete="family-name" error={errors.last_name?.message} {...register("last_name")} />
@@ -97,10 +106,25 @@ function ProfileForm({ profile }: { profile: Profile }) {
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </Select>
-      <div>
-        <Button className="profile-form__submit" type="submit" loading={update.isPending}>
-          Сохранить изменения
+      <div className="profile-form__actions">
+        <Button
+          className="profile-form__submit"
+          type="submit"
+          disabled={update.isPending}
+          aria-busy={update.isPending}
+        >
+          <span className={`profile-form__spinner${update.isPending ? " profile-form__spinner--active" : ""}`} aria-hidden="true" />
+          <span>Сохранить изменения</span>
         </Button>
+        <span
+          className={`profile-form__status${feedback ? " profile-form__status--visible" : ""}${hasError ? " profile-form__status--error" : ""}`}
+          role={hasError ? "alert" : "status"}
+        >
+          <span className="profile-form__status-icon" aria-hidden="true">
+            {hasError ? "!" : "✓"}
+          </span>
+          <span>{feedback}</span>
+        </span>
       </div>
     </form>
   );
