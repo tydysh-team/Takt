@@ -12,7 +12,7 @@ Service layer владеет изменяющими транзакциями. Re
 |---|---|---|
 | `payload` | `RegisterRequest` | Данные teacher/student |
 
-Выход: `RegistrationResult(user: User, profile: Profile)`. Создаёт `User`, общий `Profile` и ровно один `TeacherProfile`/`StudentProfile`; hash password; flush + commit. Ошибки: `EmailAlreadyRegisteredError`, DB errors. При любой ошибке rollback. Регистрация не создаёт login session.
+Выход: `RegistrationResult(user: User, profile: Profile)`. Создаёт `User`, общий `Profile` с backend default `Europe/Moscow` и ровно один `TeacherProfile`/`StudentProfile`; hash password; flush + commit. `RegisterRequest` не принимает timezone. Ошибки: `EmailAlreadyRegisteredError`, DB errors. При любой ошибке rollback. Регистрация не создаёт login session.
 
 ### `login(payload)`
 

@@ -244,6 +244,29 @@ async def test_teacher_cannot_open_foreign_student(api_context: ApiTestContext) 
     assert response.status_code == 404
 
 
+async def test_teacher_gets_own_student_and_updates_private_note(
+    api_context: ApiTestContext,
+) -> None:
+    _, teacher_token = await register_and_login(api_context, "TEACHER")
+    student, student_token = await register_and_login(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+
+    detail = await api_context.client.get(
+        f"/api/v1/students/{student['id']}",
+        headers=authorization(teacher_token),
+    )
+    note = await api_context.client.patch(
+        f"/api/v1/students/{student['id']}/note",
+        headers=authorization(teacher_token),
+        json={"note": "Private context"},
+    )
+
+    assert detail.status_code == 200
+    assert detail.json()["id"] == student["id"]
+    assert note.status_code == 200
+    assert note.json()["connection"]["teacher_note"] == "Private context"
+
+
 async def test_teacher_cannot_note_foreign_student(api_context: ApiTestContext) -> None:
     _, owner_token = await register_and_login(api_context, "TEACHER")
     _, other_token = await register_and_login(api_context, "TEACHER")
@@ -289,6 +312,31 @@ async def test_student_cannot_open_unconnected_teacher(api_context: ApiTestConte
         headers=authorization(other_student_token),
     )
     assert response.status_code == 404
+
+
+async def test_student_gets_own_connected_teacher(api_context: ApiTestContext) -> None:
+    teacher, teacher_token = await register_and_login(api_context, "TEACHER")
+    _, student_token = await register_and_login(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+
+    response = await api_context.client.get(
+        f"/api/v1/teachers/{teacher['id']}",
+        headers=authorization(student_token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == teacher["id"]
+    assert "teacher_note" not in response.text
+
+
+async def test_teacher_has_no_teachers_access(api_context: ApiTestContext) -> None:
+    _, token = await register_and_login(api_context, "TEACHER")
+    response = await api_context.client.get(
+        "/api/v1/teachers",
+        headers=authorization(token),
+    )
+
+    assert response.status_code == 403
 
 
 async def test_teacher_note_never_appears_in_student_response(

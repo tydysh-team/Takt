@@ -5,7 +5,7 @@ Backend расположен в `backend/`; приложение — в `backend
 | Каталог/файл | Содержание и ответственность |
 |---|---|
 | `app/api/` | HTTP layer: общий router, `/health`, cookies и dependencies |
-| `app/api/routes/` | Routers для auth, profile, invitations, connections, students, teachers, dashboard |
+| `app/api/routes/` | Routers для auth, `/me`, profile, invitations, connections, students, teachers, dashboard |
 | `app/api/dependencies/` | Создание services, аутентификация Bearer JWT, role checks, CSRF и rate limit |
 | `app/models/` | SQLAlchemy persistence models и enums; без API-форматирования |
 | `app/schemas/` | Pydantic API DTO для request/response/error |

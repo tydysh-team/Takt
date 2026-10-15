@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument("--base-url", required=True)
     args = parser.parse_args()
     suffix = secrets.token_hex(5)
-    password = secrets.token_urlsafe(18) + "Aa!1"
+    password = "abcdefgh"
     teacher_email = f"refactor-teacher-{suffix}@example.com"
     student_email = f"refactor-student-{suffix}@example.com"
 
@@ -62,8 +62,10 @@ def main() -> None:
         assert teacher_login.status_code == student_login.status_code == 200
         teacher_headers = {"Authorization": "Bearer " + teacher_login.json()["access_token"]}
         student_headers = {"Authorization": "Bearer " + student_login.json()["access_token"]}
-        assert teacher.get("/api/v1/auth/me", headers=teacher_headers).json()["role"] == "TEACHER"
-        assert student.get("/api/v1/auth/me", headers=student_headers).json()["role"] == "STUDENT"
+        assert teacher.get("/api/v1/me", headers=teacher_headers).json()["role"] == "TEACHER"
+        assert student.get("/api/v1/me", headers=student_headers).json()["role"] == "STUDENT"
+        removed_me_route = "/api/v1/auth" + "/me"
+        assert teacher.get(removed_me_route, headers=teacher_headers).status_code == 404
         assert teacher.get("/api/v1/profile", headers=teacher_headers).json()[
             "timezone"
         ] == "Europe/Moscow"
@@ -73,9 +75,11 @@ def main() -> None:
         profile = student.patch(
             "/api/v1/profile",
             headers=student_headers,
-            json={"middle_name": " Петровна "},
+            json={"middle_name": " Петровна ", "timezone": "Europe/Samara"},
         )
-        assert profile.status_code == 200 and profile.json()["middle_name"] == "Петровна"
+        assert profile.status_code == 200
+        assert profile.json()["middle_name"] == "Петровна"
+        assert profile.json()["timezone"] == "Europe/Samara"
         profile = student.patch(
             "/api/v1/profile", headers=student_headers, json={"middle_name": None}
         )

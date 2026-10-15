@@ -11,7 +11,7 @@
 | POST | `/api/v1/auth/login` | public, rate limited | `LoginRequest` | `AccessTokenResponse` | Login и cookies |
 | POST | `/api/v1/auth/refresh` | refresh cookie + CSRF | — | `AccessTokenResponse` | Rotation |
 | POST | `/api/v1/auth/logout` | refresh cookie + CSRF | — | — (`204`) | Отзыв session |
-| GET | `/api/v1/auth/me` | active user | — | `CurrentUserResponse` | Текущий пользователь |
+| GET | `/api/v1/me` | active user | — | `CurrentUserResponse` | Текущий пользователь |
 | GET | `/api/v1/profile` | active user | — | `ProfileResponse` | Профиль |
 | PATCH | `/api/v1/profile` | active user | `ProfileUpdateRequest` | `ProfileResponse` | Частичное обновление |
 | POST | `/api/v1/invitations` | `TEACHER` | — | `InvitationCreateResponse` | Создать приглашение |
@@ -39,7 +39,7 @@
 - `POST /api/v1/auth/login` → `200 AccessTokenResponse`; устанавливает refresh HttpOnly cookie и readable CSRF cookie. Ошибки: `401 invalid_credentials`, `422 validation_error`, `429 rate_limit_exceeded`.
 - `POST /api/v1/auth/refresh` → `200 AccessTokenResponse`; body/path/query отсутствуют, нужны refresh cookie и совпадающий `X-CSRF-Token`. Ошибки: `401 authentication_required` (включая replay/expired/inactive/missing session; cookies очищаются), `403 csrf_failed`.
 - `POST /api/v1/auth/logout` → `204`; требует CSRF даже если refresh cookie отсутствует. При наличии session она отзывается, затем обе cookies очищаются. Ошибка: `403 csrf_failed`.
-- `GET /api/v1/auth/me` → `200 CurrentUserResponse`; Bearer JWT и active User. Ошибки: `401 authentication_required`, `403 forbidden` для inactive, `404 profile_not_found`.
+- `GET /api/v1/me` → `200 CurrentUserResponse`; Bearer JWT и active User. Ошибки: `401 authentication_required`, `403 forbidden` для inactive, `404 profile_not_found`.
 
 ### Profile
 
@@ -70,7 +70,7 @@
 
 | DTO | Поля (тип; required; validation/назначение) |
 |---|---|
-| `RegisterRequest` | `email: EmailStr` yes, trim/lower; `password: SecretStr` yes, ≥10 + lower/upper/digit/special; `first_name`, `last_name: str` yes, trim, 1..100; `middle_name: str|null` no, max 100, blank→null; `timezone: str` no, default `Europe/Moscow`, valid IANA, max 64; `role: Literal[TEACHER,STUDENT]` yes |
+| `RegisterRequest` | `email: EmailStr` yes, trim/lower; `password: SecretStr` yes, 8..128 символов без complexity rules; `first_name`, `last_name: str` yes, trim, 1..100; `middle_name: str|null` no, max 100, blank→null; `role: Literal[TEACHER,STUDENT]` yes. `timezone` не принимается |
 | `RegisterResponse` | `id: UUID`, `email: EmailStr`, `role: RoleCode`, `first_name`, `last_name: str`, `middle_name: str|null`, `created_at: datetime`; все required |
 | `LoginRequest` | `email: EmailStr` yes, trim/lower; `password: SecretStr` yes |
 | `AccessTokenResponse` | `access_token: str` yes; `token_type: Literal["bearer"]` default; `expires_in: int` seconds |

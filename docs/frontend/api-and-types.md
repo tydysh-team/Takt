@@ -7,7 +7,7 @@
 | `RoleCode` | Роль session/profile | `RoleCode`: `ADMIN|TEACHER|STUDENT` |
 | `ApplicationRole` | Доступные frontend workspace/registration роли | `TEACHER|STUDENT` |
 | `AccessTokenResponse` | Login/refresh | одноимённый DTO; `/auth/login`, `/auth/refresh` |
-| `CurrentUser` | AuthContext | `CurrentUserResponse`; `/auth/me` |
+| `CurrentUser` | AuthContext | `CurrentUserResponse`; `/me` |
 | `RegisterPayload`, `RegisterResponse` | Registration | `RegisterRequest/Response` |
 | `LoginPayload` | Login body | `LoginRequest` |
 | `Profile`, `ProfileUpdate` | Profile query/form | `ProfileResponse`, `ProfileUpdateRequest` |
@@ -56,6 +56,8 @@ type DashboardSummary = TeacherDashboard | StudentDashboard;
 
 DB-only поля (`password_hash`, `code_digest`, refresh sessions, `family_id`, internal FK) в frontend contracts отсутствуют.
 
+`RegisterPayload` не содержит `timezone`; при регистрации backend сам устанавливает Profile timezone `Europe/Moscow`. Поле timezone остаётся в `Profile` и `ProfileUpdate`.
+
 ## Endpoint mapping
 
 | Frontend function | Endpoint | Result |
@@ -70,4 +72,4 @@ DB-only поля (`password_hash`, `code_digest`, refresh sessions, `family_id`,
 | `api.acceptInvitation(code)` | `POST /connections/accept` | `ConnectionAcceptedResponse` |
 | `api.profile()` / `api.updateProfile()` | `GET/PATCH /profile` | `Profile` |
 
-Auth functions вызываются напрямую из `AuthProvider`: register, login, refresh, logout, me.
+Auth requests собраны в `features/auth/auth-api.ts`; `AuthProvider` использует register, login, logout и `/api/v1/me`, а refresh остаётся в общем API client.

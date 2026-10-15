@@ -28,6 +28,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -46,6 +47,13 @@ function ProfileForm({ profile }: { profile: Profile }) {
       bio: values.bio.trim() || null,
     }),
     onSuccess: (data) => {
+      reset({
+        first_name: data.first_name,
+        last_name: data.last_name,
+        middle_name: data.middle_name ?? "",
+        bio: data.bio ?? "",
+        timezone: data.timezone,
+      });
       queryClient.setQueryData(queryKeys.profile, data);
       if (user) updateCurrentUser({
         ...user, first_name: data.first_name, last_name: data.last_name,
@@ -66,8 +74,10 @@ function ProfileForm({ profile }: { profile: Profile }) {
 
   return (
     <form className="profile-form" onSubmit={(event) => void submit(event)} noValidate>
-      {saved ? <Alert>Изменения сохранены.</Alert> : null}
-      {update.error ? <Alert tone="error">{readableError(update.error)}</Alert> : null}
+      <div className="profile-form__feedback">
+        {saved ? <Alert>Изменения сохранены.</Alert> : null}
+        {!saved && update.error ? <Alert tone="error">{readableError(update.error)}</Alert> : null}
+      </div>
       <div className="form-grid">
         <Input label="Имя" autoComplete="given-name" error={errors.first_name?.message} {...register("first_name")} />
         <Input label="Фамилия" autoComplete="family-name" error={errors.last_name?.message} {...register("last_name")} />
@@ -87,7 +97,11 @@ function ProfileForm({ profile }: { profile: Profile }) {
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </Select>
-      <div><Button type="submit" loading={update.isPending}>Сохранить изменения</Button></div>
+      <div>
+        <Button className="profile-form__submit" type="submit" loading={update.isPending}>
+          Сохранить изменения
+        </Button>
+      </div>
     </form>
   );
 }
@@ -116,7 +130,7 @@ export function ProfilePage() {
         ))}
       </div>
       {tab === "main" ? (
-        <Card className="profile-card"><ProfileForm key={`${data.first_name}-${data.last_name}-${data.middle_name ?? ""}-${data.timezone}`} profile={data} /></Card>
+        <Card className="profile-card"><ProfileForm profile={data} /></Card>
       ) : (
         <Card className="placeholder-panel">
           <span className="badge">Скоро</span>

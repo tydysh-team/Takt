@@ -3,7 +3,7 @@
 ## Password и login
 
 - `PasswordService` использует Argon2id: `time_cost=3`, `memory_cost=65536`, `parallelism=4`, hash 32 bytes, salt 16 bytes.
-- Registration policy: минимум 10 символов, хотя бы lowercase, uppercase, digit и non-alphanumeric. Frontend повторяет policy для UX, backend Pydantic — authoritative validation.
+- Registration policy: от 8 до 128 символов включительно. Требований к uppercase, lowercase, цифрам или спецсимволам нет. Frontend повторяет длину для UX, backend Pydantic — authoritative validation.
 - Неизвестный email вызывает dummy Argon2 verify, уменьшая timing-различие. Login для inactive возвращает тот же `invalid_credentials`.
 - Устаревший Argon2 hash rehash-ится при успешном login.
 

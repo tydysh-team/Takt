@@ -10,7 +10,6 @@ import { Alert } from "../components/ui/Feedback";
 import { Input, Select } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
 import { registrationSchema, type RegistrationFormValues } from "../features/auth/registration-schema";
-import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "../shared/timezones";
 
 export function RegisterPage() {
   const { register: createAccount } = useAuth();
@@ -24,7 +23,7 @@ export function RegisterPage() {
   } = useForm<RegistrationFormValues>({
     resolver: zodResolver(registrationSchema),
     defaultValues: {
-      first_name: "", last_name: "", middle_name: "", timezone: DEFAULT_TIMEZONE,
+      first_name: "", last_name: "", middle_name: "",
       email: "", password: "", role: "TEACHER",
     },
   });
@@ -64,16 +63,11 @@ export function RegisterPage() {
             <option value="TEACHER">Преподаватель</option>
             <option value="STUDENT">Ученик</option>
           </Select>
-          <Select label="Часовой пояс" error={errors.timezone?.message} {...register("timezone")}>
-            {TIMEZONE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
           <Input
             label="Пароль"
             type="password"
             autoComplete="new-password"
-            hint="Минимум 10 символов: строчная и заглавная буквы, цифра и спецсимвол."
+            hint="От 8 до 128 символов."
             error={errors.password?.message}
             {...register("password")}
           />

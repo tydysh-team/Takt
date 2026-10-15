@@ -9,18 +9,12 @@ import {
 } from "react";
 
 import {
-  apiRequest,
   onSessionExpired,
   refreshAccessToken,
   setAccessToken,
 } from "../../api/client";
-import type {
-  AccessTokenResponse,
-  CurrentUser,
-  LoginPayload,
-  RegisterPayload,
-  RegisterResponse,
-} from "../../api/types";
+import type { CurrentUser, LoginPayload, RegisterPayload } from "../../api/types";
+import { authApi } from "./auth-api";
 import { AuthContext, type AuthContextValue, type SessionStatus } from "./auth-context";
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -37,9 +31,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [queryClient]);
 
   const loadCurrentUser = useCallback(async () => {
-    const currentUser = await apiRequest<CurrentUser>("/api/v1/auth/me", {
-      retryAfterRefresh: false,
-    });
+    const currentUser = await authApi.currentUser();
     setUser(currentUser);
     setStatus("authenticated");
   }, []);
@@ -61,12 +53,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const login = useCallback(
     async (payload: LoginPayload) => {
       queryClient.clear();
-      const token = await apiRequest<AccessTokenResponse>("/api/v1/auth/login", {
-        method: "POST",
-        body: payload,
-        authenticated: false,
-        retryAfterRefresh: false,
-      });
+      const token = await authApi.login(payload);
       setAccessToken(token.access_token);
       try {
         await loadCurrentUser();
@@ -79,22 +66,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   );
 
   const register = useCallback((payload: RegisterPayload) => {
-    return apiRequest<RegisterResponse>("/api/v1/auth/register", {
-      method: "POST",
-      body: payload,
-      authenticated: false,
-      retryAfterRefresh: false,
-    });
+    return authApi.register(payload);
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await apiRequest<undefined>("/api/v1/auth/logout", {
-        method: "POST",
-        authenticated: false,
-        retryAfterRefresh: false,
-        csrf: true,
-      });
+      await authApi.logout();
     } finally {
       clearSession();
     }

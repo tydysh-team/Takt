@@ -13,6 +13,7 @@ from app.core.exceptions import (
     RefreshReplayError,
 )
 from app.core.security import AccessToken, PasswordService, TokenService, utc_now
+from app.core.timezones import DEFAULT_TIMEZONE
 from app.models.enums import RoleCode
 from app.models.profile import Profile
 from app.models.refresh_session import RefreshSession
@@ -68,7 +69,7 @@ class AuthService:
                 first_name=payload.first_name,
                 last_name=payload.last_name,
                 middle_name=payload.middle_name,
-                timezone=payload.timezone,
+                timezone=DEFAULT_TIMEZONE,
             )
             user.profile = profile
             if payload.role == RoleCode.TEACHER:

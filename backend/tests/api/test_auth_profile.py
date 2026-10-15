@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 import jwt
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -104,12 +104,42 @@ async def test_admin_public_registration_is_rejected(api_context: ApiTestContext
     assert response.status_code == 422
 
 
-async def test_weak_password_is_rejected(api_context: ApiTestContext) -> None:
+@pytest.mark.parametrize(
+    ("password", "expected_status"),
+    [
+        pytest.param("1234567", 422, id="seven-characters"),
+        pytest.param("12345678", 201, id="eight-characters"),
+        pytest.param("a" * 128, 201, id="one-hundred-twenty-eight-characters"),
+        pytest.param("a" * 129, 422, id="one-hundred-twenty-nine-characters"),
+    ],
+)
+async def test_registration_password_length_boundaries(
+    api_context: ApiTestContext,
+    password: str,
+    expected_status: int,
+) -> None:
     response = await api_context.client.post(
         "/api/v1/auth/register",
         json={
-            "email": unique_email("weak"),
-            "password": "weakpassword",
+            "email": unique_email("password-boundary"),
+            "password": password,
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "role": "STUDENT",
+        },
+    )
+
+    assert response.status_code == expected_status
+    if expected_status == 422:
+        assert response.json()["error"]["code"] == "validation_error"
+
+
+async def test_registration_rejects_invalid_email(api_context: ApiTestContext) -> None:
+    response = await api_context.client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "not-an-email",
+            "password": "12345678",
             "first_name": "Ada",
             "last_name": "Lovelace",
             "role": "STUDENT",
@@ -127,6 +157,15 @@ async def test_duplicate_normalized_email_is_rejected(api_context: ApiTestContex
 
     assert first_response.status_code == 201
     assert second_response.status_code == 409
+    user_count = await api_context.session.scalar(
+        select(func.count()).select_from(User).where(User.email == email)
+    )
+    user = await UserRepository(api_context.session).get_by_email(email)
+    assert user_count == 1
+    assert user is not None
+    assert await api_context.session.get(Profile, user.id) is not None
+    assert await api_context.session.get(TeacherProfile, user.id) is not None
+    assert await api_context.session.get(StudentProfile, user.id) is None
 
 
 async def test_password_is_persisted_as_argon2id_hash(api_context: ApiTestContext) -> None:
@@ -173,7 +212,7 @@ async def test_unknown_email_has_same_public_error(api_context: ApiTestContext) 
 
 
 async def test_me_without_access_token_is_rejected(api_context: ApiTestContext) -> None:
-    response = await api_context.client.get("/api/v1/auth/me")
+    response = await api_context.client.get("/api/v1/me")
 
     assert response.status_code == 401
 
@@ -181,7 +220,7 @@ async def test_me_without_access_token_is_rejected(api_context: ApiTestContext) 
 async def test_me_with_valid_access_token_succeeds(api_context: ApiTestContext) -> None:
     email, access_token = await authenticated_context(api_context)
     response = await api_context.client.get(
-        "/api/v1/auth/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -189,6 +228,17 @@ async def test_me_with_valid_access_token_succeeds(api_context: ApiTestContext) 
     assert response.json()["email"] == email
     assert response.json()["first_name"] == "Ada"
     assert response.json()["role"] == "TEACHER"
+
+
+async def test_old_auth_me_route_does_not_exist(api_context: ApiTestContext) -> None:
+    _, access_token = await authenticated_context(api_context)
+    old_route = "/api/v1/auth" + "/me"
+    response = await api_context.client.get(
+        old_route,
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == 404
 
 
 async def test_refresh_rotates_tokens(api_context: ApiTestContext) -> None:
@@ -318,11 +368,17 @@ async def test_patch_profile_updates_allowed_fields(api_context: ApiTestContext)
     response = await api_context.client.patch(
         "/api/v1/profile",
         headers={"Authorization": f"Bearer {access_token}"},
-        json={"first_name": "Grace", "bio": "Teacher", "timezone": "Europe/Samara"},
+        json={
+            "first_name": "Grace",
+            "last_name": "Hopper",
+            "bio": "Teacher",
+            "timezone": "Europe/Samara",
+        },
     )
 
     assert response.status_code == 200
     assert response.json()["first_name"] == "Grace"
+    assert response.json()["last_name"] == "Hopper"
     assert response.json()["bio"] == "Teacher"
     assert response.json()["timezone"] == "Europe/Samara"
 
@@ -338,7 +394,9 @@ async def test_profile_rejects_email_and_role_changes(api_context: ApiTestContex
     assert response.status_code == 422
 
 
-async def test_registration_accepts_valid_timezone(api_context: ApiTestContext) -> None:
+async def test_registration_without_timezone_uses_backend_default(
+    api_context: ApiTestContext,
+) -> None:
     email = unique_email("timezone")
     response = await api_context.client.post(
         "/api/v1/auth/register",
@@ -348,17 +406,16 @@ async def test_registration_accepts_valid_timezone(api_context: ApiTestContext) 
             "first_name": "Ada",
             "last_name": "Lovelace",
             "role": "STUDENT",
-            "timezone": "Europe/Samara",
         },
     )
     assert response.status_code == 201
     user = await UserRepository(api_context.session).get_by_email(email)
     assert user is not None
     profile = await api_context.session.get(Profile, user.id)
-    assert profile is not None and profile.timezone == "Europe/Samara"
+    assert profile is not None and profile.timezone == "Europe/Moscow"
 
 
-async def test_invalid_timezones_are_rejected(api_context: ApiTestContext) -> None:
+async def test_registration_rejects_timezone_field(api_context: ApiTestContext) -> None:
     response = await api_context.client.post(
         "/api/v1/auth/register",
         json={
@@ -371,6 +428,9 @@ async def test_invalid_timezones_are_rejected(api_context: ApiTestContext) -> No
         },
     )
     assert response.status_code == 422
+
+
+async def test_profile_rejects_invalid_timezone(api_context: ApiTestContext) -> None:
     _, token = await authenticated_context(api_context)
     response = await api_context.client.patch(
         "/api/v1/profile",
@@ -384,7 +444,7 @@ async def test_invalid_and_expired_access_tokens_are_rejected(
     api_context: ApiTestContext,
 ) -> None:
     response = await api_context.client.get(
-        "/api/v1/auth/me", headers={"Authorization": "Bearer invalid.jwt.token"}
+        "/api/v1/me", headers={"Authorization": "Bearer invalid.jwt.token"}
     )
     assert response.status_code == 401
     email, _ = await authenticated_context(api_context)
@@ -394,7 +454,7 @@ async def test_invalid_and_expired_access_tokens_are_rejected(
         user_id=user.id, role=user.role, now=utc_now() - timedelta(days=2)
     )
     response = await api_context.client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {expired.value}"}
+        "/api/v1/me", headers={"Authorization": f"Bearer {expired.value}"}
     )
     assert response.status_code == 401
 
@@ -482,7 +542,7 @@ async def test_disabled_account_cannot_use_access_or_refresh(api_context: ApiTes
     user.is_active = False
     await api_context.session.commit()
     response = await api_context.client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/me", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 403
     assert (await login_user(api_context, email)).status_code == 401

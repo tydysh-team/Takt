@@ -9,8 +9,32 @@ describe("optional middle name forms", () => {
     expect(registrationSchema.safeParse({
       first_name: "Ada", last_name: "Lovelace", middle_name: "",
       email: "ada@example.com", password: "StrongPass!123", role: "TEACHER",
-      timezone: DEFAULT_TIMEZONE,
     }).success).toBe(true);
+  });
+
+  it.each([
+    ["1234567", false],
+    ["abcdefgh", true],
+    ["12345678", true],
+    ["onlyletters", true],
+    ["NoSpecial123", true],
+    ["a".repeat(128), true],
+    ["a".repeat(129), false],
+  ])("validates password %s by length only", (password, valid) => {
+    const result = registrationSchema.safeParse({
+      first_name: "Ada", last_name: "Lovelace", middle_name: "",
+      email: "ada@example.com", password, role: "TEACHER",
+    });
+    expect(result.success).toBe(valid);
+  });
+
+  it("does not include timezone in parsed registration data", () => {
+    const result = registrationSchema.parse({
+      first_name: "Ada", last_name: "Lovelace", middle_name: "",
+      email: "ada@example.com", password: "12345678", role: "STUDENT",
+      timezone: "Europe/Samara",
+    });
+    expect(result).not.toHaveProperty("timezone");
   });
 
   it("offers Moscow as the default timezone", () => {
@@ -23,6 +47,13 @@ describe("optional middle name forms", () => {
     expect(profileSchema.safeParse({
       first_name: "Ada", last_name: "Lovelace", middle_name: "",
       bio: "", timezone: "UTC",
+    }).success).toBe(true);
+  });
+
+  it("allows changing profile timezone", () => {
+    expect(profileSchema.safeParse({
+      first_name: "Ada", last_name: "Lovelace", middle_name: "",
+      bio: "", timezone: "Europe/Samara",
     }).success).toBe(true);
   });
 });

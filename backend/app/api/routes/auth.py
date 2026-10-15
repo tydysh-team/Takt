@@ -7,20 +7,17 @@ from app.api.cookies import clear_auth_cookies, set_auth_cookies
 from app.api.dependencies.auth import (
     enforce_rate_limit,
     get_auth_service,
-    get_current_active_user,
     get_rate_limiter,
     get_token_service,
     validate_csrf,
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import error_response
-from app.core.exceptions import AuthenticationRequiredError, ProfileNotFoundError
+from app.core.exceptions import AuthenticationRequiredError
 from app.core.rate_limit import RateLimiter
 from app.core.security import TokenService
-from app.models.user import User
 from app.schemas.auth import (
     AccessTokenResponse,
-    CurrentUserResponse,
     LoginRequest,
     RegisterRequest,
     RegisterResponse,
@@ -174,29 +171,4 @@ async def logout(
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     clear_auth_cookies(response, settings)
     return response
-
-
-@router.get(
-    "/me",
-    response_model=CurrentUserResponse,
-    summary="Get the current authenticated user",
-    description="Resolves the current active user from a validated Bearer access JWT.",
-    responses={
-        401: {"model": ErrorResponse, "description": "Authentication required"},
-        403: {"model": ErrorResponse, "description": "User is inactive"},
-    },
-)
-async def current_user(
-    user: Annotated[User, Depends(get_current_active_user)],
-) -> CurrentUserResponse:
-    if user.profile is None:
-        raise ProfileNotFoundError()
-    return CurrentUserResponse(
-        id=user.id,
-        email=user.email,
-        role=user.role,
-        first_name=user.profile.first_name,
-        last_name=user.profile.last_name,
-        middle_name=user.profile.middle_name,
-    )
 

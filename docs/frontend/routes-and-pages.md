@@ -21,11 +21,11 @@
 
 ### `LoginPage`
 
-Public-only. Поля email/password, Zod validation, submit state, registration-success alert и safe server error. Вызывает `POST /api/v1/auth/login`, затем `GET /api/v1/auth/me`; success → `/dashboard`.
+Public-only. Поля email/password, Zod validation, submit state, registration-success alert и safe server error. Вызывает `POST /api/v1/auth/login`, затем `GET /api/v1/me`; success → `/dashboard`.
 
 ### `RegisterPage`
 
-Public-only. Имя, фамилия, optional отчество, email, role, timezone, password. Role только teacher/student; client password policy совпадает с backend. `POST /api/v1/auth/register`; success → login с alert. Loading и error встроены в form.
+Public-only. Имя, фамилия, optional отчество, email, role и password. Timezone в форме и request отсутствует; backend создаёт Profile с `Europe/Moscow`. Role только teacher/student; password — 8..128 символов без complexity rules. `POST /api/v1/auth/register`; success → login с alert. Loading и error встроены в form.
 
 ### `DashboardPage`
 

@@ -4,10 +4,10 @@
 
 1. `AuthProvider` starts with `status="bootstrapping"`.
 2. Один раз вызывает `refreshAccessToken()` с cookies, CSRF header и `credentials: "include"`.
-3. При успехе access JWT сохраняется только в module memory, затем `/api/v1/auth/me` загружает `CurrentUser`.
+3. При успехе access JWT сохраняется только в module memory, затем `/api/v1/me` загружает `CurrentUser`.
 4. При failure очищаются token, user, TanStack Query cache; status становится `unauthenticated`.
 
-Login вызывает `/auth/login`, сохраняет returned JWT в memory и загружает `/auth/me`. Registration session не создаёт. Logout вызывает CSRF-protected `/auth/logout`; в `finally` всегда очищает local session/cache.
+Login вызывает `/auth/login`, сохраняет returned JWT в memory и загружает `/api/v1/me`. Registration session не создаёт. Logout вызывает CSRF-protected `/auth/logout`; в `finally` всегда очищает local session/cache.
 
 Access token не пишется в `localStorage`, `sessionStorage`, IndexedDB или cookie. Refresh token недоступен JavaScript: backend выдаёт его как HttpOnly cookie. JavaScript читает только `takt_csrf`.
 
