@@ -91,6 +91,32 @@ Client не должен иметь возможность выполнить д
 
 `UserContextDTO` не определяет внутреннюю структуру User / Profile / Teacher / Student в Backend.
 
+## RegisterResponseDTO
+
+Ответ после успешной регистрации пользователя.
+
+```json
+{
+  "id": "44444444-4444-4444-8444-444444444444",
+  "email": "teacher@example.com",
+  "role": "TEACHER",
+  "first_name": "Анна",
+  "last_name": "Петрова",
+  "middle_name": "Сергеевна",
+  "created_at": "2026-10-16T12:00:00Z"
+}
+```
+
+| Поле | Требование |
+| --- | --- |
+| `id` | уникальный ID текущего пользователя |
+| `email` | email учетной записи |
+| `role` | `TEACHER` или `STUDENT` |
+| `first_name` | обязательное имя |
+| `last_name` | обязательная фамилия |
+| `middle_name` | строка или `null` |
+| `created_at` | дата и время создания учётной записи |
+
 ## TokenDTO
 
 ```json
@@ -200,15 +226,17 @@ Framework-specific error response не является внешним конт�
 
 HTTP `201`.
 
-Response: `UserContextDTO`.
+Response: `RegisterResponseDTO`.
 
 ```json
 {
-  "user_id": "44444444-4444-4444-8444-444444444444",
-  "role": "teacher",
+  "id": "44444444-4444-4444-8444-444444444444",
+  "email": "teacher@example.com",
+  "role": "TEACHER",
   "first_name": "Анна",
   "last_name": "Петрова",
-  "middle_name": "Сергеевна"
+  "middle_name": "Сергеевна",
+  "created_at": "2026-10-16T12:00:00Z"
 }
 ```
 
