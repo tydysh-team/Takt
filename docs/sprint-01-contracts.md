@@ -63,7 +63,7 @@ Client не должен иметь возможность выполнить д
 
 Допустимые значения:
 
-`teacher | student`
+`TEACHER | STUDENT`
 
 ## UserContextDTO
 
@@ -71,8 +71,9 @@ Client не должен иметь возможность выполнить д
 
 ```json
 {
-  "user_id": "uuid",
-  "role": "teacher",
+  "id": "44444444-4444-4444-8444-444444444444",
+  "email": "teacher@example.com",
+  "role": "TEACHER",
   "first_name": "Анна",
   "last_name": "Петрова",
   "middle_name": "Сергеевна"
@@ -81,8 +82,9 @@ Client не должен иметь возможность выполнить д
 
 | Поле | Требование |
 | --- | --- |
-| `user_id` | уникальный ID текущего пользователя |
-| `role` | `teacher` или `student` |
+| `id` | уникальный ID текущего пользователя |
+| `email` | email учетной записи |
+| `role` | `TEACHER` или `STUDENT` |
 | `first_name` | обязательное имя |
 | `last_name` | обязательная фамилия |
 | `middle_name` | строка или `null` |
@@ -175,7 +177,7 @@ Framework-specific error response не является внешним конт�
 {
   "email": "teacher@example.com",
   "password": "example-password",
-  "role": "teacher",
+  "role": "TEACHER",
   "first_name": "Анна",
   "last_name": "Петрова",
   "middle_name": "Сергеевна"
@@ -290,8 +292,9 @@ Response: `UserContextDTO`.
 
 ```json
 {
-  "user_id": "44444444-4444-4444-8444-444444444444",
-  "role": "teacher",
+  "id": "44444444-4444-4444-8444-444444444444",
+  "email": "teacher@example.com",
+  "role": "TEACHER",
   "first_name": "Анна",
   "last_name": "Петрова",
   "middle_name": "Сергеевна"
