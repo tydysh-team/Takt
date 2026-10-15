@@ -272,9 +272,8 @@ Access token получается через API-02 — Login.
 
 ```json
 {
-  "access_token": "opaque-token",
-  "token_type": "bearer",
-  "expires_in": 900
+  "email": "teacher@example.com",
+  "password": "example-password"
 }
 ```
 
@@ -287,7 +286,8 @@ Response: `TokenDTO`.
 ```json
 {
   "access_token": "opaque-token",
-  "token_type": "bearer"
+  "token_type": "bearer",
+  "expires_in": 900
 }
 ```
 
