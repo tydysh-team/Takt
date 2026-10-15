@@ -109,7 +109,7 @@ Client не должен иметь возможность выполнить д
 
 | Поле | Требование |
 | --- | --- |
-| `id` | уникальный ID текущего пользователя |
+| `id` | уникальный ID созданного пользователя |
 | `email` | email учетной записи |
 | `role` | `TEACHER` или `STUDENT` |
 | `first_name` | обязательное имя |
@@ -122,7 +122,8 @@ Client не должен иметь возможность выполнить д
 ```json
 {
   "access_token": "opaque-token",
-  "token_type": "bearer"
+  "token_type": "bearer",
+  "expires_in": 900
 }
 ```
 
@@ -132,9 +133,12 @@ Client не должен иметь возможность выполнить д
 - является непустой строкой;
 - рассматривается Frontend как opaque value.
 
-`token_type` имеет значение:
+`token_type` имеет значение: `bearer`
 
-`bearer`
+`expires_in`:
+
+- целое положительное число;
+- срок действия access token в секундах.
 
 # 3. Error contract
 
@@ -268,8 +272,9 @@ Access token получается через API-02 — Login.
 
 ```json
 {
-  "email": "teacher@example.com",
-  "password": "example-password"
+  "access_token": "opaque-token",
+  "token_type": "bearer",
+  "expires_in": 900
 }
 ```
 
