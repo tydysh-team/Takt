@@ -14,7 +14,7 @@
 | Miro | [Проектная доска](https://miro.com/welcomeonboard/ckl1N2ZOaVlEbUdzUThOM1pkd1lvZEo2eVp3UERxQWVMVGc5c1FlNnVRc3dPSVVqMnhZSDdHREEzYVlISWJQVEkrNFVPZTVLajdPMWF3dUFnU1RtT2N0RXpxcG44eXZmZ3BaRmlCOHp4VmpCdDFmdktYdW9FbmtaTmdXRktlUUJyVmtkMG5hNDA3dVlncnBvRVB2ZXBnPT0hdjE=?share_link_id=469061306483) | Проектные схемы, обсуждения и визуальные материалы | Активен |
 | Планирование Sprint 1 | [Google Docs](https://docs.google.com/document/d/1rhqBtcfzWksw8VkgWcc9mnSXmnHVG8UVmcHRBAfRzZg/edit) | Формальное планирование Sprint 1 и учебный артефакт | Актуален для Sprint 1 |
 | Отчёт Sprint 1 | [Google Docs](https://docs.google.com/document/d/16nXGqMiAKAs6s9bI-9EaaKa6tI59tD-J_ArRihYlegM/edit) | Формальный отчёт Sprint 1 | Актуален для Sprint 1 |
-| Figma / UI/UX | TBD | Канонический источник утверждённого UI/UX после выполнения соответствующих задач | Ожидается в F-07 |
+| Figma / UI/UX | [TBD](https://www.figma.com/design/SltmmWJLMOc2J1kVLuoKbC/Untitled?node-id=6-2&t=y2e7psG44r02QQe6-1) | Канонический источник утверждённого UI/UX после выполнения соответствующих задач | Ожидается в F-07 |
 
 Правила распределения источников истины зафиксированы в [инженерном справочнике](../README.md#источники-истины).
 
