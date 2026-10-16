@@ -1,0 +1,2 @@
+"""Takt backend application package."""
+
