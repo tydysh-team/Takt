@@ -98,7 +98,6 @@ async def seed_development() -> None:
             for student_email in (
                 "student1@demo.example.com",
                 "student2@demo.example.com",
-                "student3@demo.example.com",
             ):
                 student = users[student_email]
                 relation = await relations.get_by_pair(

@@ -111,6 +111,8 @@ $env:TEST_DATABASE_URL = $env:DATABASE_URL
 - `teacher@demo.example.com` — `TEACHER`.
 - `student1@demo.example.com`, `student2@demo.example.com`, `student3@demo.example.com` — `STUDENT`.
 
+При первом seed Student 1 и Student 2 связываются с demo Teacher. Для Student 3 связь не создаётся, поэтому он недоступен через список и детали студентов этого Teacher.
+
 Это намеренные development credentials; не использовать вне local development.
 
 ## 7. Tests
