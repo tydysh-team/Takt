@@ -19,8 +19,10 @@ from app.core.exceptions import (
     InvalidInvitationError,
     InvitationNotActiveError,
     InvitationNotFoundError,
+    LessonStartInPastError,
     ProfileNotFoundError,
     RateLimitExceededError,
+    StudentNotAvailableError,
 )
 from app.schemas.error import ErrorDetail, ErrorResponse
 
@@ -129,10 +131,15 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
         status_code = 403
     elif isinstance(
         exc,
-        (ProfileNotFoundError, InvitationNotFoundError, ConnectionNotFoundError),
+        (
+            ProfileNotFoundError,
+            InvitationNotFoundError,
+            ConnectionNotFoundError,
+            StudentNotAvailableError,
+        ),
     ):
         status_code = 404
-    elif isinstance(exc, InvalidInvitationError):
+    elif isinstance(exc, (InvalidInvitationError, LessonStartInPastError)):
         status_code = 400
     elif isinstance(exc, RateLimitExceededError):
         status_code = 429

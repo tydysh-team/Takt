@@ -23,6 +23,7 @@ from app.services.auth import AuthService
 from app.services.connections import ConnectionService
 from app.services.dashboard import DashboardService
 from app.services.invitations import InvitationService
+from app.services.lessons import LessonService
 from app.services.profiles import ProfileService
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -80,6 +81,12 @@ def get_connection_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ConnectionService:
     return ConnectionService(session)
+
+
+def get_lesson_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> LessonService:
+    return LessonService(session)
 
 
 def get_dashboard_service(
