@@ -703,6 +703,7 @@ a { color: var(--brand); }
 .schedule-event--blue { border-color: #31a8ff; background: #dceefe; }
 .schedule-event--purple { border-color: #7b3ff2; background: #eee3ff; }
 .schedule-event--orange { border-color: #ef4d7a; background: #fbe1e6; }
+.schedule-event--green { border-color: #2c9a67; background: #e1f5e9; }
 @media (max-width: 1000px) { .schedule-page-heading { grid-template-columns: 1fr; } .schedule-controls { align-items: stretch; flex-direction: column; } .schedule-view-actions { justify-content: space-between; } .schedule-calendar { min-width: 760px; } .schedule-calendar-card { overflow-x: auto; } }
 @media (max-width: 620px) { .schedule-week-switcher strong { min-width: 0; flex: 1; } .schedule-view-actions { flex-wrap: wrap; } }
 .schedule-list-view { padding: 1.25rem; }
