@@ -589,3 +589,126 @@ a { color: var(--brand); }
 .profile-invitation-list small { color: var(--muted); font-size: .67rem; }
 .profile-invitation-list b { padding: .4rem .55rem; border-radius: .5rem; color: #17603e; background: #e8f3ec; font-size: .65rem; }
 .profile-side-cta { color: var(--brand); font-size: .78rem; font-weight: 800; text-decoration: none; }
+
+/* Homework readability: +1px while keeping headings unchanged. */
+.assignment-table__head { font-size: .84rem; }
+.assignment-main strong { font-size: 1rem; }
+.assignment-main small { font-size: .82rem; }
+.assignment-student, .assignment-due { font-size: .88rem; }
+.subject-pill { font-size: .82rem; }
+.assignment-status { font-size: .8rem; }
+.homework-filter { font-size: .85rem; }
+.homework-count { gap: .38rem; }
+.homework-count > span, .homework-count > b { font-size: 1em; }
+.homework-count__overdue { color: #d83d48; }
+@media (max-width: 1500px) {
+  .homework-layout--student .assignment-main strong { font-size: .94rem; }
+  .homework-layout--student .assignment-main small { font-size: .82rem; }
+  .homework-layout--student .assignment-due,
+  .homework-layout--student .assignment-student { font-size: .82rem; }
+  .homework-layout--student .subject-pill { font-size: .78rem; }
+  .homework-layout--student .assignment-status { font-size: .76rem; }
+  .homework-filter { font-size: .82rem; }
+}
+@media (max-width: 1200px) {
+  .homework-filter { font-size: .82rem; }
+}
+
+/* Keep homework text comfortably readable at every breakpoint. */
+.selected-assignment h2 { font-size: 1.2rem; }
+.selected-assignment > p { font-size: .86rem; }
+.selected-assignment dt, .selected-assignment dd { font-size: .8rem; }
+.deadlines-card h3 { font-size: 1rem; }
+.deadlines-card button strong { font-size: .78rem; }
+.deadlines-card button small, .deadlines-card time { font-size: .7rem; }
+.homework-filter { font-size: .85rem !important; }
+@media (max-width: 1500px) {
+  .homework-layout--student .assignment-main strong { font-size: .96rem; }
+  .homework-layout--student .assignment-main small { font-size: .82rem; }
+  .homework-layout--student .assignment-due,
+  .homework-layout--student .assignment-student { font-size: .82rem; }
+  .homework-layout--student .assignment-status { font-size: .76rem; }
+}
+
+/* Final homework polish. */
+.homework-count,
+.homework-summary-inline .summary-card strong { font-size: 1.8rem; }
+.homework-count > span,
+.homework-count > b { font-size: inherit; line-height: 1; }
+.student-mark-picker { margin-top: 1rem; }
+.assignment-row + .assignment-row { border-top: 1px solid rgb(31 73 48 / 12%); }
+@media (max-width: 1200px) {
+  .homework-count,
+  .homework-summary-inline .summary-card strong { font-size: 1.5rem; }
+}
+
+/* Assignment rows stay stable when titles/descriptions are long. */
+.assignment-main strong { display: block; max-width: min(100%, 24rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assignment-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: min(100%, 28rem); color: var(--muted); font-size: .82rem; line-height: 1.35; }
+.assignment-description button { padding: 0; border: 0; color: #1976d2; background: transparent; font: inherit; text-decoration: underline; cursor: pointer; }
+.full-assignment-description { margin: 0; color: var(--ink); font-size: .95rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.student-mark-picker { margin-top: .45rem; }
+.assignment-row + .assignment-row { border-top-color: rgb(31 73 48 / 8%); }
+.assignment-row:hover + .assignment-row,
+.assignment-row--selected + .assignment-row { border-top-color: transparent; }
+.homework-count .homework-count__overdue { color: #d83d48; }
+
+/* Long assignment content stays inside the layout and expands vertically. */
+.selected-assignment > p:not(.selected-assignment__description) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; max-height: 4.65em; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.assignment-expanded p { max-width: 100%; white-space: pre-line; overflow-wrap: anywhere; }
+.assignment-description > span { overflow-wrap: anywhere; }
+.dialog-frame { display: grid; width: min(92vw, 760px); max-height: 88vh; }
+.dialog-close-row { display: flex; justify-content: flex-end; min-height: 0; }
+.dialog-close { position: relative; z-index: 2; margin-bottom: -.1rem; color: #fff; background: rgb(17 26 22 / 72%); }
+.dialog-close:hover { color: #fff; background: rgb(17 26 22 / 90%); }
+.dialog-frame .dialog { width: 100%; max-height: calc(88vh - 2.4rem); }
+.full-assignment-description { max-height: 58vh; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Assignment title is limited at input; selected description gets a readable five-line preview. */
+.selected-assignment .selected-description-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; max-width: 100%; max-height: 8em; margin: 0 0 1rem; color: var(--muted); font-size: .86rem; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.selected-assignment .selected-description-preview button { display: inline; }
+.homework-summary-inline .summary-card strong.homework-count { font-size: 1.8rem !important; line-height: 1; }
+.homework-summary-inline .summary-card strong.homework-count > span,
+.homework-summary-inline .summary-card strong.homework-count > b { font-size: 1em !important; }
+.homework-summary-inline .summary-card strong.homework-count .homework-count__overdue { color: #d83d48; }
+@media (max-width: 1200px) {
+  .homework-summary-inline .summary-card strong.homework-count { font-size: 1.8rem !important; }
+}
+.schedule-card + .dialog-backdrop { z-index: 60; }
+
+/* Weekly calendar layout from help_in_dev/расписание.svg. */
+.schedule-page-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(480px, 1.15fr); gap: 1.25rem; align-items: start; }
+.schedule-page-heading .page-heading { margin-bottom: 0; }
+.schedule-page-heading .schedule-summary-grid { margin: 0; }
+.schedule-controls { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.6rem 0 1.2rem; }
+.schedule-week-switcher, .schedule-view-actions, .schedule-view-toggle { display: flex; align-items: center; gap: .65rem; }
+.schedule-week-switcher strong { min-width: 200px; padding: .8rem 1rem; border-radius: .7rem; background: #fff; text-align: center; font-size: .82rem; }
+.schedule-view-toggle { gap: 0; padding: .25rem; border-radius: .7rem; background: #fff; }
+.schedule-view-toggle button { min-height: 38px; padding: .5rem 1.1rem; border: 0; border-radius: .55rem; color: var(--muted); background: transparent; font-weight: 800; cursor: pointer; }
+.schedule-view-toggle button.schedule-view-toggle--active { color: #fff; background: var(--brand); }
+.schedule-calendar-card { padding: 0; overflow: hidden; }
+.schedule-calendar { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); grid-template-rows: 48px repeat(13, minmax(48px, 1fr)); min-height: 590px; position: relative; }
+.schedule-calendar__corner, .schedule-calendar__day { border-bottom: 1px solid #e1e9e3; background: #fff; }
+.schedule-calendar__corner { display: flex; align-items: center; padding: .65rem; color: var(--muted); font-size: .7rem; font-weight: 800; }
+.schedule-calendar__day { display: grid; place-items: center; align-content: center; gap: .12rem; padding: .4rem; border: 0; border-left: 1px solid #e1e9e3; color: var(--ink); cursor: pointer; }
+.schedule-calendar__day strong { font-size: .75rem; }
+.schedule-calendar__day span { color: var(--muted); font-size: .7rem; }
+.schedule-calendar__day--active { background: var(--brand-soft); }
+.schedule-calendar__hour { z-index: 2; padding: .45rem .55rem; border-top: 1px solid #e1e9e3; color: var(--muted); background: #fff; font-size: .68rem; font-weight: 700; }
+.schedule-calendar__cell { border-top: 1px solid #e1e9e3; border-left: 1px solid #e1e9e3; }
+.schedule-event { z-index: 3; display: grid; align-content: start; gap: .15rem; min-width: 0; margin: .22rem .3rem; padding: .55rem .65rem; overflow: hidden; border-left: 4px solid var(--brand); border-radius: .65rem; background: #e8f3ec; }
+.schedule-event strong, .schedule-event span, .schedule-event small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-event strong { font-size: .75rem; }
+.schedule-event span, .schedule-event small { color: #52665a; font-size: .65rem; }
+.schedule-event--blue { border-color: #31a8ff; background: #dceefe; }
+.schedule-event--purple { border-color: #7b3ff2; background: #eee3ff; }
+.schedule-event--orange { border-color: #ef4d7a; background: #fbe1e6; }
+@media (max-width: 1000px) { .schedule-page-heading { grid-template-columns: 1fr; } .schedule-controls { align-items: stretch; flex-direction: column; } .schedule-view-actions { justify-content: space-between; } .schedule-calendar { min-width: 760px; } .schedule-calendar-card { overflow-x: auto; } }
+@media (max-width: 620px) { .schedule-week-switcher strong { min-width: 0; flex: 1; } .schedule-view-actions { flex-wrap: wrap; } }
+.schedule-list-view { padding: 1.25rem; }
+.schedule-list-view .schedule-list { padding-top: 0; }
+@media (max-width: 1000px) { .schedule-list-view { overflow: visible; } }
+.schedule-list-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .45rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.schedule-list-day-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; margin-bottom: .15rem; }
+.schedule-list-day-heading span { color: var(--muted); font-size: .78rem; }
+@media (max-width: 620px) { .schedule-list-days { gap: .15rem; } .schedule-list-days .schedule-day { padding-inline: .15rem; } }
