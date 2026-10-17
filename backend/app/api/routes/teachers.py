@@ -3,10 +3,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies.auth import get_connection_service, get_current_student
+from app.api.dependencies.auth import (
+    get_connection_service,
+    get_current_student,
+    get_current_teacher,
+)
 from app.models.user import User
 from app.repositories.teacher_student_relations import ConnectionRecord
-from app.schemas.connections import TeacherListItem
+from app.schemas.connections import StudentRefDTO, TeacherListItem
 from app.schemas.error import ErrorResponse
 from app.services.connections import ConnectionService
 
@@ -27,6 +31,28 @@ def _teacher_response(record: ConnectionRecord) -> TeacherListItem:
         timezone=record.profile.timezone,
         connected_at=record.relation.created_at,
     )
+
+
+def _student_ref(record: ConnectionRecord) -> StudentRefDTO:
+    return StudentRefDTO(
+        id=record.user.id,
+        first_name=record.profile.first_name,
+        last_name=record.profile.last_name,
+        middle_name=record.profile.middle_name,
+    )
+
+
+@router.get(
+    "/me/students",
+    response_model=list[StudentRefDTO],
+    summary="List students available to the current teacher",
+    responses={403: {"model": ErrorResponse, "description": "Teacher role required"}},
+)
+async def list_current_teacher_students(
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[ConnectionService, Depends(get_connection_service)],
+) -> list[StudentRefDTO]:
+    return [_student_ref(record) for record in await service.list_students(teacher)]
 
 
 @router.get(

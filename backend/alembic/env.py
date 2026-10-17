@@ -9,6 +9,7 @@ from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
 from app.models import (
+    Lesson,
     Profile,
     RefreshSession,
     StudentProfile,
@@ -19,8 +20,14 @@ from app.models import (
 )
 
 _registered_models = (
-    Profile, RefreshSession, StudentProfile, TeacherInvitation,
-    TeacherProfile, TeacherStudentRelation, User,
+    Lesson,
+    Profile,
+    RefreshSession,
+    StudentProfile,
+    TeacherInvitation,
+    TeacherProfile,
+    TeacherStudentRelation,
+    User,
 )
 
 config = context.config
