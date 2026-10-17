@@ -407,6 +407,23 @@ a { color: var(--brand); }
   .assignment-row { grid-template-columns: 24px minmax(200px, 1.8fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(145px, .9fr) minmax(110px, .75fr) 28px; }
 }
 
+
+@media (max-width: 1500px) {
+  .homework-layout--student .assignment-table { overflow: visible; }
+  .homework-layout--student .assignment-table__head { display: none; }
+  .homework-layout--student .assignment-row { grid-template-columns: 22px minmax(0, 1fr) auto; min-width: 0; gap: .35rem .55rem; padding: .75rem .55rem; }
+  .homework-layout--student .assignment-check { grid-row: 1 / span 3; }
+  .homework-layout--student .assignment-main { grid-column: 2; grid-row: 1; }
+  .homework-layout--student .assignment-main strong { font-size: .78rem; }
+  .homework-layout--student .assignment-main small { font-size: .66rem; }
+  .homework-layout--student .assignment-menu-wrap { grid-column: 3; grid-row: 1; }
+  .homework-layout--student .subject-pill { grid-column: 2; grid-row: 2; padding: .35rem .55rem; font-size: .64rem; }
+  .homework-layout--student .assignment-student { grid-column: 3; grid-row: 2; }
+  .homework-layout--student .assignment-due { grid-column: 2; grid-row: 3; font-size: .65rem; }
+  .homework-layout--student .assignment-status { grid-column: 3; grid-row: 3; }
+  .homework-layout--student .assignment-expanded { margin-left: 0; }
+}
+
 .teacher-profile-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 1rem; }
 .teacher-profile-card { padding: 1.35rem; }
 .teacher-profile-card--intro { display: flex; grid-column: 1 / -1; align-items: center; gap: 1rem; background: linear-gradient(110deg, #fff, #f2f7f2); }
@@ -423,7 +440,7 @@ a { color: var(--brand); }
   .teacher-profile-card--intro { align-items: flex-start; flex-wrap: wrap; }
   .teacher-profile-card--intro > .badge { margin-left: 0; }
 }
-@media (max-width: 1050px) {
+@media (max-width: 1200px) {
   .schedule-summary-grid, .homework-summary-grid { grid-template-columns: 1fr; }
   .schedule-days { gap: .15rem; }
   .schedule-day { padding-inline: .15rem; }
@@ -487,5 +504,88 @@ a { color: var(--brand); }
 .student-mark-trigger { padding: .4rem .7rem; border: 1px solid #cfe0d2; border-radius: .55rem; color: var(--brand-dark); background: #fff; font-size: .72rem; font-weight: 800; cursor: pointer; }
 .student-mark-trigger:hover, .student-mark-trigger:focus-visible { border-color: var(--brand); background: var(--brand-soft); }
 .assignment-mark-preview { min-height: 1.4rem; color: var(--brand-dark); font-size: .78rem; font-weight: 800; text-align: center; }
-.assignment-jump-button { width: fit-content; padding: .35rem .55rem; border: 1px solid #cfe0d2; border-radius: .45rem; color: var(--brand); background: #fff; font-size: .68rem; font-weight: 800; cursor: pointer; }
+.assignment-jump-button { display: inline-block; width: fit-content; padding: .35rem .55rem; border: 1px solid #cfe0d2; border-radius: .45rem; color: var(--brand); background: #fff; font-size: .68rem; font-weight: 800; cursor: pointer; }
 .assignment-jump-button:hover { background: var(--brand-soft); }
+
+.homework-count { display: inline-flex; align-items: baseline; gap: .12rem; }
+.homework-count b { color: #d83d48; font-size: .72em; }
+@media (min-width: 1501px) { .assignment-jump-button { display: none; } }
+
+/* Readability pass for homework tables and their summary counters. */
+.assignment-table__head { font-size: .78rem; }
+.assignment-main strong { font-size: .94rem; }
+.assignment-main small { font-size: .76rem; }
+.assignment-student, .assignment-due { font-size: .82rem; }
+.subject-pill { font-size: .76rem; }
+.assignment-status { font-size: .74rem; }
+.homework-summary-inline .summary-card span,
+.homework-summary-inline .summary-card small { font-size: .88rem; }
+.homework-summary-inline .summary-card strong { font-size: 1.8rem; }
+@media (max-width: 1500px) {
+  .homework-layout--student .assignment-main strong { font-size: .88rem; }
+  .homework-layout--student .assignment-main small { font-size: .76rem; }
+  .homework-layout--student .assignment-due,
+  .homework-layout--student .assignment-student { font-size: .76rem; }
+  .homework-layout--student .subject-pill { font-size: .72rem; }
+  .homework-layout--student .assignment-status { font-size: .7rem; }
+  .assignment-jump-button { display: inline-block; }
+}
+@media (max-width: 1200px) {
+  .homework-summary-inline .summary-card span,
+  .homework-summary-inline .summary-card small { font-size: .78rem; }
+  .homework-summary-inline .summary-card strong { font-size: 1.5rem; }
+}
+
+/* Profile layouts follow the two profile references in help_in_dev. */
+.profile-page { width: 100%; max-width: 1100px; }
+.profile-page .page-heading { margin-bottom: 1.35rem; }
+.profile-page .profile-hero { margin-bottom: 1rem; padding: 1.5rem 1.6rem; border-color: #dfe8e1; border-radius: .85rem; background: #fff; box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.profile-page .profile-hero > div strong { font-size: 1.35rem; }
+.profile-page .profile-hero > div span { font-size: .9rem; }
+.profile-page .profile-card { border-color: #dfe8e1; border-radius: .85rem; background: #fff; box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.profile-page .tabs { margin: 0 0 1rem; padding: 0 .25rem; }
+.profile-page .tabs button { padding: .75rem 1rem; font-size: .86rem; }
+.profile-page--self .profile-overview-grid { margin-top: 1rem; }
+.profile-page--self .profile-overview-card { min-height: 145px; border-color: #dfe8e1; border-radius: .85rem; background: #fff; box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.profile-page--self .profile-overview-card .eyebrow { color: var(--muted); font-size: .76rem; }
+.profile-page--self .profile-overview-note { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.profile-page--self .profile-overview-value { font-size: 2.25rem; }
+.teacher-profile-layout--design { grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 1rem; }
+.teacher-profile-layout--design .teacher-profile-card { border-color: #dfe8e1; border-radius: .85rem; background: #fff; box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.teacher-profile-layout--design .teacher-profile-card--intro { padding: 1.6rem; }
+.teacher-profile-layout--design .teacher-profile-card--intro h2 { font-size: 1.65rem; }
+.teacher-profile-layout--design .details-list { gap: .85rem; }
+.teacher-profile-layout--design .details-list dt { font-size: .78rem; }
+.teacher-profile-layout--design .details-list dd { font-size: .86rem; }
+@media (max-width: 740px) {
+  .profile-page { max-width: none; }
+  .profile-page .profile-hero { padding: 1rem; }
+}
+
+.profile-content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 430px; gap: 1rem; align-items: start; }
+.profile-main-column { min-width: 0; }
+.profile-side-column { display: grid; gap: 1rem; }
+.profile-side-card { padding: 1.2rem; border-color: #dfe8e1; border-radius: .85rem; background: #fff; box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.profile-side-heading { display: flex; align-items: start; justify-content: space-between; gap: .75rem; margin-bottom: .85rem; }
+.profile-side-heading h2 { margin: 0; font-size: 1rem; }
+.profile-side-heading a { color: var(--brand); font-size: .72rem; font-weight: 800; text-decoration: none; }
+.profile-person-list, .profile-lesson-list { display: grid; gap: .55rem; }
+.profile-person-list a, .profile-lesson-list a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: .55rem; padding: .35rem 0; color: var(--ink); text-decoration: none; }
+.profile-person-list a > span, .profile-lesson-list a > span { display: grid; gap: .15rem; min-width: 0; }
+.profile-person-list strong, .profile-lesson-list strong { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.profile-person-list small, .profile-lesson-list small { color: var(--muted); font-size: .68rem; }
+.profile-person-list b, .profile-lesson-list b { padding: .42rem .6rem; border-radius: .55rem; color: #17603e; background: #e8f3ec; font-size: .65rem; white-space: nowrap; }
+.profile-person-list i, .profile-lesson-list i { color: var(--muted); font-style: normal; font-size: 1.2rem; }
+.profile-lesson-list time { display: grid; width: 82px; min-height: 56px; place-items: center; border-radius: .65rem; color: var(--ink); background: #f2f6f3; font-size: .68rem; font-weight: 800; text-align: center; }
+.profile-side-number { display: block; color: var(--brand-dark); font-size: 2.3rem; }
+.profile-side-muted { margin: .2rem 0 0; color: var(--muted); font-size: .78rem; }
+@media (max-width: 1100px) { .profile-content-grid { grid-template-columns: 1fr; } .profile-side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 740px) { .profile-side-column { grid-template-columns: 1fr; } }
+.profile-invitation-list { display: grid; gap: .6rem; }
+.profile-invitation-list > div { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .25rem 0; }
+.profile-invitation-dot { width: 34px; height: 34px; border-radius: 50%; background: #eaf0ec; }
+.profile-invitation-list > div > span:nth-child(2) { display: grid; gap: .2rem; }
+.profile-invitation-list strong { font-size: .76rem; }
+.profile-invitation-list small { color: var(--muted); font-size: .67rem; }
+.profile-invitation-list b { padding: .4rem .55rem; border-radius: .5rem; color: #17603e; background: #e8f3ec; font-size: .65rem; }
+.profile-side-cta { color: var(--brand); font-size: .78rem; font-weight: 800; text-decoration: none; }

@@ -25,9 +25,9 @@ export function TeacherProfilePage() {
   const role = "role" in data ? data.role : "TEACHER";
 
   return (
-    <>
+    <div className="profile-page profile-page--teacher">
       <PageHeader eyebrow="Профиль преподавателя" title={name} description="Профиль, контакты и информация о преподавателе." />
-      <div className="teacher-profile-layout">
+      <div className="teacher-profile-layout teacher-profile-layout--design">
         <Card className="teacher-profile-card teacher-profile-card--intro">
           <Avatar firstName={data.first_name} lastName={data.last_name} size="large" />
           <div>
@@ -53,6 +53,6 @@ export function TeacherProfilePage() {
           </div>
         </Card>
       </div>
-    </>
+    </div>
   );
 }
