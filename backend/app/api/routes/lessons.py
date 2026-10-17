@@ -32,6 +32,7 @@ def _read_dto(record: LessonRecord) -> LessonReadDTO:
         title=lesson.title,
         description=lesson.description,
         starts_at=lesson.starts_at,
+        duration_minutes=lesson.duration_minutes,
         teacher=StudentRefDTO(
             id=lesson.teacher_id,
             first_name=record.teacher_profile.first_name,

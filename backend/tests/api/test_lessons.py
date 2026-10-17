@@ -79,6 +79,7 @@ def lesson_payload(student_id: str, **overrides: object) -> dict[str, object]:
         "title": "Математика",
         "description": "Квадратные уравнения",
         "starts_at": (utc_now() + timedelta(days=1)).isoformat(),
+        "duration_minutes": 60,
     }
     payload.update(overrides)
     return payload
@@ -175,10 +176,29 @@ async def test_teacher_creates_lessons_and_duplicate_time_is_allowed(
         "title": "Математика",
         "description": "Квадратные уравнения",
         "starts_at": first.json()["starts_at"],
+        "duration_minutes": 60,
     }
     assert datetime.fromisoformat(first.json()["starts_at"]) == datetime.fromisoformat(
         cast(str, payload["starts_at"])
     )
+
+
+@pytest.mark.parametrize("duration", [1, 15, 75, 95, 137, 2147483647])
+async def test_any_positive_sql_integer_duration_is_accepted(
+    api_context: ApiTestContext, duration: int
+) -> None:
+    _, teacher_token = await register_and_login(api_context, "TEACHER")
+    student, student_token = await register_and_login(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+    response = await api_context.client.post(
+        "/api/v1/lessons",
+        headers=authorization(teacher_token),
+        json=lesson_payload(student["id"], duration_minutes=duration),
+    )
+    assert response.status_code == 201
+    assert response.json()["duration_minutes"] == duration
+    lesson = await api_context.session.get(Lesson, UUID(response.json()["id"]))
+    assert lesson is not None and lesson.duration_minutes == duration
 
 
 @pytest.mark.parametrize("description", [None, "omitted"])
@@ -211,6 +231,11 @@ async def test_description_is_nullable_or_omitted(
         ({"title": "x" * 121}, 422, "validation_error"),
         ({"description": "x" * 2001}, 422, "validation_error"),
         ({"starts_at": "2026-10-20T18:00:00"}, 422, "validation_error"),
+        ({"duration_minutes": 0}, 422, "validation_error"),
+        ({"duration_minutes": -1}, 422, "validation_error"),
+        ({"duration_minutes": 1.5}, 422, "validation_error"),
+        ({"duration_minutes": "60"}, 422, "validation_error"),
+        ({"duration_minutes": 2147483648}, 422, "validation_error"),
         ({"teacher_id": str(uuid4())}, 422, "validation_error"),
     ],
 )
@@ -235,7 +260,7 @@ async def test_lesson_request_validation(
     assert await lesson_count(api_context) == 0
 
 
-@pytest.mark.parametrize("missing_field", ["student_id", "title", "starts_at"])
+@pytest.mark.parametrize("missing_field", ["student_id", "title", "starts_at", "duration_minutes"])
 async def test_required_lesson_fields(
     api_context: ApiTestContext,
     missing_field: str,

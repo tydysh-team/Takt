@@ -43,6 +43,7 @@ class LessonService:
                 title=payload.title,
                 description=payload.description,
                 starts_at=payload.starts_at,
+                duration_minutes=payload.duration_minutes,
             )
             self._lessons.add(lesson)
             await self._session.commit()

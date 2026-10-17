@@ -37,7 +37,21 @@ def test_registration_password_policy_is_length_only(password: str, valid: bool)
         registration(password)
 
 
-def test_registration_does_not_accept_timezone() -> None:
+def test_registration_accepts_valid_iana_timezone() -> None:
+    request = RegisterRequest.model_validate(
+        {
+            "email": "unit@example.com",
+            "password": "12345678",
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "role": "STUDENT",
+            "timezone": "Europe/Samara",
+        }
+    )
+    assert request.timezone == "Europe/Samara"
+
+
+def test_registration_rejects_invalid_iana_timezone() -> None:
     with pytest.raises(ValidationError):
         RegisterRequest.model_validate(
             {
@@ -46,6 +60,6 @@ def test_registration_does_not_accept_timezone() -> None:
                 "first_name": "Ada",
                 "last_name": "Lovelace",
                 "role": "STUDENT",
-                "timezone": "Europe/Samara",
+                "timezone": "Invalid/Timezone",
             }
         )

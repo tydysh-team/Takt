@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 
@@ -16,13 +16,11 @@ import { Input, Select, Textarea } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
 import { profileSchema, type ProfileFormValues } from "../features/profile/profile-schema";
 import { formatFullName, roleLabel } from "../shared/format";
-import { TIMEZONE_OPTIONS } from "../shared/timezones";
+import { timezoneOptions } from "../shared/timezones";
 type ProfileTab = "main" | "security" | "notifications";
 
 function ProfileForm({ profile }: { profile: Profile }) {
-  const timezoneOptions = TIMEZONE_OPTIONS.some((option) => option.value === profile.timezone)
-    ? TIMEZONE_OPTIONS
-    : [{ value: profile.timezone, label: profile.timezone }, ...TIMEZONE_OPTIONS];
+  const timezoneChoices = useMemo(() => timezoneOptions(profile.timezone), [profile.timezone]);
   const queryClient = useQueryClient();
   const { user, updateCurrentUser } = useAuth();
   const [saved, setSaved] = useState(false);
@@ -103,7 +101,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         error={errors.timezone?.message}
         {...register("timezone")}
       >
-        {timezoneOptions.map((option) => (
+        {timezoneChoices.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </Select>
@@ -172,7 +170,7 @@ export function ProfilePage() {
         <aside className="profile-side-column">
           {data.role === "STUDENT" ? <>
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Мои преподаватели</h2><Link to="/teachers">Все преподаватели →</Link></div><div className="profile-person-list">{(teachers.data ?? []).slice(0, 4).map((person) => <Link to={`/teachers/${person.id}`} key={person.id}><Avatar firstName={person.first_name} lastName={person.last_name} size="small" /><span><strong>{formatFullName(person)}</strong><small>{person.email}</small></span><b>Преподаватель</b><i>›</i></Link>)}</div>{teachers.data?.length === 0 ? <p className="profile-side-muted">Вы пока не подключили преподавателей.</p> : null}</Card>
-            <Card className="profile-side-card"><div className="profile-side-heading"><h2>Ближайшие занятия</h2><Link to="/schedule">Все занятия →</Link></div><p className="profile-side-muted">Данные о занятиях пока недоступны в API. Откройте расписание, чтобы посмотреть текущий раздел.</p><Link className="profile-side-cta" to="/schedule">Перейти к расписанию →</Link></Card>
+            <Card className="profile-side-card"><div className="profile-side-heading"><h2>Ближайшие занятия</h2><Link to="/schedule">Все занятия →</Link></div><p className="profile-side-muted">Актуальные занятия доступны в расписании.</p><Link className="profile-side-cta" to="/schedule">Перейти к расписанию →</Link></Card>
           </> : <>
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Преподаваемые предметы</h2></div><p className="profile-side-muted">{data.bio || "Предметы пока не указаны. Добавьте их в поле «О себе» в настройках профиля."}</p></Card>
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Мои ученики</h2><Link to="/students">Все ученики →</Link></div><div className="profile-person-list">{(students.data ?? []).slice(0, 5).map((person) => <Link to={`/students/${person.id}`} key={person.id}><Avatar firstName={person.first_name} lastName={person.last_name} size="small" /><span><strong>{formatFullName(person)}</strong><small>{person.email}</small></span><b>{person.status === "ACTIVE" ? "Подключён" : "Неактивен"}</b><i>›</i></Link>)}</div>{students.data?.length === 0 ? <p className="profile-side-muted">У вас пока нет подключённых учеников.</p> : null}</Card>

@@ -47,6 +47,7 @@ describe("registration and profile pages", () => {
     const html = renderPage(<ProfilePage />, queryClient);
 
     expect(html).toContain("Часовой пояс");
+    expect(html).not.toContain("Поиск часового пояса");
     expect(html).toContain("Europe/Samara");
   });
 });

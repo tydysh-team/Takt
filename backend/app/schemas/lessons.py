@@ -20,6 +20,7 @@ class LessonCreate(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     starts_at: AwareDatetime
+    duration_minutes: int = Field(strict=True, gt=0, le=2147483647)
 
     @field_validator("title", mode="before")
     @classmethod
@@ -36,6 +37,7 @@ class LessonDTO(BaseModel):
     title: str
     description: str | None
     starts_at: datetime
+    duration_minutes: int
 
 
 class LessonSearchRequest(BaseModel):
@@ -62,5 +64,6 @@ class LessonReadDTO(BaseModel):
     title: str
     description: str | None
     starts_at: datetime
+    duration_minutes: int
     teacher: StudentRefDTO
     student: StudentRefDTO

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { registrationSchema } from "../features/auth/registration-schema";
 import { profileSchema } from "../features/profile/profile-schema";
-import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "../shared/timezones";
+import { DEFAULT_TIMEZONE, timezoneOptions, timezoneOrDefault } from "../shared/timezones";
 
 describe("optional middle name forms", () => {
   it("accepts blank registration middle name", () => {
@@ -39,8 +39,14 @@ describe("optional middle name forms", () => {
 
   it("offers Moscow as the default timezone", () => {
     expect(DEFAULT_TIMEZONE).toBe("Europe/Moscow");
-    expect(TIMEZONE_OPTIONS.find((option) => option.value === DEFAULT_TIMEZONE)?.label)
+    expect(timezoneOptions().find((option) => option.value === DEFAULT_TIMEZONE)?.label)
       .toBe("UTC+03:00 — Москва");
+  });
+
+  it("falls back when browser timezone is missing or invalid", () => {
+    expect(timezoneOrDefault(undefined)).toBe(DEFAULT_TIMEZONE);
+    expect(timezoneOrDefault("Invalid/Timezone")).toBe(DEFAULT_TIMEZONE);
+    expect(timezoneOrDefault("Europe/Samara")).toBe("Europe/Samara");
   });
 
   it("accepts blank profile middle name", () => {

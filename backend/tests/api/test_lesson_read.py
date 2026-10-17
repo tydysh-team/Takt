@@ -77,6 +77,7 @@ async def store_lesson(
         title=title,
         description=description,
         starts_at=starts_at,
+        duration_minutes=60,
     )
     context.session.add(lesson)
     await context.session.commit()
@@ -141,6 +142,7 @@ async def test_student_search_scope_boundaries_sorting_and_dto(
         "title": "Exact",
         "description": "Details",
         "starts_at": interval.json()[0]["starts_at"],
+        "duration_minutes": 60,
         "teacher": {
             "id": str(teacher.id),
             "first_name": "Teacher",

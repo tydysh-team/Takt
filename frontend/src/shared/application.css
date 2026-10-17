@@ -219,6 +219,62 @@ a { color: var(--brand); }
 .icon-button { min-width: 38px; min-height: 38px; padding: 0; font-size: 1.35rem; }
 .dialog__content { display: grid; gap: 1rem; padding: 1.25rem 1.35rem 1.35rem; }
 .dialog__actions { display: flex; justify-content: flex-end; gap: 0.65rem; }
+.dialog-backdrop--lesson { align-items: safe center; overflow-y: auto; padding: 20px 16px; scrollbar-width: none; overscroll-behavior: contain; }
+.dialog-backdrop--lesson::-webkit-scrollbar { display: none; }
+.dialog-frame.dialog-frame--lesson { width: min(100%, 556px); max-height: none; }
+.dialog-frame.dialog-frame--lesson .dialog { max-height: none; overflow: visible; border-color: #dde4df; border-radius: 18px; box-shadow: 0 24px 80px rgb(8 18 11 / 20%); }
+.dialog-frame--lesson .dialog:focus { outline: none; }
+.dialog-frame--lesson .dialog__content { display: block; padding: 0; }
+.lesson-create-form { display: grid; gap: 17px; padding: 28px; }
+.lesson-create-form__header { margin-bottom: 8px; }
+.lesson-create-form__header h2 { margin: 0; color: #19231e; font-size: 27px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.2; }
+.lesson-create-form__header p { margin: 5px 0 0; color: #89928b; font-size: 15px; line-height: 1.4; }
+.lesson-create-form .form-field { gap: 7px; min-width: 0; }
+.lesson-create-form .form-field label { color: #202a24; font-size: 14px; font-weight: 700; }
+.lesson-create-form .input { min-height: 56px; padding: 13px 15px; border-color: #dce2de; border-radius: 10px; color: #26312a; font-size: 16px; box-shadow: none; }
+.lesson-create-form .input::placeholder { color: #a5ada7; opacity: 1; }
+.lesson-create-form input::-webkit-calendar-picker-indicator { width: 19px; height: 19px; opacity: .68; cursor: pointer; }
+.lesson-create-form .input[aria-invalid="true"] { border-color: #d68191; background: #fcf2f4; }
+.lesson-create-form__date-control, .lesson-create-form .lesson-create-form__time-control { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lesson-create-form__date-control:focus-within, .lesson-create-form__time-control:focus-within { border-color: #5a8a68; box-shadow: 0 0 0 3px rgb(75 132 91 / 14%); }
+.lesson-create-form__date-control > input:not(.lesson-create-form__native-date), .lesson-create-form__time-control > input { width: 100%; min-width: 0; flex: 1; padding: 0; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
+.lesson-create-form__date-control > input::placeholder, .lesson-create-form__time-control > input::placeholder { color: #a5ada7; opacity: 1; }
+.lesson-create-form__date-picker, .lesson-create-form__time-picker { display: flex; align-items: center; justify-content: center; gap: 4px; flex: 0 0 auto; min-width: 24px; min-height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #65737e; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
+.lesson-create-form__date-picker:hover, .lesson-create-form__time-picker:hover { color: #176342; background: #e8f3ec; }
+.lesson-create-form__date-picker:focus-visible, .lesson-create-form__time-picker:focus-visible { outline: 2px solid #38845e; outline-offset: 2px; }
+.lesson-create-form__date-picker svg, .lesson-create-form__clock { width: 20px; height: 20px; }
+.lesson-create-form__chevron { width: 12px; height: 12px; transition: transform 150ms ease; }
+.lesson-create-form__time-picker[aria-expanded="true"] .lesson-create-form__chevron { transform: rotate(180deg); }
+.lesson-create-form__native-date { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.lesson-create-form__time-field { position: relative; min-width: 0; }
+.lesson-create-form__time-panel { position: absolute; z-index: 6; top: calc(100% + 8px); right: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: min(264px, calc(100vw - 32px)); padding: 12px; border: 1px solid #dce2de; border-radius: 12px; background: #fff; box-shadow: 0 16px 36px rgb(8 32 17 / 18%); animation: lesson-time-panel-in 150ms ease-out; }
+.lesson-create-form__time-panel--above { top: auto; bottom: calc(100% + 8px); }
+.lesson-create-form__time-column { min-width: 0; }
+.lesson-create-form__time-column-label { display: block; padding: 0 8px 8px; color: #89928b; font-size: 12px; font-weight: 700; }
+.lesson-create-form__time-options { display: grid; align-content: start; gap: 2px; height: 202px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #bfcdc3 transparent; scrollbar-width: thin; }
+.lesson-create-form__time-option { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: #26312a; font: inherit; font-size: 14px; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
+.lesson-create-form__time-option:hover, .lesson-create-form__time-option:focus-visible { outline: none; color: #176342; background: #edf6ef; }
+.lesson-create-form__time-option--selected, .lesson-create-form__time-option--selected:hover, .lesson-create-form__time-option--selected:focus-visible { color: #fff; background: #176342; font-weight: 700; }
+@keyframes lesson-time-panel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .lesson-create-form__time-panel { animation: none; } .lesson-create-form__time-option, .lesson-create-form__date-picker, .lesson-create-form__time-picker, .lesson-create-form__chevron { transition: none; } }
+.lesson-create-form .textarea { height: 92px; min-height: 92px; resize: none; line-height: 1.4; }
+.lesson-create-form .form-field__error { color: #b75d6b; font-size: 12px; line-height: 1.25; }
+.lesson-create-form__label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lesson-create-form__label-row span { color: #929a94; font-size: 12px; }
+.lesson-create-form__datetime { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.lesson-create-form__hint { margin: 0; color: #89928b; font-size: 12px; line-height: 1.4; }
+.lesson-create-form__summary { margin: -9px 0 0; color: #b75d6b; font-size: 12px; line-height: 1.4; }
+.lesson-create-form__footer { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.lesson-create-form__duration { width: 152px; flex: 0 0 152px; }
+.lesson-create-form__duration .input { min-height: 50px; font-size: 14px; }
+.lesson-create-form .dialog__actions { gap: 10px; }
+.lesson-create-form .dialog__actions .button { min-height: 52px; padding: 0 13px; border-radius: 10px; font-size: 14px; white-space: nowrap; }
+.lesson-create-form .dialog__actions .button--secondary { min-width: 120px; }
+.lesson-create-form .dialog__actions .button--primary { min-width: 146px; }
+.lesson-create-form .dialog__actions .button--primary:disabled { background: #b9cabe; opacity: 1; }
+@media (max-height: 760px) { .dialog-backdrop--lesson { align-items: start; } }
+@media (max-width: 540px) { .lesson-create-form { padding: 22px; } .lesson-create-form__datetime { gap: 12px; } .lesson-create-form__footer { flex-wrap: wrap; } .lesson-create-form__duration { width: 100%; flex-basis: 100%; } .lesson-create-form .dialog__actions { width: 100%; } .lesson-create-form .dialog__actions .button { flex: 1; } }
+@media (max-width: 480px) { .lesson-create-form__datetime { grid-template-columns: minmax(0, 1fr); gap: 17px; } }
 .dialog-section { display: grid; gap: 0.65rem; margin-top: 0.35rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .invitation-code { display: grid; justify-items: center; gap: 0.5rem; padding: 1.2rem; border: 1px dashed #a9bfad; border-radius: 0.9rem; background: #f5faf5; text-align: center; }
 .invitation-code > span, .invitation-code > small { color: var(--muted); font-size: 0.78rem; }
