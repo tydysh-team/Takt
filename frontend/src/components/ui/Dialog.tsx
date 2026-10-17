@@ -28,18 +28,22 @@ export function Dialog({ open, title, description, onClose, children }: DialogPr
     <div className="dialog-backdrop" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
-        <header className="dialog__header">
-          <div>
-            <h2 id="dialog-title">{title}</h2>
-            {description ? <p>{description}</p> : null}
-          </div>
-          <Button ref={closeRef} variant="ghost" className="icon-button" onClick={onClose} aria-label="Закрыть">
+      <div className="dialog-frame">
+        <div className="dialog-close-row">
+          <Button ref={closeRef} variant="ghost" className="icon-button dialog-close" onClick={onClose} aria-label="Закрыть">
             ×
           </Button>
-        </header>
-        <div className="dialog__content">{children}</div>
-      </section>
+        </div>
+        <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+          <header className="dialog__header">
+            <div>
+              <h2 id="dialog-title">{title}</h2>
+              {description ? <p>{description}</p> : null}
+            </div>
+          </header>
+          <div className="dialog__content">{children}</div>
+        </section>
+      </div>
     </div>
   );
 }

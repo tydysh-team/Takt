@@ -47,7 +47,7 @@ export function TeachersPage() {
             <span>{filtered.length} из {teachers.data.length}</span>
           </div>
           {filtered.length ? (
-            <div className="person-list">{filtered.map((teacher) => <PersonCard key={teacher.id} person={teacher} basePath="/teachers" />)}</div>
+            <div className="person-list">{filtered.map((teacher) => <PersonCard key={teacher.id} person={teacher} basePath="/teacher-profile" />)}</div>
           ) : (
             <EmptyState title="Ничего не найдено" description="Попробуйте изменить поисковый запрос." />
           )}

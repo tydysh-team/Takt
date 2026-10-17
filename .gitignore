@@ -20,6 +20,10 @@ htmlcov/
 *.egg-info/
 dist/
 build/
+.agents/
+.codex/
+.continue/
+help_in_dev/
 
 # Node / Vite
 node_modules/
