@@ -19,6 +19,7 @@ from app.core.exceptions import (
     InvalidInvitationError,
     InvitationNotActiveError,
     InvitationNotFoundError,
+    LessonNotFoundError,
     LessonStartInPastError,
     ProfileNotFoundError,
     RateLimitExceededError,
@@ -135,6 +136,7 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
             ProfileNotFoundError,
             InvitationNotFoundError,
             ConnectionNotFoundError,
+            LessonNotFoundError,
             StudentNotAvailableError,
         ),
     ):

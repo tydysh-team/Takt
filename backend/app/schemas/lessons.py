@@ -1,7 +1,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+
+from app.schemas.connections import StudentRefDTO
 
 
 class LessonCreate(BaseModel):
@@ -27,3 +36,31 @@ class LessonDTO(BaseModel):
     title: str
     description: str | None
     starts_at: datetime
+
+
+class LessonSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date_from: AwareDatetime | None = None
+    date_to: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "LessonSearchRequest":
+        if (
+            self.date_from is not None
+            and self.date_to is not None
+            and self.date_from >= self.date_to
+        ):
+            raise ValueError("date_from must be earlier than date_to")
+        return self
+
+
+class LessonReadDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    title: str
+    description: str | None
+    starts_at: datetime
+    teacher: StudentRefDTO
+    student: StudentRefDTO

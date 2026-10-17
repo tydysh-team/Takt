@@ -78,6 +78,11 @@ class LessonStartInPastError(DomainError):
     message = "Нельзя создать занятие в прошлом."
 
 
+class LessonNotFoundError(DomainError):
+    code = "lesson_not_found"
+    message = "Занятие не найдено."
+
+
 class RateLimitExceededError(DomainError):
     code = "rate_limit_exceeded"
     message = "Слишком много запросов. Повторите попытку позже."
