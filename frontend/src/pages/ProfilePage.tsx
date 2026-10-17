@@ -133,6 +133,8 @@ function ProfileForm({ profile }: { profile: Profile }) {
 export function ProfilePage() {
   const [tab, setTab] = useState<ProfileTab>("main");
   const profile = useQuery({ queryKey: queryKeys.profile, queryFn: api.profile });
+  const students = useQuery({ queryKey: queryKeys.students, queryFn: api.students, enabled: profile.data?.role === "TEACHER" });
+  const invitations = useQuery({ queryKey: queryKeys.invitations, queryFn: api.invitations, enabled: profile.data?.role === "TEACHER" });
 
   if (profile.isLoading) return <LoadingState label="Загружаем профиль…" />;
   if (profile.isError) return <ErrorState message={readableError(profile.error)} onRetry={() => void profile.refetch()} />;
@@ -146,6 +148,13 @@ export function ProfilePage() {
         <Avatar firstName={data.first_name} lastName={data.last_name} size="large" />
         <div><strong>{formatFullName(data)}</strong><span>{roleLabel(data.role)}</span></div>
       </div>
+      {data.role === "TEACHER" ? (
+        <div className="profile-overview-grid">
+          <Card className="profile-overview-card"><span className="eyebrow">Преподаваемые предметы</span><p className="profile-overview-note">Перечислите предметы в поле «О себе». Управление списком предметов пока не поддерживается.</p></Card>
+          <Card className="profile-overview-card"><span className="eyebrow">Мои ученики</span><strong className="profile-overview-value">{students.data?.length ?? "—"}</strong><a href="/students">Открыть список учеников →</a></Card>
+          <Card className="profile-overview-card"><span className="eyebrow">Активные приглашения</span><strong className="profile-overview-value">{invitations.data?.filter((item) => item.status === "ACTIVE").length ?? "—"}</strong><a href="/students">Управлять приглашениями →</a></Card>
+        </div>
+      ) : null}
       <div className="tabs" role="tablist" aria-label="Настройки профиля">
         {(["main", "security", "notifications"] as const).map((value) => (
           <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "tab--active" : ""} onClick={() => { setTab(value); }}>

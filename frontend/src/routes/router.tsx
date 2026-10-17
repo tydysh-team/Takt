@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -6,6 +6,8 @@ import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
+import { SchedulePage } from "../pages/SchedulePage";
+import { TeacherProfilePage } from "../pages/TeacherProfilePage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { StudentDetailPage } from "../pages/StudentDetailPage";
@@ -37,7 +39,9 @@ export const router = createBrowserRouter([
             children: [
               { path: "/dashboard", element: <DashboardPage /> },
               { path: "/profile", element: <ProfilePage /> },
-              { path: "/schedule", element: <PlaceholderPage section="schedule" /> },
+              { path: "/schedule", element: <SchedulePage /> },
+              { path: "/teacher-profile", element: <Navigate to="/profile" replace /> },
+              { path: "/teacher-profile/:id", element: <TeacherProfilePage /> },
               { path: "/homework", element: <PlaceholderPage section="homework" /> },
               {
                 element: <RoleGate allowed={["TEACHER"]} />,

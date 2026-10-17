@@ -12,7 +12,7 @@ interface PersonCardProps {
     connected_at: string;
     timezone: string;
   };
-  basePath: "/students" | "/teachers";
+  basePath: "/students" | "/teachers" | "/teacher-profile";
   status?: string;
 }
 
