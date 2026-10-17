@@ -134,3 +134,44 @@ export interface StudentDashboard {
 }
 
 export type DashboardSummary = TeacherDashboard | StudentDashboard;
+
+
+export interface PersonRef {
+  id: string;
+  first_name: string;
+  last_name: string;
+  middle_name: string | null;
+}
+
+export type StudentRef = PersonRef;
+export type TeacherRef = PersonRef;
+
+export interface LessonCreatePayload {
+  student_id: string;
+  title: string;
+  description?: string | null;
+  starts_at: string;
+}
+
+export interface LessonDTO {
+  id: string;
+  teacher_id: string;
+  student_id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+}
+
+export interface LessonSearchFilters {
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface LessonReadDTO {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  teacher: TeacherRef;
+  student: StudentRef;
+}

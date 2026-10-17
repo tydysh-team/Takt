@@ -199,6 +199,8 @@ export function readableError(error: unknown): string {
     csrf_failed: "Сессия устарела. Войдите снова.",
     forbidden: "У вас нет доступа к этой операции.",
     validation_error: "Проверьте заполнение полей.",
+    lesson_start_in_past: "Нельзя создать занятие в прошлом.",
+    student_not_available: "Выбранный ученик недоступен.",
     network_error: "Не удалось связаться с сервером. Проверьте подключение и повторите попытку.",
   };
 
