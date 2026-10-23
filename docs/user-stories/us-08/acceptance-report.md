@@ -44,8 +44,8 @@
 | AC-US08-10 — In Progress Lesson | 🟡 BLOCKED | Реализация не передана на проверку |
 | AC-US08-11 — Completed Lesson | 🟡 BLOCKED | Реализация не передана на проверку |
 | AC-US08-12 — Cancelled Lesson | 🟡 BLOCKED | Реализация не передана на проверку |
-| AC-US08-13 — Rescheduled Lesson до нового времени | 🟡 BLOCKED | Реализация не передана на проверку |
-| AC-US08-14 — Rescheduled Lesson после нового времени | 🟡 BLOCKED | Реализация не передана на проверку |
+| AC-US08-13 — Перенесённый Lesson до нового времени | 🟡 BLOCKED | Реализация не передана на проверку |
+| AC-US08-14 — Перенесённый Lesson после нового времени | 🟡 BLOCKED | Реализация не передана на проверку |
 | AC-US08-15 — Чужой / недоступный Lesson | 🟡 BLOCKED | Реализация не передана на проверку |
 | AC-US08-16 — Отсутствующий Lesson | 🟡 BLOCKED | Реализация не передана на проверку |
 | AC-US08-17 — Недопустимое attendance-значение | 🟡 BLOCKED | Реализация не передана на проверку |
@@ -117,7 +117,9 @@ US-08 остаётся в статусе:
 - QA checklist;
 - проверка `not_set / present / absent`;
 - проверка изменения ранее установленной отметки;
-- проверка future / in-progress / completed / cancelled / rescheduled Lesson;
+- проверка future / in-progress / completed / cancelled Lesson;
+- отдельная проверка перенесённого Lesson по актуальным новым временным данным;
+- проверка, что признак переноса не заменяет lifecycle-status;
 - проверка ownership и authorization;
 - persistence after refresh;
 - Frontend ↔ Backend E2E;
