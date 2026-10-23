@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 
+from app.core.timezones import DEFAULT_TIMEZONE, validate_timezone
 from app.models.enums import RoleCode
 
 
@@ -31,9 +32,11 @@ class RegisterRequest(BaseModel):
     last_name: str = Field(min_length=1, max_length=100)
     middle_name: str | None = Field(default=None, max_length=100)
     role: Literal[RoleCode.TEACHER, RoleCode.STUDENT]
+    timezone: str = Field(default=DEFAULT_TIMEZONE, max_length=64)
 
     _email_normalizer = field_validator("email", mode="before")(_normalize_email)
     _password_policy = field_validator("password", mode="before")(_validate_password)
+    _timezone_validator = field_validator("timezone")(validate_timezone)
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod

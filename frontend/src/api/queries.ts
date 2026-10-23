@@ -9,6 +9,11 @@ import type {
   StudentDetail,
   StudentListItem,
   TeacherListItem,
+  LessonCreatePayload,
+  LessonDTO,
+  LessonReadDTO,
+  LessonSearchFilters,
+  StudentRef,
 } from "./types";
 
 export const queryKeys = {
@@ -19,11 +24,18 @@ export const queryKeys = {
   student: (id: string) => ["students", id] as const,
   teachers: ["teachers"] as const,
   teacher: (id: string) => ["teachers", id] as const,
+  teacherStudents: ["teachers", "me", "students"] as const,
+  lessons: (dateFrom: string, dateTo: string) => ["lessons", dateFrom, dateTo] as const,
 };
 
 export const api = {
   dashboard: () => apiRequest<DashboardSummary>("/api/v1/dashboard/summary"),
   students: () => apiRequest<StudentListItem[]>("/api/v1/students"),
+  teacherStudents: () => apiRequest<StudentRef[]>("/api/v1/teachers/me/students"),
+  searchLessons: (filters: LessonSearchFilters = {}) =>
+    apiRequest<LessonReadDTO[]>("/api/v1/lessons/search", { method: "POST", body: filters }),
+  createLesson: (payload: LessonCreatePayload) =>
+    apiRequest<LessonDTO>("/api/v1/lessons", { method: "POST", body: payload }),
   student: (id: string) => apiRequest<StudentDetail>(`/api/v1/students/${id}`),
   updateStudentNote: (id: string, note: string | null) =>
     apiRequest<StudentDetail>(`/api/v1/students/${id}/note`, {

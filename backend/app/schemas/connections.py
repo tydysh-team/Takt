@@ -18,6 +18,15 @@ class StudentListItem(BaseModel):
     status: RelationStatus
 
 
+class StudentRefDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    first_name: str
+    last_name: str
+    middle_name: str | None
+
+
 class StudentConnection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

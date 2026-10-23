@@ -7,7 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
 import { Alert } from "../../components/ui/Feedback";
 import { Input } from "../../components/ui/FormField";
-import { formatInvitationCode } from "./invitation-code";
+import { formatInvitationCode, isValidInvitationCode } from "./invitation-code";
 
 export function AcceptInvitationDialog({
   open,
@@ -33,7 +33,7 @@ export function AcceptInvitationDialog({
     },
   });
 
-  const valid = code.replaceAll("-", "").length === 10;
+  const valid = isValidInvitationCode(code);
 
   return (
     <Dialog
@@ -60,6 +60,7 @@ export function AcceptInvitationDialog({
           maxLength={12}
           autoFocus
           hint="Например, A7KD-9PQM-2X"
+          error={code && !valid && code.replaceAll("-", "").length === 10 ? "Код содержит недопустимые символы (I, O, 0, 1)." : undefined}
         />
         <div className="dialog__actions">
           <Button type="button" variant="secondary" onClick={onClose}>Отмена</Button>

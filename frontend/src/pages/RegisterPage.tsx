@@ -10,11 +10,13 @@ import { Alert } from "../components/ui/Feedback";
 import { Input, Select } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
 import { registrationSchema, type RegistrationFormValues } from "../features/auth/registration-schema";
+import { browserTimezone } from "../shared/timezones";
 
 export function RegisterPage() {
   const { register: createAccount } = useAuth();
   const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [timezone] = useState(browserTimezone);
   const {
     register,
     handleSubmit,
@@ -32,7 +34,7 @@ export function RegisterPage() {
     setServerError(null);
     let registered = false;
     try {
-      await createAccount({ ...values, middle_name: values.middle_name || null });
+      await createAccount({ ...values, middle_name: values.middle_name || null, timezone });
       registered = true;
     } catch (error) {
       setServerError(readableError(error));
