@@ -8,11 +8,11 @@ from app.api.dependencies.auth import (
     get_current_teacher,
     get_lesson_service,
 )
+from app.core.security import utc_now
 from app.models.user import User
-from app.repositories.lessons import LessonRecord
-from app.schemas.connections import StudentRefDTO
 from app.schemas.error import ErrorResponse
 from app.schemas.lessons import LessonCreate, LessonDTO, LessonReadDTO, LessonSearchRequest
+from app.services.lesson_views import lesson_record_to_dto, lesson_to_dto
 from app.services.lessons import LessonService
 
 router = APIRouter(prefix="/lessons", tags=["Lessons"])
@@ -23,29 +23,6 @@ lesson_errors: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorResponse, "description": "Student is not available"},
     422: {"model": ErrorResponse, "description": "Request validation failed"},
 }
-
-
-def _read_dto(record: LessonRecord) -> LessonReadDTO:
-    lesson = record.lesson
-    return LessonReadDTO(
-        id=lesson.id,
-        title=lesson.title,
-        description=lesson.description,
-        starts_at=lesson.starts_at,
-        duration_minutes=lesson.duration_minutes,
-        teacher=StudentRefDTO(
-            id=lesson.teacher_id,
-            first_name=record.teacher_profile.first_name,
-            last_name=record.teacher_profile.last_name,
-            middle_name=record.teacher_profile.middle_name,
-        ),
-        student=StudentRefDTO(
-            id=lesson.student_id,
-            first_name=record.student_profile.first_name,
-            last_name=record.student_profile.last_name,
-            middle_name=record.student_profile.middle_name,
-        ),
-    )
 
 
 @router.post(
@@ -60,7 +37,8 @@ async def create_lesson(
     teacher: Annotated[User, Depends(get_current_teacher)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> LessonDTO:
-    return LessonDTO.model_validate(await service.create(teacher, payload))
+    lesson = await service.create(teacher, payload)
+    return lesson_to_dto(lesson, utc_now())
 
 
 @router.post(
@@ -74,7 +52,9 @@ async def search_lessons(
     user: Annotated[User, Depends(get_current_active_user)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> list[LessonReadDTO]:
-    return [_read_dto(record) for record in await service.search(user, filters)]
+    records = await service.search(user, filters)
+    now = utc_now()
+    return [lesson_record_to_dto(record, now) for record in records]
 
 
 @router.get(
@@ -88,4 +68,5 @@ async def get_lesson(
     user: Annotated[User, Depends(get_current_active_user)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> LessonReadDTO:
-    return _read_dto(await service.get_by_id(user, lesson_id))
+    record = await service.get_by_id(user, lesson_id)
+    return lesson_record_to_dto(record, utc_now())

@@ -176,11 +176,18 @@ async def test_teacher_creates_lessons_and_duplicate_time_is_allowed(
         "title": "Математика",
         "description": "Квадратные уравнения",
         "starts_at": first.json()["starts_at"],
+        "ends_at": first.json()["ends_at"],
         "duration_minutes": 60,
+        "status": "planned",
+        "is_rescheduled": False,
+        "attendance": "not_set",
     }
     assert datetime.fromisoformat(first.json()["starts_at"]) == datetime.fromisoformat(
         cast(str, payload["starts_at"])
     )
+    assert datetime.fromisoformat(first.json()["ends_at"]) == datetime.fromisoformat(
+        first.json()["starts_at"]
+    ) + timedelta(minutes=60)
 
 
 @pytest.mark.parametrize("duration", [1, 15, 75, 95, 137, 2147483647])

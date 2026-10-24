@@ -10,6 +10,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.models.enums import AttendanceStatus, LessonStatus
 from app.schemas.connections import StudentRefDTO
 
 
@@ -37,7 +38,11 @@ class LessonDTO(BaseModel):
     title: str
     description: str | None
     starts_at: datetime
+    ends_at: datetime
     duration_minutes: int
+    status: LessonStatus
+    is_rescheduled: bool
+    attendance: AttendanceStatus
 
 
 class LessonSearchRequest(BaseModel):
@@ -64,6 +69,10 @@ class LessonReadDTO(BaseModel):
     title: str
     description: str | None
     starts_at: datetime
+    ends_at: datetime
     duration_minutes: int
+    status: LessonStatus
+    is_rescheduled: bool
+    attendance: AttendanceStatus
     teacher: StudentRefDTO
     student: StudentRefDTO
