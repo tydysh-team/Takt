@@ -8,28 +8,10 @@
 
 ```text
 docs/
-├── general/
-│   ├── README.md
-│   ├── product.md
-│   ├── api-conventions.md
-│   └── acceptance-process.md
-│
-├── foundation/
-│   ├── documentation.md
-│   └── acceptance-criteria.md
-│
+├── general/           
+├── foundation/        
 └── user-stories/
-    ├── us-01/
-    │   ├── documentation.md
-    │   ├── acceptance-criteria.md
-    │   ├── acceptance-report.md
-    │   └── evidence/
-    ├── us-02/
-    │   ├── documentation.md
-    │   ├── acceptance-criteria.md
-    │   ├── acceptance-report.md
-    │   └── evidence/
-    └── us-03/
+    └── us-XX/         
         ├── documentation.md
         ├── acceptance-criteria.md
         ├── acceptance-report.md
