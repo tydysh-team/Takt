@@ -100,9 +100,7 @@ async def test_teacher_student_refs_reuse_active_connection_list(
     await connect(api_context, teacher_token, student_token)
     await connect(api_context, teacher_token, other_token)
     relation = await api_context.session.scalar(
-        select(TeacherStudentRelation).where(
-            TeacherStudentRelation.student_id == UUID(other["id"])
-        )
+        select(TeacherStudentRelation).where(TeacherStudentRelation.student_id == UUID(other["id"]))
     )
     assert relation is not None
     relation.status = RelationStatus.INACTIVE
@@ -151,7 +149,7 @@ async def test_student_refs_empty_authentication_and_authorization(
     assert unauthenticated.json()["error"]["code"] == "authentication_required"
 
 
-async def test_teacher_creates_lessons_and_duplicate_time_is_allowed(
+async def test_duplicate_time_requires_confirmation(
     api_context: ApiTestContext,
 ) -> None:
     teacher, teacher_token = await register_and_login(api_context, "TEACHER")
@@ -162,12 +160,20 @@ async def test_teacher_creates_lessons_and_duplicate_time_is_allowed(
     first = await api_context.client.post(
         "/api/v1/lessons", headers=authorization(teacher_token), json=payload
     )
-    second = await api_context.client.post(
+    conflict = await api_context.client.post(
         "/api/v1/lessons", headers=authorization(teacher_token), json=payload
+    )
+    confirmed = await api_context.client.post(
+        "/api/v1/lessons",
+        headers=authorization(teacher_token),
+        json={**payload, "confirm_conflict": True},
     )
 
     assert first.status_code == 201
-    assert second.status_code == 201
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "lesson_time_conflict"
+    assert len(conflict.json()["error"]["context"]["conflicts"]) == 1
+    assert confirmed.status_code == 201
     assert await lesson_count(api_context) == 2
     assert first.json() == {
         "id": first.json()["id"],

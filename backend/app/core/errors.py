@@ -19,8 +19,12 @@ from app.core.exceptions import (
     InvalidInvitationError,
     InvitationNotActiveError,
     InvitationNotFoundError,
+    LessonNotCancellableError,
     LessonNotFoundError,
+    LessonNotReschedulableError,
+    LessonScheduleUnchangedError,
     LessonStartInPastError,
+    LessonTimeConflictError,
     ProfileNotFoundError,
     RateLimitExceededError,
     StudentNotAvailableError,
@@ -36,10 +40,17 @@ def error_response(
     code: str,
     message: str,
     details: list[ErrorDetail] | None = None,
+    context: dict[str, object] | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
-    payload = ErrorResponse.from_values(code=code, message=message, details=details)
-    return JSONResponse(status_code=status_code, content=payload.model_dump(), headers=headers)
+    payload = ErrorResponse.from_values(
+        code=code, message=message, details=details, context=context
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content=payload.model_dump(exclude_none=True),
+        headers=headers,
+    )
 
 
 def _validation_code(error_type: str) -> str:
@@ -122,7 +133,15 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
     headers: dict[str, str] | None = None
     if isinstance(
         exc,
-        (EmailAlreadyRegisteredError, AlreadyConnectedError, InvitationNotActiveError),
+        (
+            EmailAlreadyRegisteredError,
+            AlreadyConnectedError,
+            InvitationNotActiveError,
+            LessonTimeConflictError,
+            LessonNotReschedulableError,
+            LessonScheduleUnchangedError,
+            LessonNotCancellableError,
+        ),
     ):
         status_code = 409
     elif isinstance(exc, (InvalidCredentialsError, AuthenticationRequiredError)):
@@ -150,6 +169,7 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
         status_code=status_code,
         code=exc.code,
         message=exc.safe_message,
+        context=exc.context,
         headers=headers,
     )
 
@@ -159,4 +179,3 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unexpected_exception_handler)
-

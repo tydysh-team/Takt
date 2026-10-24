@@ -11,7 +11,13 @@ from app.api.dependencies.auth import (
 from app.core.security import utc_now
 from app.models.user import User
 from app.schemas.error import ErrorResponse
-from app.schemas.lessons import LessonCreate, LessonDTO, LessonReadDTO, LessonSearchRequest
+from app.schemas.lessons import (
+    LessonCreate,
+    LessonDTO,
+    LessonReadDTO,
+    LessonRescheduleRequest,
+    LessonSearchRequest,
+)
 from app.services.lesson_views import lesson_record_to_dto, lesson_to_dto
 from app.services.lessons import LessonService
 
@@ -21,6 +27,7 @@ lesson_errors: dict[int | str, dict[str, Any]] = {
     400: {"model": ErrorResponse, "description": "Lesson starts in the past"},
     403: {"model": ErrorResponse, "description": "Teacher role required"},
     404: {"model": ErrorResponse, "description": "Student is not available"},
+    409: {"model": ErrorResponse, "description": "Lesson time conflict"},
     422: {"model": ErrorResponse, "description": "Request validation failed"},
 }
 
@@ -69,4 +76,45 @@ async def get_lesson(
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> LessonReadDTO:
     record = await service.get_by_id(user, lesson_id)
+    return lesson_record_to_dto(record, utc_now())
+
+
+@router.patch(
+    "/{lesson_id}/schedule",
+    response_model=LessonReadDTO,
+    summary="Reschedule a planned lesson",
+    responses={
+        400: lesson_errors[400],
+        403: lesson_errors[403],
+        404: {"model": ErrorResponse, "description": "Lesson not found"},
+        409: {"model": ErrorResponse, "description": "Conflict or invalid lesson state"},
+        422: lesson_errors[422],
+    },
+)
+async def reschedule_lesson(
+    lesson_id: UUID,
+    payload: LessonRescheduleRequest,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[LessonService, Depends(get_lesson_service)],
+) -> LessonReadDTO:
+    record = await service.reschedule(teacher, lesson_id, payload)
+    return lesson_record_to_dto(record, utc_now())
+
+
+@router.post(
+    "/{lesson_id}/cancel",
+    response_model=LessonReadDTO,
+    summary="Cancel a planned lesson",
+    responses={
+        403: lesson_errors[403],
+        404: {"model": ErrorResponse, "description": "Lesson not found"},
+        409: {"model": ErrorResponse, "description": "Lesson cannot be cancelled"},
+    },
+)
+async def cancel_lesson(
+    lesson_id: UUID,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[LessonService, Depends(get_lesson_service)],
+) -> LessonReadDTO:
+    record = await service.cancel(teacher, lesson_id)
     return lesson_record_to_dto(record, utc_now())

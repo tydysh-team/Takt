@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -15,6 +17,7 @@ class ErrorBody(BaseModel):
     code: str
     message: str
     details: list[ErrorDetail] = Field(default_factory=list)
+    context: dict[str, Any] | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -29,12 +32,13 @@ class ErrorResponse(BaseModel):
         code: str,
         message: str,
         details: list[ErrorDetail] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> "ErrorResponse":
         return cls(
             error=ErrorBody(
                 code=code,
                 message=message,
                 details=details or [],
+                context=context,
             )
         )
-

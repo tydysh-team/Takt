@@ -22,6 +22,7 @@ class LessonCreate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     starts_at: AwareDatetime
     duration_minutes: int = Field(strict=True, gt=0, le=2147483647)
+    confirm_conflict: bool = False
 
     @field_validator("title", mode="before")
     @classmethod
@@ -43,6 +44,24 @@ class LessonDTO(BaseModel):
     status: LessonStatus
     is_rescheduled: bool
     attendance: AttendanceStatus
+
+
+class LessonRescheduleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    starts_at: AwareDatetime
+    confirm_conflict: bool = False
+
+
+class LessonConflictDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    duration_minutes: int
+    student: StudentRefDTO
 
 
 class LessonSearchRequest(BaseModel):

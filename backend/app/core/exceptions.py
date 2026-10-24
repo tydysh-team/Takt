@@ -1,11 +1,20 @@
+from typing import Any
+
+
 class DomainError(Exception):
     """Base class for safe domain failures translated at the HTTP boundary."""
 
     code = "domain_error"
     message = "The operation could not be completed."
 
-    def __init__(self, *, message: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        message: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
         self.safe_message = message or self.message
+        self.context = context
         super().__init__(self.safe_message)
 
 
@@ -83,6 +92,26 @@ class LessonNotFoundError(DomainError):
     message = "Занятие не найдено."
 
 
+class LessonTimeConflictError(DomainError):
+    code = "lesson_time_conflict"
+    message = "Найдено пересечение с другим занятием."
+
+
+class LessonNotReschedulableError(DomainError):
+    code = "lesson_not_reschedulable"
+    message = "Перенести можно только запланированное занятие."
+
+
+class LessonScheduleUnchangedError(DomainError):
+    code = "lesson_schedule_unchanged"
+    message = "Новое время совпадает с текущим временем занятия."
+
+
+class LessonNotCancellableError(DomainError):
+    code = "lesson_not_cancellable"
+    message = "Отменить можно только запланированное занятие."
+
+
 class RateLimitExceededError(DomainError):
     code = "rate_limit_exceeded"
     message = "Слишком много запросов. Повторите попытку позже."
@@ -90,4 +119,3 @@ class RateLimitExceededError(DomainError):
     def __init__(self, *, retry_after: int) -> None:
         self.retry_after = retry_after
         super().__init__()
-
