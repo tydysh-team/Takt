@@ -9,6 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.exceptions import (
     AlreadyConnectedError,
+    AttendanceNotAvailableError,
     AuthenticationRequiredError,
     ConnectionNotFoundError,
     CsrfValidationError,
@@ -141,6 +142,7 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
             LessonNotReschedulableError,
             LessonScheduleUnchangedError,
             LessonNotCancellableError,
+            AttendanceNotAvailableError,
         ),
     ):
         status_code = 409

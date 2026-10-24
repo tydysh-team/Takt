@@ -12,6 +12,7 @@ from app.core.security import utc_now
 from app.models.user import User
 from app.schemas.error import ErrorResponse
 from app.schemas.lessons import (
+    LessonAttendanceUpdateRequest,
     LessonCreate,
     LessonDTO,
     LessonReadDTO,
@@ -117,4 +118,26 @@ async def cancel_lesson(
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> LessonReadDTO:
     record = await service.cancel(teacher, lesson_id)
+    return lesson_record_to_dto(record, utc_now())
+
+
+@router.put(
+    "/{lesson_id}/attendance",
+    response_model=LessonReadDTO,
+    summary="Set attendance for an in-progress or completed lesson",
+    responses={
+        401: {"model": ErrorResponse, "description": "Authentication required"},
+        403: lesson_errors[403],
+        404: {"model": ErrorResponse, "description": "Lesson not found"},
+        409: {"model": ErrorResponse, "description": "Attendance is not available"},
+        422: lesson_errors[422],
+    },
+)
+async def update_lesson_attendance(
+    lesson_id: UUID,
+    payload: LessonAttendanceUpdateRequest,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[LessonService, Depends(get_lesson_service)],
+) -> LessonReadDTO:
+    record = await service.update_attendance(teacher, lesson_id, payload)
     return lesson_record_to_dto(record, utc_now())

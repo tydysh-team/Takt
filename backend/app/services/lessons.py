@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    AttendanceNotAvailableError,
     ForbiddenError,
     LessonNotCancellableError,
     LessonNotFoundError,
@@ -13,7 +14,7 @@ from app.core.exceptions import (
     StudentNotAvailableError,
 )
 from app.core.security import utc_now
-from app.models.enums import LessonStatus, RoleCode
+from app.models.enums import AttendanceValue, LessonStatus, RoleCode
 from app.models.lesson import Lesson
 from app.models.user import User
 from app.repositories.lessons import (
@@ -26,6 +27,7 @@ from app.repositories.teacher_student_relations import TeacherStudentRelationRep
 from app.repositories.users import UserRepository
 from app.schemas.connections import StudentRefDTO
 from app.schemas.lessons import (
+    LessonAttendanceUpdateRequest,
     LessonConflictDTO,
     LessonCreate,
     LessonRescheduleRequest,
@@ -132,6 +134,40 @@ class LessonService:
                 raise LessonNotCancellableError()
 
             lesson.cancelled_at = now
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        return record
+
+    async def update_attendance(
+        self,
+        teacher: User,
+        lesson_id: UUID,
+        payload: LessonAttendanceUpdateRequest,
+    ) -> LessonRecord:
+        try:
+            await self._lock_teacher(teacher)
+            record = await self._lessons.get_teacher_lesson_for_update(teacher.id, lesson_id)
+            if record is None:
+                raise LessonNotFoundError()
+
+            lesson = record.lesson
+            now = utc_now()
+            if calculate_lesson_status(lesson, now) not in (
+                LessonStatus.IN_PROGRESS,
+                LessonStatus.COMPLETED,
+            ):
+                raise AttendanceNotAvailableError()
+
+            value = (
+                AttendanceValue.PRESENT
+                if payload.attendance == "present"
+                else AttendanceValue.ABSENT
+            )
+            if lesson.attendance != value:
+                lesson.attendance = value
+                lesson.attendance_updated_at = now
             await self._session.commit()
         except Exception:
             await self._session.rollback()

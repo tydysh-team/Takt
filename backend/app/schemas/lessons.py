@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -51,6 +52,12 @@ class LessonRescheduleRequest(BaseModel):
 
     starts_at: AwareDatetime
     confirm_conflict: bool = False
+
+
+class LessonAttendanceUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attendance: Literal["present", "absent"]
 
 
 class LessonConflictDTO(BaseModel):

@@ -112,6 +112,11 @@ class LessonNotCancellableError(DomainError):
     message = "Отменить можно только запланированное занятие."
 
 
+class AttendanceNotAvailableError(DomainError):
+    code = "attendance_not_available"
+    message = "Посещаемость доступна только для начавшегося или завершённого занятия."
+
+
 class RateLimitExceededError(DomainError):
     code = "rate_limit_exceeded"
     message = "Слишком много запросов. Повторите попытку позже."
