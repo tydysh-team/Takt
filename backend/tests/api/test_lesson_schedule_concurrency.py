@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -104,6 +104,34 @@ async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -
             warning = first if first.status_code == 409 else second
             assert warning.json()["error"]["code"] == "lesson_time_conflict"
             assert len(warning.json()["error"]["context"]["conflicts"]) == 1
+
+            created = first if first.status_code == 201 else second
+            cancel_path = f"/api/v1/lessons/{created.json()['id']}/cancel"
+            cancel_transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 12345))
+            async with httpx.AsyncClient(
+                transport=cancel_transport,
+                base_url="http://testserver",
+            ) as cancel_client:
+
+                async def cancel(reason: str) -> httpx.Response:
+                    return await cancel_client.post(
+                        cancel_path,
+                        headers={"Authorization": f"Bearer {token}"},
+                        json={"reason": reason},
+                    )
+
+                cancelled, repeated = await asyncio.gather(cancel("First"), cancel("Second"))
+            assert cancelled.status_code == repeated.status_code == 200
+            assert cancelled.json()["cancellation_reason"] == repeated.json()[
+                "cancellation_reason"
+            ]
+            assert cancelled.json()["cancellation_reason"] in {"First", "Second"}
+
+            async with sessions() as verify:
+                lesson = await verify.get(Lesson, UUID(created.json()["id"]))
+                assert lesson is not None
+                assert lesson.cancelled_at is not None
+                assert lesson.cancellation_reason == cancelled.json()["cancellation_reason"]
         finally:
             app.dependency_overrides.pop(get_db_session, None)
     finally:

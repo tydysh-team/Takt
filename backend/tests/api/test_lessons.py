@@ -422,3 +422,25 @@ async def test_admin_cannot_create_lesson(api_context: ApiTestContext) -> None:
 
     assert response.status_code == 403
     assert await lesson_count(api_context) == 0
+
+
+async def test_create_rolls_back_on_commit_error(
+    api_context: ApiTestContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, teacher_token = await register_and_login(api_context, "TEACHER")
+    student, student_token = await register_and_login(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+
+    async def broken_commit() -> None:
+        raise RuntimeError("Simulated commit failure")
+
+    monkeypatch.setattr(api_context.session, "commit", broken_commit)
+    with pytest.raises(RuntimeError, match="Simulated commit failure"):
+        await api_context.client.post(
+            "/api/v1/lessons",
+            headers=authorization(teacher_token),
+            json=lesson_payload(student["id"]),
+        )
+
+    assert await lesson_count(api_context) == 0
