@@ -28,6 +28,7 @@ from app.repositories.users import UserRepository
 from app.schemas.connections import StudentRefDTO
 from app.schemas.lessons import (
     LessonAttendanceUpdateRequest,
+    LessonCancelRequest,
     LessonConflictDTO,
     LessonCreate,
     LessonRescheduleRequest,
@@ -118,7 +119,12 @@ class LessonService:
             raise
         return record
 
-    async def cancel(self, teacher: User, lesson_id: UUID) -> LessonRecord:
+    async def cancel(
+        self,
+        teacher: User,
+        lesson_id: UUID,
+        payload: LessonCancelRequest | None = None,
+    ) -> LessonRecord:
         try:
             await self._lock_teacher(teacher)
             record = await self._lessons.get_teacher_lesson_for_update(teacher.id, lesson_id)
@@ -130,10 +136,14 @@ class LessonService:
             if lesson.cancelled_at is not None:
                 await self._session.commit()
                 return record
-            if calculate_lesson_status(lesson, now) != LessonStatus.PLANNED:
+            if calculate_lesson_status(lesson, now) not in (
+                LessonStatus.PLANNED,
+                LessonStatus.IN_PROGRESS,
+            ):
                 raise LessonNotCancellableError()
 
             lesson.cancelled_at = now
+            lesson.cancellation_reason = payload.reason if payload is not None else None
             await self._session.commit()
         except Exception:
             await self._session.rollback()

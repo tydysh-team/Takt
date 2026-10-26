@@ -152,6 +152,7 @@ async def test_student_search_scope_boundaries_sorting_and_dto(
         "status": "planned",
         "is_rescheduled": False,
         "attendance": "not_set",
+        "cancellation_reason": None,
         "teacher": {
             "id": str(teacher.id),
             "first_name": "Teacher",

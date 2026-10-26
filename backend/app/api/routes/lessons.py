@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.error import ErrorResponse
 from app.schemas.lessons import (
     LessonAttendanceUpdateRequest,
+    LessonCancelRequest,
     LessonCreate,
     LessonDTO,
     LessonReadDTO,
@@ -105,19 +106,21 @@ async def reschedule_lesson(
 @router.post(
     "/{lesson_id}/cancel",
     response_model=LessonReadDTO,
-    summary="Cancel a planned lesson",
+    summary="Cancel a planned or in-progress lesson",
     responses={
         403: lesson_errors[403],
         404: {"model": ErrorResponse, "description": "Lesson not found"},
         409: {"model": ErrorResponse, "description": "Lesson cannot be cancelled"},
+        422: lesson_errors[422],
     },
 )
 async def cancel_lesson(
     lesson_id: UUID,
     teacher: Annotated[User, Depends(get_current_teacher)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
+    payload: LessonCancelRequest | None = None,
 ) -> LessonReadDTO:
-    record = await service.cancel(teacher, lesson_id)
+    record = await service.cancel(teacher, lesson_id, payload)
     return lesson_record_to_dto(record, utc_now())
 
 

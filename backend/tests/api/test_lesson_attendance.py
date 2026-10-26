@@ -158,6 +158,7 @@ async def test_attendance_changes_are_persisted_and_lesson_scoped(
 
     assert response.status_code == 200
     assert response.json()["attendance"] == requested
+    assert response.json()["cancellation_reason"] is None
     assert response.json()["status"] == "in_progress"
     assert student_get.json()["attendance"] == requested
     searched_lesson = next(item for item in search.json() if item["id"] == str(lesson_id))

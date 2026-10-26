@@ -45,6 +45,7 @@ class LessonDTO(BaseModel):
     status: LessonStatus
     is_rescheduled: bool
     attendance: AttendanceStatus
+    cancellation_reason: str | None
 
 
 class LessonRescheduleRequest(BaseModel):
@@ -52,6 +53,19 @@ class LessonRescheduleRequest(BaseModel):
 
     starts_at: AwareDatetime
     confirm_conflict: bool = False
+
+
+class LessonCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=500)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
 
 class LessonAttendanceUpdateRequest(BaseModel):
@@ -100,5 +114,6 @@ class LessonReadDTO(BaseModel):
     status: LessonStatus
     is_rescheduled: bool
     attendance: AttendanceStatus
+    cancellation_reason: str | None
     teacher: StudentRefDTO
     student: StudentRefDTO

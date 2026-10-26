@@ -50,6 +50,7 @@ def lesson_to_dto(lesson: Lesson, now: datetime) -> LessonDTO:
         status=calculate_lesson_status(lesson, now),
         is_rescheduled=lesson.rescheduled_at is not None,
         attendance=attendance_status(lesson.attendance),
+        cancellation_reason=lesson.cancellation_reason,
     )
 
 
@@ -65,6 +66,7 @@ def lesson_record_to_dto(record: LessonRecord, now: datetime) -> LessonReadDTO:
         status=calculate_lesson_status(lesson, now),
         is_rescheduled=lesson.rescheduled_at is not None,
         attendance=attendance_status(lesson.attendance),
+        cancellation_reason=lesson.cancellation_reason,
         teacher=StudentRefDTO(
             id=lesson.teacher_id,
             first_name=record.teacher_profile.first_name,

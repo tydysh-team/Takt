@@ -187,6 +187,7 @@ async def test_duplicate_time_requires_confirmation(
         "status": "planned",
         "is_rescheduled": False,
         "attendance": "not_set",
+        "cancellation_reason": None,
     }
     assert datetime.fromisoformat(first.json()["starts_at"]) == datetime.fromisoformat(
         cast(str, payload["starts_at"])

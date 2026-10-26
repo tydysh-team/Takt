@@ -232,6 +232,7 @@ async def test_reschedule_updates_only_schedule_and_is_visible_to_student(
     assert response.json()["id"] == str(lesson.id)
     assert response.json()["is_rescheduled"] is True
     assert response.json()["status"] == "planned"
+    assert response.json()["cancellation_reason"] is None
     assert datetime.fromisoformat(response.json()["starts_at"]) == new_start
     assert student_get.status_code == 200
     assert datetime.fromisoformat(student_get.json()["starts_at"]) == new_start
@@ -358,10 +359,14 @@ async def test_cancel_is_persistent_idempotent_and_frees_slot(
     start = utc_now() + timedelta(days=30)
     lesson = await store_lesson(api_context, teacher, student, start)
     path = f"/api/v1/lessons/{lesson.id}/cancel"
-    first = await api_context.client.post(path, headers=auth(token))
+    first = await api_context.client.post(
+        path, headers=auth(token), json={"reason": "  Перенос не состоялся  "}
+    )
     await api_context.session.refresh(lesson)
     cancelled_at = lesson.cancelled_at
-    second = await api_context.client.post(path, headers=auth(token))
+    second = await api_context.client.post(
+        path, headers=auth(token), json={"reason": "Другая причина"}
+    )
     await api_context.session.refresh(lesson)
     student_get = await api_context.client.get(
         f"/api/v1/lessons/{lesson.id}", headers=auth(student_token)
@@ -375,20 +380,152 @@ async def test_cancel_is_persistent_idempotent_and_frees_slot(
 
     assert first.status_code == second.status_code == 200
     assert first.json()["status"] == second.json()["status"] == "cancelled"
+    assert first.json()["cancellation_reason"] == "Перенос не состоялся"
+    assert second.json()["cancellation_reason"] == "Перенос не состоялся"
     assert cancelled_at is not None
     assert lesson.cancelled_at == cancelled_at
+    assert lesson.cancellation_reason == "Перенос не состоялся"
     assert student_get.json()["status"] == "cancelled"
+    assert student_get.json()["cancellation_reason"] == "Перенос не состоялся"
     assert student_search.json()[0]["status"] == "cancelled"
+    assert student_search.json()[0]["cancellation_reason"] == "Перенос не состоялся"
     assert replacement.status_code == 201
 
 
-@pytest.mark.parametrize("offset", [timedelta(), timedelta(minutes=-90)])
-async def test_cancel_rejects_started_or_completed(
+@pytest.mark.parametrize(
+    ("start_offset", "body", "expected_reason"),
+    [
+        (timedelta(days=30), {"reason": "  Ученик не смог прийти  "}, "Ученик не смог прийти"),
+        (timedelta(minutes=-30), {"reason": "  Прервано занятие  "}, "Прервано занятие"),
+        (timedelta(days=30), None, None),
+        (timedelta(minutes=-30), {}, None),
+    ],
+)
+async def test_cancel_planned_or_in_progress_with_optional_reason(
     api_context: ApiTestContext,
-    offset: timedelta,
+    start_offset: timedelta,
+    body: dict[str, str] | None,
+    expected_reason: str | None,
 ) -> None:
     teacher, token, student, _ = await participants(api_context)
-    lesson = await store_lesson(api_context, teacher, student, utc_now() + offset)
+    lesson = await store_lesson(api_context, teacher, student, utc_now() + start_offset)
+    path = f"/api/v1/lessons/{lesson.id}/cancel"
+    if body is None:
+        response = await api_context.client.post(path, headers=auth(token))
+    else:
+        response = await api_context.client.post(path, headers=auth(token), json=body)
+    await api_context.session.refresh(lesson)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert response.json()["cancellation_reason"] == expected_reason
+    assert lesson.cancelled_at is not None
+    assert lesson.cancellation_reason == expected_reason
+    assert lesson.attendance is None
+    assert lesson.attendance_updated_at is None
+
+
+@pytest.mark.parametrize(
+    ("raw_reason", "expected_reason"),
+    [
+        ("", None),
+        ("   ", None),
+        ("  причина  ", "причина"),
+        ("x" * 500, "x" * 500),
+        (None, None),
+    ],
+)
+async def test_cancel_reason_normalization(
+    api_context: ApiTestContext,
+    raw_reason: str | None,
+    expected_reason: str | None,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    lesson = await store_lesson(api_context, teacher, student, utc_now() + timedelta(days=2))
+    response = await api_context.client.post(
+        f"/api/v1/lessons/{lesson.id}/cancel",
+        headers=auth(token),
+        json={"reason": raw_reason},
+    )
+    await api_context.session.refresh(lesson)
+
+    assert response.status_code == 200
+    assert response.json()["cancellation_reason"] == expected_reason
+    assert lesson.cancellation_reason == expected_reason
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"reason": "x" * 501},
+        {"reason": 123},
+        {"reason": "Причина", "teacher_id": str(uuid4())},
+        {"reason": "Причина", "student_id": str(uuid4())},
+        {"unknown": True},
+    ],
+)
+async def test_cancel_rejects_invalid_reason_or_extra_fields(
+    api_context: ApiTestContext,
+    body: dict[str, object],
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    lesson = await store_lesson(api_context, teacher, student, utc_now() + timedelta(days=2))
+    response = await api_context.client.post(
+        f"/api/v1/lessons/{lesson.id}/cancel", headers=auth(token), json=body
+    )
+    await api_context.session.refresh(lesson)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert lesson.cancelled_at is None
+    assert lesson.cancellation_reason is None
+
+
+async def test_cancel_in_progress_preserves_attendance_and_blocks_future_changes(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    lesson = await store_lesson(
+        api_context, teacher, student, utc_now() - timedelta(minutes=30)
+    )
+    path = f"/api/v1/lessons/{lesson.id}"
+    attendance = await api_context.client.put(
+        f"{path}/attendance", headers=auth(token), json={"attendance": "present"}
+    )
+    await api_context.session.refresh(lesson)
+    attendance_updated_at = lesson.attendance_updated_at
+    cancelled = await api_context.client.post(
+        f"{path}/cancel", headers=auth(token), json={"reason": "  Урок прерван  "}
+    )
+    await api_context.session.refresh(lesson)
+    cancelled_at = lesson.cancelled_at
+    repeated = await api_context.client.post(
+        f"{path}/cancel", headers=auth(token), json={"reason": "Другая причина"}
+    )
+    after_cancel = await api_context.client.put(
+        f"{path}/attendance", headers=auth(token), json={"attendance": "absent"}
+    )
+    await api_context.session.refresh(lesson)
+
+    assert attendance.status_code == 200
+    assert cancelled.status_code == 200
+    assert repeated.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    assert cancelled.json()["attendance"] == "present"
+    assert cancelled.json()["cancellation_reason"] == "Урок прерван"
+    assert after_cancel.status_code == 409
+    assert after_cancel.json()["error"]["code"] == "attendance_not_available"
+    assert lesson.attendance is not None and lesson.attendance.value == "PRESENT"
+    assert lesson.attendance_updated_at == attendance_updated_at
+    assert lesson.cancelled_at == cancelled_at
+    assert lesson.cancellation_reason == "Урок прерван"
+
+
+async def test_cancel_rejects_completed(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    lesson = await store_lesson(api_context, teacher, student, utc_now() - timedelta(minutes=90))
     response = await api_context.client.post(
         f"/api/v1/lessons/{lesson.id}/cancel", headers=auth(token)
     )
@@ -438,8 +575,11 @@ async def test_exact_start_and_end_reject_schedule_changes(
 
     assert reschedule.status_code == 409
     assert reschedule.json()["error"]["code"] == "lesson_not_reschedulable"
-    assert cancel.status_code == 409
-    assert cancel.json()["error"]["code"] == "lesson_not_cancellable"
+    assert cancel.status_code == (409 if at_end else 200)
+    if at_end:
+        assert cancel.json()["error"]["code"] == "lesson_not_cancellable"
+    else:
+        assert cancel.json()["status"] == "cancelled"
 
 
 @pytest.mark.parametrize("action", ["reschedule", "cancel"])
@@ -466,10 +606,13 @@ async def test_schedule_write_rolls_back_on_commit_error(
             )
         else:
             await api_context.client.post(
-                f"/api/v1/lessons/{lesson.id}/cancel", headers=auth(token)
+                f"/api/v1/lessons/{lesson.id}/cancel",
+                headers=auth(token),
+                json={"reason": "Отмена при ошибке"},
             )
 
     await api_context.session.refresh(lesson)
     assert lesson.starts_at == original
     assert lesson.rescheduled_at is None
     assert lesson.cancelled_at is None
+    assert lesson.cancellation_reason is None

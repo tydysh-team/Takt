@@ -52,6 +52,7 @@ class Lesson(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     rescheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attendance: Mapped[AttendanceValue | None] = mapped_column(
         Enum(AttendanceValue, name="attendance_value", native_enum=True),
