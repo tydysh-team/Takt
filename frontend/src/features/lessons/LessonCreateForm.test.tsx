@@ -28,8 +28,8 @@ describe("lesson creation form", () => {
     expect(html).not.toContain('step="300"');
     expect(html).toContain('placeholder="дд.мм.гггг"');
     expect(html).toContain('placeholder="ЧЧ:ММ"');
-    expect(html).toContain('id="lesson-date" name="date" type="text"');
-    expect(html).toContain('id="lesson-start" name="start" type="text"');
+    expect(html).toMatch(/id="lesson-date"[^>]*type="text"[^>]*name="date"/);
+    expect(html).toMatch(/id="lesson-start"[^>]*type="text"[^>]*name="start"/);
     expect(html).toMatch(/id="lesson-date"[^>]*value=""/);
     expect(html).toMatch(/id="lesson-start"[^>]*value=""/);
     expect(html).not.toContain('id="lesson-time-panel"');
