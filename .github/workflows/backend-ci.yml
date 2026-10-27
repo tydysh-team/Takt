@@ -43,7 +43,6 @@ jobs:
 
   api-tests:
     name: API and integration tests
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
