@@ -4,7 +4,12 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from app.schemas.lessons import LessonCancelRequest, LessonCreate, LessonRescheduleRequest
+from app.schemas.lessons import (
+    LessonCancelRequest,
+    LessonCreate,
+    LessonRescheduleRequest,
+    LessonSeriesCreate,
+)
 
 
 def lesson_fields() -> dict[str, object]:
@@ -57,3 +62,36 @@ def test_schedule_requests_require_timezone(request_type: type[BaseModel]) -> No
     fields = lesson_fields() if request_type is LessonCreate else {}
     with pytest.raises(ValidationError):
         request_type.model_validate({**fields, "starts_at": datetime(2030, 1, 1, 12)})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("count", 1),
+        ("count", 53),
+        ("count", 2.0),
+        ("count", True),
+        ("recurrence", "daily"),
+    ],
+)
+def test_series_rejects_invalid_recurrence_and_count(field: str, value: object) -> None:
+    with pytest.raises(ValidationError):
+        LessonSeriesCreate.model_validate(
+            {**lesson_fields(), "recurrence": "weekly", "count": 4, field: value}
+        )
+
+
+def test_series_defaults_conflict_confirmation_and_forbids_owner() -> None:
+    request = LessonSeriesCreate.model_validate(
+        {**lesson_fields(), "recurrence": "weekly", "count": 4}
+    )
+    assert request.confirm_conflict is False
+    with pytest.raises(ValidationError):
+        LessonSeriesCreate.model_validate(
+            {
+                **lesson_fields(),
+                "recurrence": "weekly",
+                "count": 4,
+                "teacher_id": uuid4(),
+            }
+        )

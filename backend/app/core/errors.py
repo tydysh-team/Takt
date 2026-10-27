@@ -24,6 +24,7 @@ from app.core.exceptions import (
     LessonNotFoundError,
     LessonNotReschedulableError,
     LessonScheduleUnchangedError,
+    LessonSeriesTimeInvalidError,
     LessonStartInPastError,
     LessonTimeConflictError,
     ProfileNotFoundError,
@@ -162,7 +163,10 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
         ),
     ):
         status_code = 404
-    elif isinstance(exc, (InvalidInvitationError, LessonStartInPastError)):
+    elif isinstance(
+        exc,
+        (InvalidInvitationError, LessonStartInPastError, LessonSeriesTimeInvalidError),
+    ):
         status_code = 400
     elif isinstance(exc, RateLimitExceededError):
         status_code = 429

@@ -19,6 +19,7 @@ from app.schemas.lessons import (
     LessonReadDTO,
     LessonRescheduleRequest,
     LessonSearchRequest,
+    LessonSeriesCreate,
 )
 from app.services.lesson_views import lesson_record_to_dto, lesson_to_dto
 from app.services.lessons import LessonService
@@ -48,6 +49,23 @@ async def create_lesson(
 ) -> LessonDTO:
     lesson = await service.create(teacher, payload)
     return lesson_to_dto(lesson, utc_now())
+
+
+@router.post(
+    "/series",
+    response_model=list[LessonDTO],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a weekly lesson series",
+    responses=lesson_errors,
+)
+async def create_lesson_series(
+    payload: LessonSeriesCreate,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[LessonService, Depends(get_lesson_service)],
+) -> list[LessonDTO]:
+    lessons = await service.create_series(teacher, payload)
+    now = utc_now()
+    return [lesson_to_dto(lesson, now) for lesson in lessons]
 
 
 @router.post(

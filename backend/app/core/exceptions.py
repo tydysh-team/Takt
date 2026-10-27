@@ -87,6 +87,11 @@ class LessonStartInPastError(DomainError):
     message = "Нельзя создать занятие в прошлом."
 
 
+class LessonSeriesTimeInvalidError(DomainError):
+    code = "lesson_series_time_invalid"
+    message = "Не удалось сформировать даты серии занятий."
+
+
 class LessonNotFoundError(DomainError):
     code = "lesson_not_found"
     message = "Занятие не найдено."

@@ -31,6 +31,11 @@ class LessonCreate(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class LessonSeriesCreate(LessonCreate):
+    recurrence: Literal["weekly"]
+    count: int = Field(strict=True, ge=2, le=52)
+
+
 class LessonDTO(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

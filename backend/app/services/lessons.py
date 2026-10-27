@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from app.core.exceptions import (
     LessonNotFoundError,
     LessonNotReschedulableError,
     LessonScheduleUnchangedError,
+    LessonSeriesTimeInvalidError,
     LessonStartInPastError,
     LessonTimeConflictError,
     StudentNotAvailableError,
@@ -33,6 +35,15 @@ from app.schemas.lessons import (
     LessonCreate,
     LessonRescheduleRequest,
     LessonSearchRequest,
+    LessonSeriesCreate,
+)
+from app.services.lesson_series import (
+    LessonSeriesTimeError,
+    SeriesInterval,
+    SeriesOverlap,
+    build_series_intervals,
+    find_series_overlaps,
+    generate_weekly_starts,
 )
 from app.services.lesson_views import calculate_lesson_status, lesson_ends_at
 
@@ -80,6 +91,70 @@ class LessonService:
             await self._session.rollback()
             raise
         return lesson
+
+    async def create_series(self, teacher: User, payload: LessonSeriesCreate) -> list[Lesson]:
+        try:
+            locked_teacher = await self._lock_teacher(teacher)
+            student = await self._relations.get_student(
+                teacher.id,
+                payload.student_id,
+                for_update=True,
+            )
+            if student is None:
+                raise StudentNotAvailableError()
+
+            timezone_name = (
+                locked_teacher.profile.timezone
+                if locked_teacher.profile is not None
+                else None
+            )
+            if timezone_name is None:
+                raise LessonSeriesTimeInvalidError(
+                    message="В профиле преподавателя не указана timezone."
+                )
+            try:
+                starts = generate_weekly_starts(
+                    payload.starts_at,
+                    timezone_name,
+                    payload.count,
+                )
+                intervals = build_series_intervals(starts, payload.duration_minutes)
+            except LessonSeriesTimeError as exc:
+                raise LessonSeriesTimeInvalidError(message=str(exc)) from exc
+
+            now = utc_now()
+            if any(interval.starts_at < now for interval in intervals):
+                raise LessonStartInPastError()
+
+            existing_conflicts: list[tuple[SeriesInterval, LessonConflictRecord]] = []
+            for interval in intervals:
+                conflicts = await self._lessons.find_conflicts(
+                    teacher.id,
+                    interval.starts_at,
+                    payload.duration_minutes,
+                )
+                existing_conflicts.extend((interval, conflict) for conflict in conflicts)
+            series_conflicts = find_series_overlaps(intervals)
+            if (existing_conflicts or series_conflicts) and not payload.confirm_conflict:
+                raise self._series_conflict_error(existing_conflicts, series_conflicts)
+
+            lessons = [
+                Lesson(
+                    teacher_id=teacher.id,
+                    student_id=payload.student_id,
+                    title=payload.title,
+                    description=payload.description,
+                    starts_at=interval.starts_at,
+                    duration_minutes=payload.duration_minutes,
+                )
+                for interval in intervals
+            ]
+            self._session.add_all(lessons)
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        return lessons
 
     async def reschedule(
         self,
@@ -184,9 +259,11 @@ class LessonService:
             raise
         return record
 
-    async def _lock_teacher(self, teacher: User) -> None:
-        if await self._users.get_by_id(teacher.id, for_update=True) is None:
+    async def _lock_teacher(self, teacher: User) -> User:
+        locked_teacher = await self._users.get_by_id(teacher.id, for_update=True)
+        if locked_teacher is None:
             raise ForbiddenError()
+        return locked_teacher
 
     @staticmethod
     def _conflict_error(conflicts: list[LessonConflictRecord]) -> LessonTimeConflictError:
@@ -207,6 +284,43 @@ class LessonService:
             for record in conflicts
         ]
         return LessonTimeConflictError(context={"conflicts": items})
+
+    @classmethod
+    def _series_conflict_error(
+        cls,
+        existing: list[tuple[SeriesInterval, LessonConflictRecord]],
+        internal: list[SeriesOverlap],
+    ) -> LessonTimeConflictError:
+        conflicts: list[dict[str, Any]] = []
+        for interval, record in existing:
+            item = cls._conflict_error([record]).context
+            assert item is not None
+            existing_lesson = item["conflicts"][0]
+            conflicts.append(
+                {
+                    "type": "existing_lesson",
+                    "series_index": interval.index,
+                    "series_number": interval.index + 1,
+                    "series_starts_at": interval.starts_at.isoformat(),
+                    "series_ends_at": interval.ends_at.isoformat(),
+                    "lesson": existing_lesson,
+                }
+            )
+        conflicts.extend(
+            {
+                "type": "within_series",
+                "series_index": overlap.first.index,
+                "series_number": overlap.first.index + 1,
+                "series_starts_at": overlap.first.starts_at.isoformat(),
+                "series_ends_at": overlap.first.ends_at.isoformat(),
+                "other_series_index": overlap.second.index,
+                "other_series_number": overlap.second.index + 1,
+                "other_series_starts_at": overlap.second.starts_at.isoformat(),
+                "other_series_ends_at": overlap.second.ends_at.isoformat(),
+            }
+            for overlap in internal
+        )
+        return LessonTimeConflictError(context={"conflicts": conflicts})
 
     async def search(self, user: User, filters: LessonSearchRequest) -> list[LessonRecord]:
         return await self._lessons.search(
