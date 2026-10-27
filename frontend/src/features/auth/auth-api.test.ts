@@ -90,7 +90,7 @@ describe("auth API contract", () => {
     });
   });
 
-  it("sends registration without a timezone field", async () => {
+  it("sends the detected timezone with registration", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({
         id: "user-id",
@@ -111,11 +111,12 @@ describe("auth API contract", () => {
       last_name: "Hopper",
       middle_name: null,
       role: "STUDENT",
+      timezone: "Europe/Samara",
     });
 
     const init = request.mock.calls[0]?.[1];
     if (typeof init?.body !== "string") throw new Error("Expected a JSON request body");
     const body = JSON.parse(init.body) as Record<string, unknown>;
-    expect(body).not.toHaveProperty("timezone");
+    expect(body.timezone).toBe("Europe/Samara");
   });
 });

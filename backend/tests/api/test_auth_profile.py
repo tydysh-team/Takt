@@ -415,6 +415,26 @@ async def test_registration_without_timezone_uses_backend_default(
     assert profile is not None and profile.timezone == "Europe/Moscow"
 
 
+async def test_registration_saves_valid_browser_timezone(api_context: ApiTestContext) -> None:
+    email = unique_email("browser-timezone")
+    response = await api_context.client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": email,
+            "password": PASSWORD,
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "role": "STUDENT",
+            "timezone": "Europe/Warsaw",
+        },
+    )
+    assert response.status_code == 201
+    user = await UserRepository(api_context.session).get_by_email(email)
+    assert user is not None
+    profile = await api_context.session.get(Profile, user.id)
+    assert profile is not None and profile.timezone == "Europe/Warsaw"
+
+
 async def test_registration_rejects_timezone_field(api_context: ApiTestContext) -> None:
     response = await api_context.client.post(
         "/api/v1/auth/register",

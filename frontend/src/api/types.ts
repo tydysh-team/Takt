@@ -37,6 +37,7 @@ export interface RegisterPayload {
   last_name: string;
   middle_name?: string | null;
   role: ApplicationRole;
+  timezone: string;
 }
 
 export interface RegisterResponse extends Omit<CurrentUser, "role"> {
@@ -60,11 +61,11 @@ export interface Profile {
 }
 
 export interface ProfileUpdate {
-  first_name: string;
-  last_name: string;
-  middle_name: string | null;
-  bio: string | null;
-  timezone: string;
+  first_name?: string;
+  last_name?: string;
+  middle_name?: string | null;
+  bio?: string | null;
+  timezone?: string;
 }
 
 export interface StudentListItem {
@@ -134,3 +135,47 @@ export interface StudentDashboard {
 }
 
 export type DashboardSummary = TeacherDashboard | StudentDashboard;
+
+
+export interface PersonRef {
+  id: string;
+  first_name: string;
+  last_name: string;
+  middle_name: string | null;
+}
+
+export type StudentRef = PersonRef;
+export type TeacherRef = PersonRef;
+
+export interface LessonCreatePayload {
+  student_id: string;
+  title: string;
+  description?: string | null;
+  starts_at: string;
+  duration_minutes: number;
+}
+
+export interface LessonDTO {
+  id: string;
+  teacher_id: string;
+  student_id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  duration_minutes: number;
+}
+
+export interface LessonSearchFilters {
+  date_from?: string | null;
+  date_to?: string | null;
+}
+
+export interface LessonReadDTO {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  duration_minutes: number;
+  teacher: TeacherRef;
+  student: StudentRef;
+}
