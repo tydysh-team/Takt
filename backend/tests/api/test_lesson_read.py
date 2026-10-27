@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import PasswordService
-from app.models.enums import RoleCode
+from app.models.enums import AttendanceValue, RoleCode
 from app.models.lesson import Lesson
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
@@ -98,6 +98,7 @@ async def search(
 
 async def test_student_search_scope_boundaries_sorting_and_dto(
     api_context: ApiTestContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     teacher, _ = await create_actor(api_context, RoleCode.TEACHER, "Teacher", middle_name="T")
     student, student_token = await create_actor(
@@ -115,6 +116,10 @@ async def test_student_search_scope_boundaries_sorting_and_dto(
         api_context, teacher, student, boundary + timedelta(hours=1), title="After"
     )
     await store_lesson(api_context, teacher, other_student, boundary, title="Foreign")
+    monkeypatch.setattr(
+        "app.api.routes.lessons.utc_now",
+        lambda: boundary - timedelta(hours=1),
+    )
 
     all_lessons = await search(api_context, student_token, {})
     interval = await search(
@@ -142,7 +147,12 @@ async def test_student_search_scope_boundaries_sorting_and_dto(
         "title": "Exact",
         "description": "Details",
         "starts_at": interval.json()[0]["starts_at"],
+        "ends_at": interval.json()[0]["ends_at"],
         "duration_minutes": 60,
+        "status": "planned",
+        "is_rescheduled": False,
+        "attendance": "not_set",
+        "cancellation_reason": None,
         "teacher": {
             "id": str(teacher.id),
             "first_name": "Teacher",
@@ -156,6 +166,9 @@ async def test_student_search_scope_boundaries_sorting_and_dto(
             "middle_name": "S",
         },
     }
+    assert datetime.fromisoformat(interval.json()[0]["ends_at"]) == boundary + timedelta(
+        minutes=60
+    )
 
 
 async def test_student_upcoming_search_uses_explicit_date_from(
@@ -293,6 +306,7 @@ async def test_search_accepts_nulls_and_requires_authentication(
 
 async def test_get_lesson_by_id_enforces_private_ownership(
     api_context: ApiTestContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_teacher, owner_teacher_token = await create_actor(
         api_context, RoleCode.TEACHER, "OwnerTeacher"
@@ -314,6 +328,10 @@ async def test_get_lesson_by_id_enforces_private_ownership(
         datetime(2026, 10, 20, 15, tzinfo=UTC),
         description="Details",
     )
+    monkeypatch.setattr(
+        "app.api.routes.lessons.utc_now",
+        lambda: lesson.starts_at + timedelta(minutes=30),
+    )
 
     async def get(token: str, lesson_id: UUID) -> httpx.Response:
         return await api_context.client.get(
@@ -330,9 +348,64 @@ async def test_get_lesson_by_id_enforces_private_ownership(
     assert teacher_owned.json() == student_owned.json() == admin_global.json()
     assert teacher_owned.json()["teacher"]["id"] == str(owner_teacher.id)
     assert teacher_owned.json()["student"]["id"] == str(owner_student.id)
+    assert teacher_owned.json()["status"] == "in_progress"
+    assert teacher_owned.json()["attendance"] == "not_set"
+    assert teacher_owned.json()["is_rescheduled"] is False
+    assert datetime.fromisoformat(teacher_owned.json()["ends_at"]) == (
+        lesson.starts_at + timedelta(minutes=60)
+    )
     for response in (teacher_foreign, student_foreign):
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "lesson_not_found"
+
+
+async def test_read_dto_includes_persisted_lesson_facts(api_context: ApiTestContext) -> None:
+    teacher, teacher_token = await create_actor(api_context, RoleCode.TEACHER, "Teacher")
+    student, student_token = await create_actor(api_context, RoleCode.STUDENT, "Student")
+    start = datetime(2030, 1, 1, 12, tzinfo=UTC)
+    lesson = await store_lesson(api_context, teacher, student, start)
+    lesson.rescheduled_at = start - timedelta(days=1)
+    lesson.cancelled_at = start - timedelta(hours=1)
+    lesson.attendance = AttendanceValue.PRESENT
+    lesson.attendance_updated_at = start - timedelta(hours=2)
+    await api_context.session.commit()
+
+    get_response = await api_context.client.get(
+        f"/api/v1/lessons/{lesson.id}", headers=authorization(student_token)
+    )
+    search_response = await search(api_context, teacher_token, {})
+
+    assert get_response.status_code == search_response.status_code == 200
+    for item in (get_response.json(), search_response.json()[0]):
+        assert item["status"] == "cancelled"
+        assert item["is_rescheduled"] is True
+        assert item["attendance"] == "present"
+        assert datetime.fromisoformat(item["ends_at"]) == start + timedelta(hours=1)
+
+
+async def test_search_uses_one_now_for_all_statuses(
+    api_context: ApiTestContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    teacher, token = await create_actor(api_context, RoleCode.TEACHER, "Teacher")
+    student, _ = await create_actor(api_context, RoleCode.STUDENT, "Student")
+    start = datetime(2030, 1, 1, 12, tzinfo=UTC)
+    await store_lesson(api_context, teacher, student, start, title="First")
+    await store_lesson(api_context, teacher, student, start, title="Second")
+    calls = 0
+
+    def changing_now() -> datetime:
+        nonlocal calls
+        calls += 1
+        return start - timedelta(microseconds=1) if calls == 1 else start
+
+    monkeypatch.setattr("app.api.routes.lessons.utc_now", changing_now)
+
+    response = await search(api_context, token, {})
+
+    assert response.status_code == 200
+    assert calls == 1
+    assert [item["status"] for item in response.json()] == ["planned", "planned"]
 
 
 async def test_get_lesson_by_id_not_found_validation_and_authentication(
