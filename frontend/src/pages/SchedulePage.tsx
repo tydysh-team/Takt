@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Temporal } from "@js-temporal/polyfill";
 
 import { readableError } from "../api/client";
 import { api, queryKeys } from "../api/queries";
@@ -11,10 +12,12 @@ import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm } from "../features/lessons/LessonCreateForm";
 import { findLessonConflicts, formatConflictRange } from "../features/lessons/conflict-check";
-import { createMockLesson, effectiveStatus, overlayMockLessons, saveMockState } from "../features/lessons/mock-lessons";
+import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
+import { createMockLesson, overlayMockLessons, saveMockState } from "../features/lessons/mock-lessons";
+import { seriesOccurrences } from "../features/lessons/recurrence";
 import { groupLessonStacks, stackDurationMinutes } from "../features/lessons/schedule-groups";
 import type { LessonCreatePayload, LessonReadDTO } from "../api/types";
-import { dayStartUtc, formatLessonDateTime, formatLessonTime, localDate, weekDays } from "../shared/lesson-time";
+import { dayStartUtc, formatLessonDateTime, formatLessonTime, lessonStartUtc, localDate, weekDays } from "../shared/lesson-time";
 import { DEFAULT_TIMEZONE } from "../shared/timezones";
 
 const monthNames = ["янв.", "февр.", "марта", "апр.", "мая", "июня", "июля", "авг.", "сент.", "окт.", "нояб.", "дек."];
@@ -36,6 +39,9 @@ function timeToMinutes(time: string) {
 function safeDuration(value: unknown): number { return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 60; }
 
 const CALENDAR_MINUTE_PX = 1.7;
+const HOUR_HEIGHT = `${String(60 * CALENDAR_MINUTE_PX)}px` as const;
+const hourKeys = Array.from({ length: 13 }, (_, index) => `hour-${String(index)}`);
+const cellKeys = Array.from({ length: 91 }, (_, index) => `cell-${String(index)}`);
 
 function lessonGridPosition(time: string, durationMinutes: number) {
   const [start] = time.split(" — ");
@@ -57,9 +63,9 @@ function stackTimeRange(lessons: LessonReadDTO[], timezone: string) {
 function lessonCountLabel(count: number) {
   const lastTwo = count % 100;
   const last = count % 10;
-  if (last === 1 && lastTwo !== 11) return `${count} урок`;
-  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${count} урока`;
-  return `${count} уроков`;
+  if (last === 1 && lastTwo !== 11) return `${String(count)} урок`;
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${String(count)} урока`;
+  return `${String(count)} уроков`;
 }
 
 const statusLabels = {
@@ -130,9 +136,14 @@ export function SchedulePage() {
   // US-05: reschedule dialog
   const [rescheduleState, setRescheduleState] = useState<RescheduleState | null>(null);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [rescheduleApplying, setRescheduleApplying] = useState(false);
 
   // US-06: cancel confirmation dialog
   const [cancelTarget, setCancelTarget] = useState<LessonReadDTO | null>(null);
+  const [cancelApplying, setCancelApplying] = useState(false);
+
+  // US-08: temporary attendance application state
+  const [attendanceApplying, setAttendanceApplying] = useState<"present" | "absent" | null>(null);
 
   // US-09: series conflict confirmation (instead of hard-block)
   const [seriesConflict, setSeriesConflict] = useState<SeriesConflictState | null>(null);
@@ -184,17 +195,17 @@ export function SchedulePage() {
     const student = students.data?.find((item) => item.id === payload.student_id);
     if (!student || !user) throw new Error("Не найден участник занятия");
     const teacher = { id: user.id, first_name: user.first_name, last_name: user.last_name, middle_name: user.middle_name };
-    const occurrences = Array.from({ length: payload.recurrence.count }, (_, index) => {
+    const createdLessons = seriesOccurrences(payload, timezone).map((seriesItem) => {
       const occurrence: LessonCreatePayload = {
         ...payload,
-        // Use week offsets in milliseconds — keeps local time correct for fixed-offset zones
-        starts_at: new Date(Date.parse(payload.starts_at) + index * 7 * 24 * 60 * 60_000).toISOString(),
+        starts_at: seriesItem.startsAt,
       };
       delete occurrence.recurrence;
       return occurrence;
     });
-    // Atomically create all mock lessons; real backend would handle atomicity server-side
-    occurrences.forEach((occ) => createMockLesson(occ, student, teacher, occ.starts_at));
+    // Temporary US-05…US-09 local layer: writes all occurrences without intermediate invalid state.
+    // Atomicity and persistence become backend responsibilities when the API exists.
+    createdLessons.forEach((occ) => createMockLesson(occ, student, teacher, occ.starts_at));
     setSeriesConflict(null);
     setCreateOpen(false);
     setCreateSuccess(true);
@@ -212,15 +223,14 @@ export function SchedulePage() {
           setConflictCheckError(`Количество занятий должно быть от 2 до 52.`);
           return;
         }
-        const occurrences = Array.from({ length: count }, (_, i) => ({
-          startsAt: new Date(Date.parse(payload.starts_at) + i * 7 * 24 * 60 * 60_000).toISOString(),
+        const occurrences = seriesOccurrences(payload, timezone).map(({ startsAt }) => ({
+          startsAt,
           durationMinutes: payload.duration_minutes,
         }));
 
         // Check conflicts: each occurrence vs existing schedule + vs each other in series
         const allConflictDescriptions: string[] = [];
-        for (let i = 0; i < occurrences.length; i++) {
-          const occ = occurrences[i]!;
+        for (const [i, occ] of occurrences.entries()) {
           const from = new Date(Date.parse(occ.startsAt) - 24 * 60 * 60_000).toISOString();
           const to = new Date(Date.parse(occ.startsAt) + occ.durationMinutes * 60_000 + 24 * 60 * 60_000).toISOString();
           const existing = await api.searchLessons({ date_from: from, date_to: to });
@@ -229,18 +239,17 @@ export function SchedulePage() {
             .map((l) => ({ id: l.id, title: l.title, startsAt: l.starts_at, durationMinutes: l.duration_minutes }));
           const found = findLessonConflicts(occ, existingCandidates);
           for (const c of found) {
-            allConflictDescriptions.push(`Занятие ${i + 1}: пересечение с «${c.title}» (${formatConflictRange(c.startsAt, c.durationMinutes, timezone)})`);
+            allConflictDescriptions.push(`Занятие ${String(i + 1)}: пересечение с «${c.title}» (${formatConflictRange(c.startsAt, c.durationMinutes, timezone)})`);
           }
 
           // Check intra-series conflicts (occurrence i vs previous occurrences)
-          for (let j = 0; j < i; j++) {
-            const other = occurrences[j]!;
+          for (const [j, other] of occurrences.slice(0, i).entries()) {
             const otherStart = Date.parse(other.startsAt);
             const otherEnd = otherStart + other.durationMinutes * 60_000;
             const occStart = Date.parse(occ.startsAt);
             const occEnd = occStart + occ.durationMinutes * 60_000;
             if (occStart < otherEnd && occEnd > otherStart) {
-              allConflictDescriptions.push(`Занятие ${i + 1} пересекается с занятием ${j + 1} внутри серии`);
+              allConflictDescriptions.push(`Занятие ${String(i + 1)} пересекается с занятием ${String(j + 1)} внутри серии`);
             }
           }
         }
@@ -281,16 +290,12 @@ export function SchedulePage() {
 
   // ── US-05: Reschedule helpers ──────────────────────────────────────────
   function openReschedule(lesson: LessonReadDTO) {
-    // Pre-fill with lesson's current date/time in user's timezone
-    const dt = new Date(lesson.starts_at);
-    const fmt = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: timezone,
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit",
-    }).format(dt);
-    // sv-SE gives "YYYY-MM-DD HH:MM"
-    const [datePart = "", timePart = ""] = fmt.split(" ");
-    setRescheduleState({ lesson, date: datePart, time: timePart });
+    const local = Temporal.Instant.from(lesson.starts_at).toZonedDateTimeISO(timezone);
+    setRescheduleState({
+      lesson,
+      date: local.toPlainDate().toString(),
+      time: local.toPlainTime().toString({ smallestUnit: "minute" }),
+    });
     setRescheduleError(null);
   }
 
@@ -298,46 +303,68 @@ export function SchedulePage() {
     if (!rescheduleState) return;
     const { lesson, date, time } = rescheduleState;
     if (!date || !time) { setRescheduleError("Укажите дату и время."); return; }
-    // Build UTC ISO from local date+time in user timezone
-    const localString = `${date}T${time}:00`;
-    // Use Date constructor with explicit timezone via Intl isn't reliable cross-browser;
-    // approximate via offset difference (same approach as lesson-time util)
-    const naive = new Date(localString);
-    if (isNaN(naive.getTime())) { setRescheduleError("Некорректная дата или время."); return; }
-    const nowMs = Date.now();
-    if (naive.getTime() <= nowMs) { setRescheduleError("Новое время должно быть в будущем."); return; }
-    // Calculate timezone offset to convert local→UTC
-    const tzOffset = getTimezoneOffsetMs(date + "T" + time, timezone);
-    const utcMs = naive.getTime() - tzOffset;
-    const newStartsAt = new Date(utcMs).toISOString();
-    saveMockState(lesson.id, { starts_at: newStartsAt, rescheduled: true });
-    setRescheduleState(null);
-    setSelectedCalendarLessonId(null);
-    void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    setRescheduleApplying(true);
+    try {
+      const newStartsAt = lessonStartUtc(date, time, timezone);
+      const nowMs = Temporal.Instant.from(now).epochMilliseconds;
+      if (Date.parse(newStartsAt) <= nowMs) { setRescheduleError("Новое время должно быть в будущем."); return; }
+      // Temporary US-05 local layer; backend will own validation, conflict-check and atomic persistence.
+      saveMockState(lesson.id, { starts_at: newStartsAt, rescheduled: true });
+      setRescheduleState(null);
+      setSelectedCalendarLessonId(null);
+      void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    } catch {
+      setRescheduleError("Некорректная дата или время в этом часовом поясе.");
+    } finally {
+      setRescheduleApplying(false);
+    }
   }
 
   // US-06: cancel with confirmation
   function applyCancel() {
     if (!cancelTarget) return;
-    saveMockState(cancelTarget.id, { status: "cancelled" });
-    setCancelTarget(null);
-    setSelectedCalendarLessonId(null);
-    void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    setCancelApplying(true);
+    try {
+      // Temporary US-06 local layer; backend will own ownership/lifecycle checks and persistence.
+      saveMockState(cancelTarget.id, { status: "cancelled" });
+      setCancelTarget(null);
+      setSelectedCalendarLessonId(null);
+      void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    } finally {
+      setCancelApplying(false);
+    }
+  }
+
+  function applyAttendance(lesson: LessonReadDTO, attendance: "present" | "absent") {
+    setAttendanceApplying(attendance);
+    try {
+      // Temporary US-08 local layer; backend will own availability and persistence checks.
+      saveMockState(lesson.id, { attendance });
+      void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    } finally {
+      setAttendanceApplying(null);
+    }
   }
 
   const selectedDate = days[selectedDay]?.iso ?? days[0]?.iso ?? "";
   const visibleItems = useMemo(() => overlayMockLessons(lessons.data ?? []), [lessons.data]);
 
-  const visibleLessons = useMemo(() => visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate), [visibleItems, selectedDate, timezone]);
+  const visibleLessons = useMemo(() => visibleItems
+    .filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate)
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.id.localeCompare(b.id)), [visibleItems, selectedDate, timezone]);
   const selectedCalendarLesson = visibleItems.find((lesson) => lesson.id === selectedCalendarLessonId) ?? null;
   const selectedLessonHasConflict = selectedCalendarLesson ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone)).map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0 : false;
   const overlappingLessonIds = useMemo(() => new Set(visibleLessons.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, visibleLessons.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id)), [visibleLessons]);
 
-  const nextLesson = visibleItems.find((lesson) => Date.parse(lesson.starts_at) >= Date.parse(now));
+  const nowDate = new Date(now);
+  const nextLesson = visibleItems.find((lesson) => {
+    const status = effectiveLessonStatus(lesson, nowDate);
+    return status === "planned" && Date.parse(lesson.starts_at) >= Date.parse(now);
+  });
   const weekLabel = `${days[0]?.date ?? ""} — ${days[6]?.date ?? ""} ${String(days[6]?.plainDate.year ?? "")}`;
 
   // Computed status of selected lesson
-  const selectedStatus = selectedCalendarLesson ? effectiveStatus(selectedCalendarLesson, Date.parse(now)) : null;
+  const selectedStatus = selectedCalendarLesson ? effectiveLessonStatus(selectedCalendarLesson, new Date(now)) : null;
 
   if (profile.isLoading) return <LoadingState label="Загружаем часовой пояс…" />;
   if (profile.isError) return <ErrorState message={readableError(profile.error)} onRetry={() => { void profile.refetch(); }} />;
@@ -353,8 +380,8 @@ export function SchedulePage() {
     {createSuccess ? <Alert>Занятие успешно создано.</Alert> : null}
     {lessons.isError ? <ErrorState message={readableError(lessons.error)} onRetry={() => void lessons.refetch()} /> : null}
     {lessons.isLoading ? <LoadingState label="Загружаем расписание…" /> : null}
-    <div className="schedule-controls"><div className="schedule-view-actions"><div className="schedule-week-switcher"><button className="icon-button" type="button" aria-label="Предыдущая неделя" onClick={() => setWeekOffset((value) => value - 1)}>‹</button><strong>{weekLabel}</strong><button className="icon-button" type="button" aria-label="Следующая неделя" onClick={() => setWeekOffset((value) => value + 1)}>›</button></div><div className="schedule-view-toggle"><button className={view === "week" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => setView("week")}>Неделя</button><button className={view === "list" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => setView("list")}>Список</button></div>{isTeacher ? <button className="button button--primary" type="button" onClick={() => { setCreateSuccess(false); setCreateOpen(true); }}>＋ Создать занятие</button> : null}</div></div>
-    {view === "week" ? <Card className="schedule-calendar-card"><div className="schedule-calendar" style={{ "--schedule-hours": 13, "--schedule-hour-height": `${60 * CALENDAR_MINUTE_PX}px`, gridTemplateColumns: "64px repeat(7, minmax(112px, 1fr))" } as CSSProperties}><div className="schedule-calendar__corner">Время</div>{days.map((day, index) => <button key={day.iso} type="button" className={selectedDay === index ? "schedule-calendar__day schedule-calendar__day--active" : "schedule-calendar__day"} onClick={() => setSelectedDay(index)}><strong>{dayNames[index]}</strong><span>{day.date}</span></button>)}{Array.from({ length: 13 }, (_, index) => <div className="schedule-calendar__hour" style={{ gridRow: index + 2 }} key={`hour-${index}`}>{String(index + 8).padStart(2, "0")}:00</div>)}{Array.from({ length: 13 * 7 }, (_, index) => <div className="schedule-calendar__cell" style={{ gridColumn: (index % 7) + 2, gridRow: Math.floor(index / 7) + 2 }} key={`cell-${index}`} />)}{days.map((day, dayIndex) => {
+    <div className="schedule-controls"><div className="schedule-view-actions"><div className="schedule-week-switcher"><button className="icon-button" type="button" aria-label="Предыдущая неделя" onClick={() => { setWeekOffset((value) => value - 1); }}>‹</button><strong>{weekLabel}</strong><button className="icon-button" type="button" aria-label="Следующая неделя" onClick={() => { setWeekOffset((value) => value + 1); }}>›</button></div><div className="schedule-view-toggle"><button className={view === "week" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => { setView("week"); }}>Неделя</button><button className={view === "list" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => { setView("list"); }}>Список</button></div>{isTeacher ? <button className="button button--primary" type="button" onClick={() => { setCreateSuccess(false); setCreateOpen(true); }}>＋ Создать занятие</button> : null}</div></div>
+    {view === "week" ? <Card className="schedule-calendar-card"><div className="schedule-calendar" style={{ "--schedule-hours": 13, "--schedule-hour-height": HOUR_HEIGHT, gridTemplateColumns: "64px repeat(7, minmax(112px, 1fr))" } as CSSProperties}><div className="schedule-calendar__corner">Время</div>{days.map((day, index) => <button key={day.iso} type="button" className={selectedDay === index ? "schedule-calendar__day schedule-calendar__day--active" : "schedule-calendar__day"} onClick={() => { setSelectedDay(index); }}><strong>{dayNames[index]}</strong><span>{day.date}</span></button>)}{Array.from({ length: 13 }, (_, index) => <div className="schedule-calendar__hour" style={{ gridRow: index + 2 }} key={hourKeys[index]}>{String(index + 8).padStart(2, "0")}:00</div>)}{Array.from({ length: 13 * 7 }, (_, index) => <div className="schedule-calendar__cell" style={{ gridColumn: (index % 7) + 2, gridRow: Math.floor(index / 7) + 2 }} key={cellKeys[index]} />)}{days.map((day, dayIndex) => {
   const dayLessons = visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === day.iso);
   const stacks = groupLessonStacks(dayLessons);
   return stacks.map((stack) => {
@@ -432,20 +459,22 @@ export function SchedulePage() {
       <small>{range}</small>
     </article>;
   });
-})}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => setSelectedDay(index)}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}${overlappingLessonIds.has(lesson.id) ? " lesson-card--overlap" : ""}`} key={lesson.id}><time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time><div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>{overlappingLessonIds.has(lesson.id) ? <small className="lesson-overlap-badge">Пересечение</small> : null}</article>) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
+})}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => { setSelectedDay(index); }}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}${overlappingLessonIds.has(lesson.id) ? " lesson-card--overlap" : ""}`} key={lesson.id}><time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time><div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>{overlappingLessonIds.has(lesson.id) ? <small className="lesson-overlap-badge">Пересечение</small> : null}</article>) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
 
     {/* ── Details panel (US-05, US-06, US-07, US-08) ─────────────────── */}
     {view === "week" && selectedCalendarLesson ? <div ref={detailsPanelRef}><Card className="selected-lesson-details" aria-live="polite">
       <div className="selected-lesson-details__heading">
         <div><span>Выбранное занятие</span><h2>{selectedCalendarLesson.title}</h2></div>
-        <button type="button" className="icon-button" aria-label="Закрыть детали занятия" onClick={() => setSelectedCalendarLessonId(null)}>×</button>
+        <button type="button" className="icon-button" aria-label="Закрыть детали занятия" onClick={() => { setSelectedCalendarLessonId(null); }}>×</button>
       </div>
       <dl>
+        <div><dt>Ученик</dt><dd>{personFullName(selectedCalendarLesson.student)}</dd></div>
+        <div><dt>Преподаватель</dt><dd>{personFullName(selectedCalendarLesson.teacher)}</dd></div>
+        <div><dt>Название</dt><dd>{selectedCalendarLesson.title}</dd></div>
         <div><dt>Время</dt><dd>{formatLessonDateTime(selectedCalendarLesson.starts_at, timezone)} — {formatLessonTime(selectedCalendarLesson.starts_at, selectedCalendarLesson.duration_minutes, timezone).split(" — ")[1]}</dd></div>
-        <div><dt>{isTeacher ? "Ученик" : "Преподаватель"}</dt><dd>{personFullName(isTeacher ? selectedCalendarLesson.student : selectedCalendarLesson.teacher)}</dd></div>
         {selectedLessonHasConflict ? <div><dt>Расписание</dt><dd><span className="lesson-overlap-badge">Пересекается с другим занятием</span></dd></div> : null}
-        <div><dt>Статус</dt><dd>{{ planned: "Запланировано", in_progress: "Идёт", completed: "Завершено", cancelled: "Отменено" }[selectedStatus ?? "planned"]}</dd></div>
-        <div><dt>Посещение</dt><dd>{{ not_set: "Не отмечено", present: "Присутствовал", absent: "Отсутствовал" }[selectedCalendarLesson.attendance ?? "not_set"]}</dd></div>
+        <div><dt>Статус</dt><dd>{selectedStatus === "unknown" || selectedStatus === null ? "Статус неизвестен" : statusLabels[selectedStatus]}</dd></div>
+        <div><dt>Посещение</dt><dd>{lessonAttendanceLabel(selectedCalendarLesson)}</dd></div>
         {selectedCalendarLesson.rescheduled ? <div><dt>Изменения</dt><dd>Перенесено</dd></div> : null}
       </dl>
       {selectedCalendarLesson.description ? <section className="selected-lesson-details__description"><h3>Описание</h3><p>{selectedCalendarLesson.description}</p></section> : null}
@@ -456,14 +485,16 @@ export function SchedulePage() {
           <button
             className="button button--secondary"
             type="button"
-            onClick={() => { saveMockState(selectedCalendarLesson.id, { attendance: "present" }); void queryClient.invalidateQueries({ queryKey: ["lessons"] }); }}
+            disabled={attendanceApplying !== null}
+            onClick={() => { applyAttendance(selectedCalendarLesson, "present"); }}
           >
             Присутствовал
           </button>
           <button
             className="button button--secondary"
             type="button"
-            onClick={() => { saveMockState(selectedCalendarLesson.id, { attendance: "absent" }); void queryClient.invalidateQueries({ queryKey: ["lessons"] }); }}
+            disabled={attendanceApplying !== null}
+            onClick={() => { applyAttendance(selectedCalendarLesson, "absent"); }}
           >
             Отсутствовал
           </button>
@@ -476,14 +507,14 @@ export function SchedulePage() {
           <button
             className="button button--secondary"
             type="button"
-            onClick={() => openReschedule(selectedCalendarLesson)}
+            onClick={() => { openReschedule(selectedCalendarLesson); }}
           >
             Перенести…
           </button>
           <button
             className="button button--secondary"
             type="button"
-            onClick={() => setCancelTarget(selectedCalendarLesson)}
+            onClick={() => { setCancelTarget(selectedCalendarLesson); }}
           >
             Отменить занятие
           </button>
@@ -505,7 +536,7 @@ export function SchedulePage() {
       </div>
       <ul className="conflict-drawer__list">
         {conflictDrawer?.lessons.map((lesson) => {
-          const status = effectiveStatus(lesson, Date.parse(now));
+          const status = effectiveLessonStatus(lesson, nowDate);
           return <li key={lesson.id}>
             <button
               type="button"
@@ -521,7 +552,7 @@ export function SchedulePage() {
                 <strong>{lesson.title}</strong>
                 <span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span>
               </span>
-              <span className={`conflict-drawer__status conflict-drawer__status--${status}`}>{statusLabels[status]}</span>
+              <span className={`conflict-drawer__status${status === "unknown" ? "" : ` conflict-drawer__status--${status}`}`}>{status === "unknown" ? "Статус неизвестен" : statusLabels[status]}</span>
               <span className="conflict-drawer__arrow" aria-hidden="true">→</span>
             </button>
           </li>;
@@ -530,7 +561,7 @@ export function SchedulePage() {
     </Drawer>
 
     {/* ── Create lesson dialog ─────────────────────────────────────────── */}
-    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!createLesson.isPending) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={createLesson.isPending || checkingConflicts} serverError={conflictCheckError ?? (createLesson.isError ? readableError(createLesson.error) : undefined)} onCancel={() => { setCreateOpen(false); }} onCreate={requestCreate} /></Dialog>
+    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!createLesson.isPending) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={createLesson.isPending || checkingConflicts} serverError={conflictCheckError ?? (createLesson.isError ? readableError(createLesson.error) : undefined)} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
 
     {/* ── Single-lesson conflict dialog (US-04) ───────────────────────── */}
     <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { if (!createLesson.isPending) { setConflictPayload(null); setConflicts([]); } }}>
@@ -556,7 +587,7 @@ export function SchedulePage() {
           ))}
         </div>
         <div className="dialog__actions">
-          <button className="button button--secondary" type="button" onClick={() => setSeriesConflict(null)}>Изменить параметры</button>
+          <button className="button button--secondary" type="button" onClick={() => { setSeriesConflict(null); }}>Изменить параметры</button>
           <button
             className="button button--primary"
             type="button"
@@ -600,7 +631,7 @@ export function SchedulePage() {
         </div>
         <div className="dialog__actions">
           <button className="button button--secondary" type="button" onClick={() => { setRescheduleState(null); setRescheduleError(null); }}>Отмена</button>
-          <button className="button button--primary" type="button" onClick={applyReschedule}>Сохранить перенос</button>
+          <button className="button button--primary" type="button" disabled={rescheduleApplying} onClick={applyReschedule}>{rescheduleApplying ? "Сохраняем…" : "Сохранить перенос"}</button>
         </div>
       </div>
     </Dialog>
@@ -610,34 +641,16 @@ export function SchedulePage() {
       open={Boolean(cancelTarget)}
       title="Отменить занятие?"
       description={cancelTarget ? `«${cancelTarget.title}» — ${formatLessonDateTime(cancelTarget.starts_at, timezone)}` : ""}
-      onClose={() => setCancelTarget(null)}
+      onClose={() => { setCancelTarget(null); }}
     >
       <div className="conflict-warning-content">
         <p>Занятие будет отменено. Это действие нельзя будет отменить автоматически. Запись занятия сохранится.</p>
         <div className="dialog__actions">
-          <button className="button button--secondary" type="button" onClick={() => setCancelTarget(null)}>Не отменять</button>
-          <button className="button button--danger" type="button" onClick={applyCancel}>Да, отменить занятие</button>
+          <button className="button button--secondary" type="button" onClick={() => { setCancelTarget(null); }}>Не отменять</button>
+          <button className="button button--danger" type="button" disabled={cancelApplying} onClick={applyCancel}>{cancelApplying ? "Отменяем…" : "Да, отменить занятие"}</button>
         </div>
       </div>
     </Dialog>
   </>;
 }
 
-/** Approximate timezone offset in ms for a given local datetime string and IANA timezone */
-function getTimezoneOffsetMs(localDatetime: string, timezone: string): number {
-  // Parse as UTC, then find local offset by comparing Intl output
-  const naive = new Date(localDatetime + "Z"); // treat as UTC momentarily
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(naive);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
-  const localYear = Number(get("year"));
-  const localMonth = Number(get("month")) - 1;
-  const localDay = Number(get("day"));
-  const localHour = Number(get("hour")) % 24;
-  const localMinute = Number(get("minute"));
-  const tzLocalMs = Date.UTC(localYear, localMonth, localDay, localHour, localMinute);
-  return naive.getTime() - tzLocalMs;
-}

@@ -50,6 +50,18 @@ describe("lesson creation form", () => {
     });
   });
 
+  it("includes the weekly repeat controls", () => {
+    const html = renderToStaticMarkup(<LessonCreateForm
+      students={[{ id: "student-id", first_name: "Иван", last_name: "Смирнов", middle_name: null }]}
+      timezone="Europe/Moscow"
+      pending={false}
+      onCancel={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+    expect(html).toContain("Повторять каждую неделю");
+    expect(html).toContain("Повторять каждую неделю");
+  });
+
   it("suggests five-minute intervals but accepts any valid minute", () => {
     const values = { studentId: "student-id", title: "  Математика  ", date: "20.10.2026", start: "15:30" };
     expect(Object.values(lessonFormErrors(values)).every((error) => !error)).toBe(true);

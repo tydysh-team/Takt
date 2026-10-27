@@ -797,6 +797,8 @@ a { color: var(--brand); }
 .lesson-create-form__repeat > label:first-child { display: flex; align-items: center; gap: 8px; line-height: 1.35; }
 .lesson-create-form__repeat > label:last-child { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
 .lesson-create-form__repeat select { min-height: 38px; min-width: 72px; }
+.lesson-create-form__series-summary { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.lesson-create-form__series-summary--error { color: var(--danger); font-weight: 700; }
 .selected-lesson-details__actions { display: flex; flex-wrap: wrap; gap: .6rem; padding-top: .5rem; }
 @media (max-height: 760px) { .dialog-backdrop--lesson { align-items: start; } }
 @media (max-width: 540px) { .lesson-create-form { padding: 22px; } .lesson-create-form__datetime { gap: 12px; } .lesson-create-form__footer { grid-template-columns: 1fr; } .lesson-create-form__duration { width: 100%; } .lesson-create-form .dialog__actions { width: 100%; } .lesson-create-form .dialog__actions .button { flex: 1; } }

@@ -4,6 +4,7 @@ import type { LessonCreatePayload, StudentRef } from "../../api/types";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { lessonStartUtc } from "../../shared/lesson-time";
+import { seriesCountError, seriesSummary } from "./recurrence";
 import { formatLessonDate, lessonFormErrors, parseLessonDate } from "./lesson-form-validation";
 import { LessonTimePicker } from "./LessonTimePicker";
 
@@ -31,8 +32,21 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
 
   const isoDate = parseLessonDate(date);
   const errors = lessonFormErrors({ studentId, title, date, start, timeError });
-  const invalid = Object.values(errors).some(Boolean);
+  const seriesCount = Number(repeatCount);
+  const recurrence = repeat ? { frequency: "weekly" as const, count: seriesCount } : undefined;
+  const seriesErrorMessage = repeat ? seriesCountError(seriesCount) : null;
+  const invalid = Object.values(errors).some(Boolean) || Boolean(seriesErrorMessage);
   const requiredMissing = !studentId || !title.trim() || !date.trim() || !start.trim();
+  const draftSummary = repeat && isoDate && !seriesErrorMessage && start && !errors.start
+    ? seriesSummary({
+      student_id: studentId,
+      title: title.trim(),
+      description: description.trim() || null,
+      starts_at: lessonStartUtc(isoDate, start, timezone),
+      duration_minutes: Number(duration),
+      recurrence: recurrence ?? { frequency: "weekly", count: seriesCount },
+    }, timezone)
+    : "";
 
   function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +60,7 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
         description: description.trim() || null,
         starts_at: startsAt,
         duration_minutes: Number(duration),
-        ...(repeat ? { recurrence: { frequency: "weekly" as const, count: Number(repeatCount) } } : {}),
+        ...(recurrence ? { recurrence } : {}),
       });
     } catch {
       setTimeError("Это время не существует или неоднозначно из-за перехода часов. Выберите другое время.");
@@ -108,8 +122,9 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
         </select>
       </div>
       <div className="lesson-create-form__repeat">
-        <label><input type="checkbox" checked={repeat} onChange={(event) => setRepeat(event.target.checked)} /> Повторять каждую неделю</label>
-        {repeat ? <label>Количество занятий <select className="input" value={repeatCount} onChange={(event) => setRepeatCount(event.target.value)}>{Array.from({ length: 51 }, (_, index) => <option key={index + 2} value={index + 2}>{index + 2}</option>)}</select></label> : null}
+        <label><input type="checkbox" checked={repeat} onChange={(event) => { setRepeat(event.target.checked); }} /> Повторять каждую неделю</label>
+        {repeat ? <label>Количество занятий <select className="input" aria-invalid={Boolean(seriesErrorMessage)} value={repeatCount} onChange={(event) => { setRepeatCount(event.target.value); }}>{Array.from({ length: 51 }, (_, index) => <option key={index + 2} value={index + 2}>{index + 2}</option>)}</select></label> : null}
+        {repeat ? <p className={`lesson-create-form__series-summary${seriesErrorMessage ? " lesson-create-form__series-summary--error" : ""}`} role={seriesErrorMessage ? "alert" : undefined}>{seriesErrorMessage ?? draftSummary}</p> : null}
       </div>
       <div className="dialog__actions">
         <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>Отмена</Button>

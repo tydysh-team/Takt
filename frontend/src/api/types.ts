@@ -184,5 +184,8 @@ export interface LessonReadDTO {
   rescheduled?: boolean;
 }
 
+export type LessonLifecycleStatus = NonNullable<LessonReadDTO["status"]>;
+export type LessonAttendance = NonNullable<LessonReadDTO["attendance"]>;
+
 
 
