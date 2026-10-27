@@ -276,6 +276,10 @@ a { color: var(--brand); }
 @media (max-width: 540px) { .lesson-create-form { padding: 22px; } .lesson-create-form__datetime { gap: 12px; } .lesson-create-form__footer { flex-wrap: wrap; } .lesson-create-form__duration { width: 100%; flex-basis: 100%; } .lesson-create-form .dialog__actions { width: 100%; } .lesson-create-form .dialog__actions .button { flex: 1; } }
 @media (max-width: 480px) { .lesson-create-form__datetime { grid-template-columns: minmax(0, 1fr); gap: 17px; } }
 .dialog-section { display: grid; gap: 0.65rem; margin-top: 0.35rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.conflict-warning-content { display: grid; gap: .75rem; }
+.conflict-list { display: grid; gap: .6rem; }
+.conflict-item { display: grid; gap: .15rem; padding: .75rem .85rem; border: 1px solid #f0c5c5; border-radius: .7rem; background: #fff7f7; }
+.conflict-item span { color: var(--muted); font-size: .85rem; }
 .invitation-code { display: grid; justify-items: center; gap: 0.5rem; padding: 1.2rem; border: 1px dashed #a9bfad; border-radius: 0.9rem; background: #f5faf5; text-align: center; }
 .invitation-code > span, .invitation-code > small { color: var(--muted); font-size: 0.78rem; }
 .invitation-code > strong { color: var(--brand-dark); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing: 0.11em; }
@@ -742,8 +746,8 @@ a { color: var(--brand); }
 .schedule-view-toggle { gap: 0; padding: .25rem; border-radius: .7rem; background: #fff; }
 .schedule-view-toggle button { min-height: 38px; padding: .5rem 1.1rem; border: 0; border-radius: .55rem; color: var(--muted); background: transparent; font-weight: 800; cursor: pointer; }
 .schedule-view-toggle button.schedule-view-toggle--active { color: #fff; background: var(--brand); }
-.schedule-calendar-card { padding: 0; overflow: hidden; }
-.schedule-calendar { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); grid-template-rows: 48px repeat(13, minmax(48px, 1fr)); min-height: 590px; position: relative; }
+.schedule-calendar-card { padding: 0; overflow-x: auto; overflow-y: hidden; }
+.schedule-calendar { display: grid; grid-template-columns: 64px repeat(7, minmax(var(--schedule-day-min, 112px), 1fr)); grid-template-rows: 48px repeat(13, 60px); min-height: 828px; position: relative; }
 .schedule-calendar__corner, .schedule-calendar__day { border-bottom: 1px solid #e1e9e3; background: #fff; }
 .schedule-calendar__corner { display: flex; align-items: center; padding: .65rem; color: var(--muted); font-size: .7rem; font-weight: 800; }
 .schedule-calendar__day { display: grid; place-items: center; align-content: center; gap: .12rem; padding: .4rem; border: 0; border-left: 1px solid #e1e9e3; color: var(--ink); cursor: pointer; }
@@ -752,7 +756,27 @@ a { color: var(--brand); }
 .schedule-calendar__day--active { background: var(--brand-soft); }
 .schedule-calendar__hour { z-index: 2; padding: .45rem .55rem; border-top: 1px solid #e1e9e3; color: var(--muted); background: #fff; font-size: .68rem; font-weight: 700; }
 .schedule-calendar__cell { border-top: 1px solid #e1e9e3; border-left: 1px solid #e1e9e3; }
-.schedule-event { z-index: 3; display: grid; align-content: start; gap: .15rem; min-width: 0; margin: .22rem .3rem; padding: .55rem .65rem; overflow: hidden; border-left: 4px solid var(--brand); border-radius: .65rem; background: #e8f3ec; }
+.schedule-event { z-index: 3; display: grid; align-content: start; gap: .15rem; min-width: 0; margin-bottom: 0; padding: .55rem .65rem; overflow: hidden; border-left: 4px solid var(--brand); border-radius: .65rem; background: #e8f3ec; }
+.schedule-event { box-sizing: border-box; border-top: 0; border-right: 0; border-bottom: 0; font: inherit; text-align: left; cursor: pointer; color: inherit; }
+.schedule-event--overlap { z-index: 4; min-width: 0; padding: .35rem .4rem; }
+.schedule-event--overlap strong, .schedule-event--overlap span, .schedule-event--overlap small { font-size: .62rem; }
+.schedule-event--overlap:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: -2px; }
+.schedule-event--short { gap: .05rem; padding: .18rem .3rem; }
+.schedule-event--short strong, .schedule-event--short span { font-size: .58rem; line-height: 1.05; }
+.schedule-event--short.schedule-event--overlap strong, .schedule-event--short.schedule-event--overlap span { font-size: .54rem; }
+.schedule-event--selected { z-index: 7; min-height: 0; overflow: visible; outline: 2px solid var(--brand-dark); outline-offset: -2px; align-content: space-between; }
+.schedule-event--selected strong, .schedule-event--selected span, .schedule-event--selected small { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.schedule-event__more { flex: 0 0 auto; align-self: end; justify-self: start; min-height: 24px; padding: 0; border: 0; background: transparent; color: var(--brand-dark) !important; font: inherit; font-size: .68rem !important; font-weight: 800; cursor: pointer; text-decoration: underline; }
+.selected-lesson-details { display: grid; gap: .9rem; margin-top: 1rem; padding: 1.1rem 1.25rem; border-color: #cbd9ce; }
+.selected-lesson-details__heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.selected-lesson-details__heading span, .selected-lesson-details dt { color: var(--muted); font-size: .75rem; font-weight: 700; }
+.selected-lesson-details h2 { margin: .2rem 0 0; font-size: 1.05rem; }
+.selected-lesson-details dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .8rem 1.25rem; margin: 0; }
+.selected-lesson-details dl > div { display: grid; align-content: start; gap: .25rem; }
+.selected-lesson-details dt, .selected-lesson-details dd { margin: 0; }
+.selected-lesson-details dd { font-size: .9rem; line-height: 1.45; }
+.lesson-card--overlap { border-left-color: #d97706; background: #fff8eb; }
+.lesson-overlap-badge { justify-self: start; padding: .2rem .45rem; border-radius: 999px; background: #ffedc2; color: #784500; font-size: .68rem; font-weight: 700; }
 .schedule-event strong, .schedule-event span, .schedule-event small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-event strong { font-size: .75rem; }
 .schedule-event span, .schedule-event small { color: #52665a; font-size: .65rem; }

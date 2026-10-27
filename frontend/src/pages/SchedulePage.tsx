@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { readableError } from "../api/client";
@@ -9,6 +9,8 @@ import { Dialog } from "../components/ui/Dialog";
 import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm } from "../features/lessons/LessonCreateForm";
+import { findLessonConflicts, formatConflictRange } from "../features/lessons/conflict-check";
+import type { LessonCreatePayload, LessonReadDTO } from "../api/types";
 import { dayStartUtc, formatLessonDateTime, formatLessonTime, localDate, localDayOfWeek, weekDays } from "../shared/lesson-time";
 import { DEFAULT_TIMEZONE } from "../shared/timezones";
 
@@ -31,11 +33,51 @@ function timeToMinutes(time: string) {
 function lessonGridPosition(time: string, durationMinutes: number) {
   const [start] = time.split(" — ");
   const startMinutes = timeToMinutes(start ?? "08:00");
-  return { row: Math.max(2, Math.floor((startMinutes - 8 * 60) / 60) + 2), span: Math.max(1, Math.min(13, Math.ceil(((startMinutes % 60) + durationMinutes) / 60))) };
+  return {
+    row: Math.max(2, Math.floor((startMinutes - 8 * 60) / 60) + 2),
+    offset: startMinutes % 60,
+    duration: durationMinutes,
+  };
+}
+
+function lessonLanes(lessons: LessonReadDTO[], timezone: string) {
+  const intervals = lessons.map((lesson) => {
+    const start = timeToMinutes(formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone).split(" — ")[0] ?? "08:00");
+    return { lesson, start, end: start + lesson.duration_minutes };
+  }).sort((a, b) => a.start - b.start);
+  const assignments = new Map<string, { lane: number; count: number; overlaps: boolean }>();
+  let group: typeof intervals = [];
+  let groupEnd = -1;
+  const placeGroup = () => {
+    if (group.length === 0) return;
+    const laneEnds: number[] = [];
+    const placed: { id: string; lane: number }[] = [];
+    for (const interval of group) {
+      let lane = laneEnds.findIndex((end) => end <= interval.start);
+      if (lane < 0) lane = laneEnds.length;
+      laneEnds[lane] = interval.end;
+      placed.push({ id: interval.lesson.id, lane });
+    }
+    const overlaps = group.length > 1;
+    for (const item of placed) assignments.set(item.id, { ...item, count: laneEnds.length, overlaps });
+    group = [];
+    groupEnd = -1;
+  };
+  for (const interval of intervals) {
+    if (group.length > 0 && interval.start >= groupEnd) placeGroup();
+    group.push(interval);
+    groupEnd = Math.max(groupEnd, interval.end);
+  }
+  placeGroup();
+  return assignments;
 }
 
 function personName(person: { first_name: string; last_name: string; middle_name: string | null }) {
-  return `${person.first_name} ${person.last_name}`;
+  return person.first_name + " " + person.last_name;
+}
+
+function personFullName(person: { first_name: string; last_name: string; middle_name: string | null }) {
+  return [person.last_name, person.first_name, person.middle_name].filter(Boolean).join(" ");
 }
 
 function subjectTone(title: string) {
@@ -55,7 +97,13 @@ export function SchedulePage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [view, setView] = useState<"week" | "list">("week");
+  const [selectedCalendarLessonId, setSelectedCalendarLessonId] = useState<string | null>(null);
+  const detailsPanelRef = useRef<HTMLDivElement>(null);
   const [createSuccess, setCreateSuccess] = useState(false);
+  const [conflictPayload, setConflictPayload] = useState<LessonCreatePayload | null>(null);
+  const [conflicts, setConflicts] = useState<LessonReadDTO[]>([]);
+  const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [now, setNow] = useState(() => new Date().toISOString());
   useEffect(() => {
     const timer = window.setInterval(() => { setNow(new Date().toISOString()); }, 60_000);
@@ -89,9 +137,47 @@ export function SchedulePage() {
       await queryClient.invalidateQueries({ queryKey: ["lessons"] });
     },
   });
+  async function requestCreate(payload: LessonCreatePayload) {
+    setConflictCheckError(null);
+    setCheckingConflicts(true);
+    try {
+      const startsAt = Date.parse(payload.starts_at);
+      const dateFrom = new Date(startsAt - 24 * 60 * 60_000).toISOString();
+      const dateTo = new Date(startsAt + payload.duration_minutes * 60_000 + 24 * 60 * 60_000).toISOString();
+      const schedule = await api.searchLessons({ date_from: dateFrom, date_to: dateTo });
+      const found = findLessonConflicts(
+        { startsAt: payload.starts_at, durationMinutes: payload.duration_minutes },
+        schedule.map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })),
+      );
+      if (found.length) {
+        setConflictPayload(payload);
+        setConflicts(schedule.filter((lesson) => found.some((match) => match.id === lesson.id)));
+        return;
+      }
+      createLesson.mutate(payload);
+    } catch {
+      setConflictCheckError("Не удалось проверить расписание. Повторите попытку.");
+    } finally {
+      setCheckingConflicts(false);
+    }
+  }
+
   const selectedDate = days[selectedDay]?.iso ?? days[0]?.iso ?? "";
   const visibleItems = useMemo(() => lessons.data ?? [], [lessons.data]);
+
   const visibleLessons = useMemo(() => visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate), [visibleItems, selectedDate, timezone]);
+  const selectedCalendarLesson = visibleItems.find((lesson) => lesson.id === selectedCalendarLessonId) ?? null;
+  const selectedLessonHasConflict = selectedCalendarLesson ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone)).map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0 : false;
+  const overlappingLessonIds = useMemo(() => new Set(visibleLessons.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, visibleLessons.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id)), [visibleLessons]);
+  const minDayWidth = useMemo(() => {
+    const maxLanes = days.reduce((max, day) => {
+      const dayLessons = visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === day.iso);
+      const placements = lessonLanes(dayLessons, timezone);
+      return Math.max(max, ...Array.from(placements.values(), (placement) => placement.count), 1);
+    }, 1);
+    return Math.max(112, maxLanes * 36);
+  }, [days, visibleItems, timezone]);
+
   const nextLesson = visibleItems.find((lesson) => Date.parse(lesson.starts_at) >= Date.parse(now));
   const weekLabel = `${days[0]?.date ?? ""} — ${days[6]?.date ?? ""} ${String(days[6]?.plainDate.year ?? "")}`;
 
@@ -110,7 +196,47 @@ export function SchedulePage() {
     {lessons.isError ? <ErrorState message={readableError(lessons.error)} onRetry={() => void lessons.refetch()} /> : null}
     {lessons.isLoading ? <LoadingState label="Загружаем расписание…" /> : null}
     <div className="schedule-controls"><div className="schedule-view-actions"><div className="schedule-week-switcher"><button className="icon-button" type="button" aria-label="Предыдущая неделя" onClick={() => setWeekOffset((value) => value - 1)}>‹</button><strong>{weekLabel}</strong><button className="icon-button" type="button" aria-label="Следующая неделя" onClick={() => setWeekOffset((value) => value + 1)}>›</button></div><div className="schedule-view-toggle"><button className={view === "week" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => setView("week")}>Неделя</button><button className={view === "list" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => setView("list")}>Список</button></div>{isTeacher ? <button className="button button--primary" type="button" onClick={() => { setCreateSuccess(false); setCreateOpen(true); }}>＋ Создать занятие</button> : null}</div></div>
-    {view === "week" ? <Card className="schedule-calendar-card"><div className="schedule-calendar" style={{ "--schedule-hours": 13 } as CSSProperties}><div className="schedule-calendar__corner">Время</div>{days.map((day, index) => <button key={day.iso} type="button" className={selectedDay === index ? "schedule-calendar__day schedule-calendar__day--active" : "schedule-calendar__day"} onClick={() => setSelectedDay(index)}><strong>{dayNames[index]}</strong><span>{day.date}</span></button>)}{Array.from({ length: 13 }, (_, index) => <div className="schedule-calendar__hour" style={{ gridRow: index + 2 }} key={`hour-${index}`}>{String(index + 8).padStart(2, "0")}:00</div>)}{Array.from({ length: 13 * 7 }, (_, index) => <div className="schedule-calendar__cell" style={{ gridColumn: (index % 7) + 2, gridRow: Math.floor(index / 7) + 2 }} key={`cell-${index}`} />)}{visibleItems.map((lesson) => { const time = formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone); const dayIndex = localDayOfWeek(lesson.starts_at, timezone) - 1; const position = lessonGridPosition(time, lesson.duration_minutes); return <article className={`schedule-event schedule-event--${subjectTone(lesson.title)}`} style={{ gridColumn: dayIndex + 2, gridRow: `${position.row} / span ${position.span}` }} key={lesson.id}><strong>{lesson.title}</strong><span>{personName(isTeacher ? lesson.student : lesson.teacher)}</span><small>{time}</small></article>; })}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => setSelectedDay(index)}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}`} key={lesson.id}><time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time><div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div></article>) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
-    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!createLesson.isPending) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={createLesson.isPending} serverError={createLesson.isError ? readableError(createLesson.error) : undefined} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { createLesson.mutate(payload); }} /></Dialog>
+    {view === "week" ? <Card className="schedule-calendar-card"><div className="schedule-calendar" style={{ "--schedule-hours": 13, "--schedule-day-min": `${minDayWidth}px` } as CSSProperties}><div className="schedule-calendar__corner">Время</div>{days.map((day, index) => <button key={day.iso} type="button" className={selectedDay === index ? "schedule-calendar__day schedule-calendar__day--active" : "schedule-calendar__day"} onClick={() => setSelectedDay(index)}><strong>{dayNames[index]}</strong><span>{day.date}</span></button>)}{Array.from({ length: 13 }, (_, index) => <div className="schedule-calendar__hour" style={{ gridRow: index + 2 }} key={`hour-${index}`}>{String(index + 8).padStart(2, "0")}:00</div>)}{Array.from({ length: 13 * 7 }, (_, index) => <div className="schedule-calendar__cell" style={{ gridColumn: (index % 7) + 2, gridRow: Math.floor(index / 7) + 2 }} key={`cell-${index}`} />)}{days.map((day, dayIndex) => {
+  const dayLessons = visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === day.iso);
+  const lanes = lessonLanes(dayLessons, timezone);
+  return dayLessons.map((lesson) => {
+    const time = formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone);
+    const position = lessonGridPosition(time, lesson.duration_minutes);
+    const placement = lanes.get(lesson.id) ?? { lane: 0, count: 1, overlaps: false };
+    const selected = selectedCalendarLessonId === lesson.id;
+    const expandedTracks = Math.min(3, placement.count);
+    const expandedStart = Math.min(placement.lane, placement.count - expandedTracks);
+    const eventWidth = !placement.overlaps ? "calc(100% - .6rem)" : selected ? `calc((100% / ${placement.count}) * ${expandedTracks} - .6rem)` : `calc(100% / ${placement.count} - .6rem)`;
+    const eventLeft = !placement.overlaps ? ".3rem" : `calc((100% / ${placement.count}) * ${selected ? expandedStart : placement.lane} + .3rem)`;
+    const scrollToDetails = (event: MouseEvent<HTMLButtonElement>) => { event.stopPropagation(); detailsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); };
+    const shortLesson = lesson.duration_minutes < 60;
+    return <article role="button" tabIndex={0} className={`schedule-event schedule-event--${subjectTone(lesson.title)}${placement.overlaps ? " schedule-event--overlap" : ""}${shortLesson ? " schedule-event--short" : ""}${selected ? " schedule-event--selected" : ""}`} style={{ gridColumn: dayIndex + 2, gridRow: `${position.row} / span 1`, height: `${position.duration}px`, marginTop: `${position.offset}px`, width: eventWidth, marginLeft: eventLeft, alignSelf: "start" }} aria-pressed={selected} title="Показать детали занятия" onClick={() => setSelectedCalendarLessonId(selected ? null : lesson.id)} onKeyDown={(event: KeyboardEvent<HTMLElement>) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCalendarLessonId(selected ? null : lesson.id); } }} key={lesson.id}><strong>{lesson.title}</strong><span>{personName(isTeacher ? lesson.student : lesson.teacher)}</span>{!shortLesson ? <small>{time}</small> : null}{selected ? <button type="button" className="schedule-event__more" onClick={scrollToDetails} onKeyDown={(event) => event.stopPropagation()}>Подробнее ↓</button> : null}</article>;
+  });
+})}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => setSelectedDay(index)}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}${overlappingLessonIds.has(lesson.id) ? " lesson-card--overlap" : ""}`} key={lesson.id}><time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time><div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>{overlappingLessonIds.has(lesson.id) ? <small className="lesson-overlap-badge">Пересечение</small> : null}</article>) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
+    {view === "week" && selectedCalendarLesson ? <div ref={detailsPanelRef}><Card className="selected-lesson-details" aria-live="polite">
+      <div className="selected-lesson-details__heading">
+        <div><span>Выбранное занятие</span><h2>{selectedCalendarLesson.title}</h2></div>
+        <button type="button" className="icon-button" aria-label="Закрыть детали занятия" onClick={() => setSelectedCalendarLessonId(null)}>×</button>
+      </div>
+      <dl>
+        <div><dt>Время</dt><dd>{formatLessonDateTime(selectedCalendarLesson.starts_at, timezone)} — {formatLessonTime(selectedCalendarLesson.starts_at, selectedCalendarLesson.duration_minutes, timezone).split(" — ")[1]}</dd></div>
+        <div><dt>{isTeacher ? "Ученик" : "Преподаватель"}</dt><dd>{personFullName(isTeacher ? selectedCalendarLesson.student : selectedCalendarLesson.teacher)}</dd></div>
+        {selectedCalendarLesson.description ? <div><dt>Описание</dt><dd>{selectedCalendarLesson.description}</dd></div> : null}
+        {selectedLessonHasConflict ? <div><dt>Расписание</dt><dd><span className="lesson-overlap-badge">Пересекается с другим занятием</span></dd></div> : null}
+      </dl>
+    </Card></div> : null}
+    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!createLesson.isPending) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={createLesson.isPending || checkingConflicts} serverError={conflictCheckError ?? (createLesson.isError ? readableError(createLesson.error) : undefined)} onCancel={() => { setCreateOpen(false); }} onCreate={requestCreate} /></Dialog>
+    <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { if (!createLesson.isPending) { setConflictPayload(null); setConflicts([]); } }}>
+      <div className="conflict-warning-content">
+        <p>Новое занятие пересекается с уже запланированным. Оно ещё не создано.</p>
+        <div className="conflict-list" role="list" aria-label="Конфликтующие занятия">
+          {conflicts.map((lesson) => <div className="conflict-item" role="listitem" key={lesson.id}><strong>{lesson.title}</strong><span>{formatConflictRange(lesson.starts_at, lesson.duration_minutes, timezone)}</span></div>)}
+        </div>
+        <div className="dialog__actions">
+          <button className="button button--secondary" type="button" disabled={createLesson.isPending} onClick={() => { setConflictPayload(null); setConflicts([]); }}>Изменить время</button>
+          <button className="button button--primary" type="button" disabled={!conflictPayload || createLesson.isPending} onClick={() => { if (!conflictPayload) return; createLesson.mutate(conflictPayload, { onSettled: () => { setConflictPayload(null); setConflicts([]); } }); }}>Создать несмотря на конфликт</button>
+        </div>
+      </div>
+    </Dialog>
   </>;
 }
