@@ -153,6 +153,7 @@ export interface LessonCreatePayload {
   description?: string | null;
   starts_at: string;
   duration_minutes: number;
+  recurrence?: { frequency: "weekly"; count: number };
 }
 
 export interface LessonDTO {
@@ -178,4 +179,10 @@ export interface LessonReadDTO {
   duration_minutes: number;
   teacher: TeacherRef;
   student: StudentRef;
+  status?: "planned" | "in_progress" | "completed" | "cancelled";
+  attendance?: "not_set" | "present" | "absent";
+  rescheduled?: boolean;
 }
+
+
+

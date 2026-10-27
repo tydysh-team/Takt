@@ -21,6 +21,9 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
   const [date, setDate] = useState("");
   const [start, setStart] = useState("");
   const [duration, setDuration] = useState("60");
+  const [repeat, setRepeat] = useState(false);
+  const [repeatCount, setRepeatCount] = useState("2");
+
   const [submitted, setSubmitted] = useState(false);
   const [timeError, setTimeError] = useState("");
   const dateTextRef = useRef<HTMLInputElement>(null);
@@ -43,6 +46,7 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
         description: description.trim() || null,
         starts_at: startsAt,
         duration_minutes: Number(duration),
+        ...(repeat ? { recurrence: { frequency: "weekly" as const, count: Number(repeatCount) } } : {}),
       });
     } catch {
       setTimeError("Это время не существует или неоднозначно из-за перехода часов. Выберите другое время.");
@@ -103,6 +107,10 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
           {[30, 45, 60, 90, 120].map((minutes) => <option key={minutes} value={minutes}>{minutes} минут</option>)}
         </select>
       </div>
+      <div className="lesson-create-form__repeat">
+        <label><input type="checkbox" checked={repeat} onChange={(event) => setRepeat(event.target.checked)} /> Повторять каждую неделю</label>
+        {repeat ? <label>Количество занятий <select className="input" value={repeatCount} onChange={(event) => setRepeatCount(event.target.value)}>{Array.from({ length: 51 }, (_, index) => <option key={index + 2} value={index + 2}>{index + 2}</option>)}</select></label> : null}
+      </div>
       <div className="dialog__actions">
         <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>Отмена</Button>
         <Button type="submit" loading={pending} disabled={submitted && invalid}>Создать занятие</Button>
@@ -110,3 +118,6 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
     </div>
   </form>;
 }
+
+
+

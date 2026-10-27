@@ -793,3 +793,18 @@ a { color: var(--brand); }
 .schedule-list-day-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; margin-bottom: .15rem; }
 .schedule-list-day-heading span { color: var(--muted); font-size: .78rem; }
 @media (max-width: 620px) { .schedule-list-days { gap: .15rem; } .schedule-list-days .schedule-day { padding-inline: .15rem; } }
+.lesson-create-form__repeat { display: grid; gap: .45rem; min-width: 190px; align-self: end; font-size: .9rem; }
+.lesson-create-form__repeat > label:first-child { display: flex; align-items: center; gap: .45rem; white-space: nowrap; }
+.lesson-create-form__repeat > label:last-child { display: flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .78rem; }
+.lesson-create-form__repeat select { min-height: 38px; width: 80px; }
+.selected-lesson-details__actions { display: flex; flex-wrap: wrap; gap: .6rem; padding-top: .25rem; }
+@media (max-width: 700px) { .lesson-create-form__footer { align-items: stretch; flex-wrap: wrap; } .lesson-create-form__repeat { order: 3; width: 100%; } }
+.lesson-create-form__footer { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(190px, 1fr) auto; align-items: end; gap: 12px; }
+.lesson-create-form__repeat { min-width: 0; max-width: 220px; }
+.lesson-create-form__repeat > label:first-child { white-space: normal; line-height: 1.35; }
+.lesson-create-form__repeat > label:last-child { flex-wrap: wrap; }
+.lesson-create-form__repeat select { flex: 0 0 76px; }
+.lesson-create-form__footer .dialog__actions { display: flex; flex-wrap: nowrap; gap: 8px; }
+.lesson-create-form__footer .dialog__actions .button { white-space: nowrap; }
+.selected-lesson-details__actions { display: flex; flex-wrap: wrap; gap: .6rem; padding-top: .25rem; }
+@media (max-width: 760px) { .lesson-create-form__footer { grid-template-columns: 1fr 1fr; } .lesson-create-form__repeat { grid-column: 1 / -1; max-width: none; } .lesson-create-form__footer .dialog__actions { grid-column: 1 / -1; justify-content: end; } }

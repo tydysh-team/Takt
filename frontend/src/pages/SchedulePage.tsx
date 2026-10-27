@@ -10,6 +10,7 @@ import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm } from "../features/lessons/LessonCreateForm";
 import { findLessonConflicts, formatConflictRange } from "../features/lessons/conflict-check";
+import { createMockLesson, effectiveStatus, overlayMockLessons, saveMockState } from "../features/lessons/mock-lessons";
 import type { LessonCreatePayload, LessonReadDTO } from "../api/types";
 import { dayStartUtc, formatLessonDateTime, formatLessonTime, localDate, localDayOfWeek, weekDays } from "../shared/lesson-time";
 import { DEFAULT_TIMEZONE } from "../shared/timezones";
@@ -149,12 +150,24 @@ export function SchedulePage() {
         { startsAt: payload.starts_at, durationMinutes: payload.duration_minutes },
         schedule.map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })),
       );
-      if (found.length) {
-        setConflictPayload(payload);
-        setConflicts(schedule.filter((lesson) => found.some((match) => match.id === lesson.id)));
-        return;
-      }
-      createLesson.mutate(payload);
+      if (payload.recurrence) {
+        const student = students.data?.find((item) => item.id === payload.student_id);
+        if (!student || !user) throw new Error("Не найден участник занятия");
+        const occurrences = Array.from({ length: payload.recurrence.count }, (_, index) => ({ ...payload, recurrence: undefined, starts_at: new Date(Date.parse(payload.starts_at) + index * 7 * 24 * 60 * 60_000).toISOString() }));
+        const conflictsInSeries: boolean[] = [];
+        const conflictingLessons: LessonReadDTO[] = [];
+        for (const occurrence of occurrences) {
+          const from = Date.parse(occurrence.starts_at) - 24 * 60 * 60_000;
+          const to = Date.parse(occurrence.starts_at) + occurrence.duration_minutes * 60_000 + 24 * 60 * 60_000;
+          const existing = await api.searchLessons({ date_from: new Date(from).toISOString(), date_to: new Date(to).toISOString() });
+          conflictsInSeries.push(findLessonConflicts({ startsAt: occurrence.starts_at, durationMinutes: occurrence.duration_minutes }, existing.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes }))).length > 0);
+        }
+        if (conflictsInSeries.some(Boolean)) { setConflictCheckError("В серии есть пересечения с расписанием. Измените дату или время."); return; }
+        if (!window.confirm(`Создать серию из ${occurrences.length} занятий каждую неделю?`)) return;
+        const teacher = { id: user.id, first_name: user.first_name, last_name: user.last_name, middle_name: user.middle_name };
+        occurrences.forEach((occurrence) => createMockLesson(occurrence, student, teacher, occurrence.starts_at));
+        setCreateOpen(false); setCreateSuccess(true); await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+      } else createLesson.mutate(payload);
     } catch {
       setConflictCheckError("Не удалось проверить расписание. Повторите попытку.");
     } finally {
@@ -163,7 +176,7 @@ export function SchedulePage() {
   }
 
   const selectedDate = days[selectedDay]?.iso ?? days[0]?.iso ?? "";
-  const visibleItems = useMemo(() => lessons.data ?? [], [lessons.data]);
+  const visibleItems = useMemo(() => overlayMockLessons(lessons.data ?? []), [lessons.data]);
 
   const visibleLessons = useMemo(() => visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate), [visibleItems, selectedDate, timezone]);
   const selectedCalendarLesson = visibleItems.find((lesson) => lesson.id === selectedCalendarLessonId) ?? null;
@@ -209,7 +222,7 @@ export function SchedulePage() {
     const eventWidth = !placement.overlaps ? "calc(100% - .6rem)" : selected ? `calc((100% / ${placement.count}) * ${expandedTracks} - .6rem)` : `calc(100% / ${placement.count} - .6rem)`;
     const eventLeft = !placement.overlaps ? ".3rem" : `calc((100% / ${placement.count}) * ${selected ? expandedStart : placement.lane} + .3rem)`;
     const scrollToDetails = (event: MouseEvent<HTMLButtonElement>) => { event.stopPropagation(); detailsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); };
-    const shortLesson = lesson.duration_minutes < 60;
+    const shortLesson = lesson.duration_minutes < 45;
     return <article role="button" tabIndex={0} className={`schedule-event schedule-event--${subjectTone(lesson.title)}${placement.overlaps ? " schedule-event--overlap" : ""}${shortLesson ? " schedule-event--short" : ""}${selected ? " schedule-event--selected" : ""}`} style={{ gridColumn: dayIndex + 2, gridRow: `${position.row} / span 1`, height: `${position.duration}px`, marginTop: `${position.offset}px`, width: eventWidth, marginLeft: eventLeft, alignSelf: "start" }} aria-pressed={selected} title="Показать детали занятия" onClick={() => setSelectedCalendarLessonId(selected ? null : lesson.id)} onKeyDown={(event: KeyboardEvent<HTMLElement>) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCalendarLessonId(selected ? null : lesson.id); } }} key={lesson.id}><strong>{lesson.title}</strong><span>{personName(isTeacher ? lesson.student : lesson.teacher)}</span>{!shortLesson ? <small>{time}</small> : null}{selected ? <button type="button" className="schedule-event__more" onClick={scrollToDetails} onKeyDown={(event) => event.stopPropagation()}>Подробнее ↓</button> : null}</article>;
   });
 })}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => setSelectedDay(index)}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}${overlappingLessonIds.has(lesson.id) ? " lesson-card--overlap" : ""}`} key={lesson.id}><time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time><div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>{overlappingLessonIds.has(lesson.id) ? <small className="lesson-overlap-badge">Пересечение</small> : null}</article>) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
@@ -223,7 +236,12 @@ export function SchedulePage() {
         <div><dt>{isTeacher ? "Ученик" : "Преподаватель"}</dt><dd>{personFullName(isTeacher ? selectedCalendarLesson.student : selectedCalendarLesson.teacher)}</dd></div>
         {selectedCalendarLesson.description ? <div><dt>Описание</dt><dd>{selectedCalendarLesson.description}</dd></div> : null}
         {selectedLessonHasConflict ? <div><dt>Расписание</dt><dd><span className="lesson-overlap-badge">Пересекается с другим занятием</span></dd></div> : null}
+        <div><dt>Статус</dt><dd>{{ planned: "Запланировано", in_progress: "Идёт", completed: "Завершено", cancelled: "Отменено" }[effectiveStatus(selectedCalendarLesson, Date.parse(now))]}</dd></div>
+        <div><dt>Посещение</dt><dd>{{ not_set: "Не отмечено", present: "Присутствовал", absent: "Отсутствовал" }[selectedCalendarLesson.attendance ?? "not_set"]}</dd></div>
+        {selectedCalendarLesson.rescheduled ? <div><dt>Изменения</dt><dd>Перенесено</dd></div> : null}
       </dl>
+      {isTeacher && effectiveStatus(selectedCalendarLesson, Date.parse(now)) !== "cancelled" && Date.parse(now) >= Date.parse(selectedCalendarLesson.starts_at) ? <div className="selected-lesson-details__actions"><button className="button button--secondary" type="button" onClick={() => { saveMockState(selectedCalendarLesson.id, { attendance: "present" }); void queryClient.invalidateQueries({ queryKey: ["lessons"] }); }}>Присутствовал</button><button className="button button--secondary" type="button" onClick={() => { saveMockState(selectedCalendarLesson.id, { attendance: "absent" }); void queryClient.invalidateQueries({ queryKey: ["lessons"] }); }}>Отсутствовал</button></div> : null}
+      {isTeacher && effectiveStatus(selectedCalendarLesson, Date.parse(now)) === "planned" ? <div className="selected-lesson-details__actions"><button className="button button--secondary" type="button" onClick={() => { saveMockState(selectedCalendarLesson.id, { starts_at: new Date(Date.parse(selectedCalendarLesson.starts_at) + 86400000).toISOString(), rescheduled: true }); void queryClient.invalidateQueries({ queryKey: ["lessons"] }); }}>Перенести на завтра</button><button className="button button--secondary" type="button" onClick={() => { saveMockState(selectedCalendarLesson.id, { status: "cancelled" }); setSelectedCalendarLessonId(null); void queryClient.invalidateQueries({ queryKey: ["lessons"] }); }}>Отменить занятие</button></div> : null}
     </Card></div> : null}
     <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!createLesson.isPending) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={createLesson.isPending || checkingConflicts} serverError={conflictCheckError ?? (createLesson.isError ? readableError(createLesson.error) : undefined)} onCancel={() => { setCreateOpen(false); }} onCreate={requestCreate} /></Dialog>
     <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { if (!createLesson.isPending) { setConflictPayload(null); setConflicts([]); } }}>
@@ -240,3 +258,13 @@ export function SchedulePage() {
     </Dialog>
   </>;
 }
+
+
+
+
+
+
+
+
+
+
