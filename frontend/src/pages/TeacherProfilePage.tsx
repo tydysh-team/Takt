@@ -33,7 +33,7 @@ export function TeacherProfilePage() {
           <div>
             <p className="eyebrow">Преподаватель</p>
             <h2>{name}</h2>
-            <p>{bio || "Преподаватель пока не добавил описание."}</p>
+            <p>{bio ?? "Преподаватель пока не добавил описание."}</p>
           </div>
           <span className="badge badge--success">Активен</span>
         </Card>

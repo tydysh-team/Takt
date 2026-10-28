@@ -12,13 +12,15 @@ export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly details: ApiErrorDetail[];
+  readonly context: Record<string, unknown> | null;
 
-  constructor(code: string, message: string, status: number, details: ApiErrorDetail[] = []) {
+  constructor(code: string, message: string, status: number, details: ApiErrorDetail[] = [], context: Record<string, unknown> | null = null) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.details = details;
+    this.context = context;
   }
 }
 
@@ -89,6 +91,7 @@ async function responseError(response: Response): Promise<ApiError> {
       payload.error.message,
       response.status,
       payload.error.details ?? [],
+      payload.error.context ?? null,
     );
   }
 

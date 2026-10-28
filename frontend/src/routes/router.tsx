@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
               { path: "/schedule", element: <SchedulePage /> },
               { path: "/teacher-profile", element: <Navigate to="/profile" replace /> },
               { path: "/teacher-profile/:id", element: <TeacherProfilePage /> },
-              { path: "/homework", element: <PlaceholderPage section="homework" /> },
+              { path: "/homework", element: <PlaceholderPage /> },
               {
                 element: <RoleGate allowed={["TEACHER"]} />,
                 children: [

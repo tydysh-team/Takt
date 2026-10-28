@@ -1,6 +1,6 @@
 import { Temporal } from "@js-temporal/polyfill";
 
-import type { LessonCreatePayload } from "../../api/types";
+import type { LessonFormPayload } from "../../api/types";
 
 export const MIN_SERIES_COUNT = 2;
 export const MAX_SERIES_COUNT = 52;
@@ -32,7 +32,7 @@ export function addCalendarWeeks(startsAt: string, weeks: number, timezone: stri
   return zoned.add({ weeks }).toInstant().toString();
 }
 
-export function seriesOccurrences(payload: LessonCreatePayload, timezone: string): SeriesOccurrence[] {
+export function seriesOccurrences(payload: LessonFormPayload, timezone: string): SeriesOccurrence[] {
   const count = payload.recurrence?.count ?? 1;
   return Array.from({ length: count }, (_, index) => {
     const startsAt = index === 0 ? payload.starts_at : addCalendarWeeks(payload.starts_at, index, timezone);
@@ -46,7 +46,7 @@ export function seriesOccurrences(payload: LessonCreatePayload, timezone: string
   });
 }
 
-export function seriesSummary(payload: LessonCreatePayload, timezone: string): string {
+export function seriesSummary(payload: LessonFormPayload, timezone: string): string {
   if (!payload.recurrence) return "";
   const occurrences = seriesOccurrences(payload, timezone);
   const first = occurrences[0];

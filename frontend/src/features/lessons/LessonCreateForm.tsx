@@ -1,6 +1,6 @@
 import { useRef, useState, type SyntheticEvent } from "react";
 
-import type { LessonCreatePayload, StudentRef } from "../../api/types";
+import type { LessonFormPayload, StudentRef } from "../../api/types";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { lessonStartUtc } from "../../shared/lesson-time";
@@ -14,7 +14,7 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
   pending: boolean;
   serverError?: string | undefined;
   onCancel: () => void;
-  onCreate: (payload: LessonCreatePayload) => void;
+  onCreate: (payload: LessonFormPayload) => void;
 }) {
   const [studentId, setStudentId] = useState("");
   const [title, setTitle] = useState("");

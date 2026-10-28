@@ -12,6 +12,7 @@ export interface ApiErrorEnvelope {
     code: string;
     message: string;
     details?: ApiErrorDetail[];
+    context?: Record<string, unknown> | null;
   };
 }
 
@@ -153,8 +154,26 @@ export interface LessonCreatePayload {
   description?: string | null;
   starts_at: string;
   duration_minutes: number;
+  confirm_conflict?: boolean;
+}
+
+export interface LessonFormPayload extends Omit<LessonCreatePayload, "confirm_conflict"> {
   recurrence?: { frequency: "weekly"; count: number };
 }
+
+export interface LessonSeriesPayload {
+  student_id: string;
+  title: string;
+  description?: string | null;
+  starts_at: string;
+  duration_minutes: number;
+  recurrence: "weekly";
+  count: number;
+  confirm_conflict?: boolean;
+}
+
+export type LessonStatus = "planned" | "in_progress" | "completed" | "cancelled";
+export type LessonAttendance = "not_set" | "present" | "absent";
 
 export interface LessonDTO {
   id: string;
@@ -163,8 +182,41 @@ export interface LessonDTO {
   title: string;
   description: string | null;
   starts_at: string;
+  ends_at: string;
   duration_minutes: number;
+  status: LessonStatus;
+  is_rescheduled: boolean;
+  attendance: LessonAttendance;
+  cancellation_reason: string | null;
 }
+
+export interface LessonConflict {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  duration_minutes: number;
+  student: StudentRef;
+}
+
+export interface LessonSeriesConflictExisting {
+  type: "existing_lesson";
+  series_index: number;
+  series_number: number;
+  series_starts_at: string;
+  series_ends_at: string;
+  lesson: LessonConflict;
+}
+
+export interface LessonSeriesConflictInternal {
+  type: "within_series";
+  series_index: number;
+  series_number: number;
+  series_starts_at: string;
+  series_ends_at: string;
+}
+
+export type LessonSeriesConflict = LessonSeriesConflictExisting | LessonSeriesConflictInternal;
 
 export interface LessonSearchFilters {
   date_from?: string | null;
@@ -176,16 +228,17 @@ export interface LessonReadDTO {
   title: string;
   description: string | null;
   starts_at: string;
+  ends_at: string;
   duration_minutes: number;
+  status: LessonStatus;
+  is_rescheduled: boolean;
+  attendance: LessonAttendance;
+  cancellation_reason: string | null;
   teacher: TeacherRef;
   student: StudentRef;
-  status?: "planned" | "in_progress" | "completed" | "cancelled";
-  attendance?: "not_set" | "present" | "absent";
-  rescheduled?: boolean;
 }
 
-export type LessonLifecycleStatus = NonNullable<LessonReadDTO["status"]>;
-export type LessonAttendance = NonNullable<LessonReadDTO["attendance"]>;
+export type LessonLifecycleStatus = LessonStatus;
 
 
 

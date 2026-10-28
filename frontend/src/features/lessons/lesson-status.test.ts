@@ -13,16 +13,18 @@ const lesson = (overrides: Omit<Partial<LessonReadDTO>, "status" | "attendance">
     title: "Математика",
     description: null,
     starts_at: "2026-11-01T10:00:00Z",
+    ends_at: "2026-11-01T11:00:00Z",
     duration_minutes: 60,
     status: "planned",
+    is_rescheduled: false,
+    attendance: "not_set",
+    cancellation_reason: null,
     teacher: { id: "teacher-id", first_name: "Иван", last_name: "Иванов", middle_name: null },
     student: { id: "student-id", first_name: "Пётр", last_name: "Петров", middle_name: null },
     ...rest,
     ...(status === undefined ? {} : { status }),
     ...(attendance === undefined ? {} : { attendance }),
   };
-  if (status === undefined) delete result.status;
-  if (attendance === undefined) delete result.attendance;
   return result;
 };
 
@@ -41,15 +43,16 @@ describe("effectiveLessonStatus", () => {
   });
 
   it("never silently substitutes an invalid or missing status", () => {
-    expect(effectiveLessonStatus(lesson({ status: undefined }))).toBe("unknown");
+    const missingStatus = { ...lesson({}), status: undefined } as unknown as LessonReadDTO;
+    expect(effectiveLessonStatus(missingStatus)).toBe("unknown");
     expect(effectiveLessonStatus(lesson({ status: "unknown-status" as LessonReadDTO["status"] }))).toBe("unknown");
-    expect(lessonStatusLabel(lesson({ status: undefined }))).toBe("Статус неизвестен");
+    expect(lessonStatusLabel(missingStatus)).toBe("Статус неизвестен");
     expect(isLessonStatus(undefined)).toBe(false);
     expect(isLessonStatus("planned")).toBe(true);
   });
 
   it("uses current time after reschedule without losing the flag", () => {
-    const rescheduled = lesson({ starts_at: "2026-11-08T09:00:00Z", status: "planned", rescheduled: true });
+    const rescheduled = lesson({ starts_at: "2026-11-08T09:00:00Z", status: "planned", is_rescheduled: true });
     expect(effectiveLessonStatus(rescheduled, new Date("2026-11-08T08:59:59Z"))).toBe("planned");
     expect(effectiveLessonStatus(rescheduled, new Date("2026-11-08T09:00:00Z"))).toBe("in_progress");
   });

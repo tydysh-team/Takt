@@ -34,7 +34,6 @@ export function effectiveLessonStatus(
   lesson: LessonReadDTO,
   now: Date = new Date(),
 ): LessonLifecycleStatus | "unknown" {
-  if (lesson.status === undefined) return "unknown";
   if (!isLessonStatus(lesson.status)) return "unknown";
   if (lesson.status === "cancelled") return "cancelled";
 

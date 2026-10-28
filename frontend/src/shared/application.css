@@ -845,6 +845,22 @@ a { color: var(--brand); }
 .schedule-stack--compact .schedule-stack__meta,
 .schedule-stack--compact .schedule-stack__hint { display: none; }
 
+/* Overlap card without an actionable conflict (completed / cancelled-heavy clusters). */
+.schedule-stack--calm { border-color: #cfe0d4; border-left-color: var(--brand); color: #2c4a35; background: linear-gradient(135deg, #f1f8f3 0%, #fbfdfb 100%); box-shadow: 4px 4px 0 -1px #fbfdfb, 4px 4px 0 0 #d9e6dc, 8px 8px 0 -1px #fbfdfb, 8px 8px 0 0 #d9e6dc, 0 10px 24px rgb(23 45 30 / 10%); }
+.schedule-stack--calm:hover { border-color: #b9d0c0; box-shadow: 4px 4px 0 -1px #fbfdfb, 4px 4px 0 0 #d9e6dc, 8px 8px 0 -1px #fbfdfb, 8px 8px 0 0 #d9e6dc, 0 16px 30px rgb(23 45 30 / 14%); }
+.schedule-stack--calm .schedule-stack strong { color: #26402e; }
+.schedule-stack--calm .schedule-stack__item strong { color: #4a6b57; }
+.schedule-stack--calm .schedule-stack__meta { color: #5c7566; }
+.schedule-stack--calm .schedule-stack__hint { color: #3d7855; }
+.schedule-stack__kicker--calm { color: #4a7a5c; }
+.schedule-stack__badge--calm { color: #fff; background: #4a7a5c; }
+
+/* Cancelled lessons stay visible inside the group but never count toward a conflict. */
+.schedule-stack__item--cancelled { opacity: .58; }
+.schedule-stack__item--cancelled::before { background: #b7c0b9; }
+.schedule-stack__item--cancelled strong { color: #8a938c; text-decoration: line-through; }
+.schedule-stack__cancelled-tag { flex: 0 0 auto; color: #a33b32; font-size: .5rem; font-style: normal; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+
 /* Conflict side drawer */
 .drawer-backdrop { position: fixed; z-index: 70; inset: 0; display: flex; justify-content: flex-end; background: rgb(11 24 16 / 42%); backdrop-filter: blur(3px); animation: drawer-fade 180ms ease; }
 .drawer { display: flex; width: min(100%, 460px); height: 100%; flex-direction: column; border-left: 1px solid #dfe6e0; background: #fbfcfa; box-shadow: -24px 0 70px rgb(8 18 11 / 22%); animation: drawer-slide 240ms cubic-bezier(.22, 1, .36, 1); }
@@ -873,6 +889,8 @@ a { color: var(--brand); }
 .conflict-drawer__lesson--purple { border-left-color: #7b3ff2; }
 .conflict-drawer__lesson--orange { border-left-color: #ef4d7a; }
 .conflict-drawer__lesson--green { border-left-color: #2c9a67; }
+.conflict-drawer__lesson--cancelled { opacity: .62; border-left-color: #c2c9c2; background: #f5f7f5; }
+.conflict-drawer__lesson--cancelled .conflict-drawer__body strong { color: var(--muted); text-decoration: line-through; }
 @keyframes drawer-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes drawer-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 560px) { .drawer { width: 100%; } }

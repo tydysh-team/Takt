@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Temporal } from "@js-temporal/polyfill";
 
-import { readableError } from "../api/client";
+import { ApiError, readableError } from "../api/client";
 import { api, queryKeys } from "../api/queries";
 import { PageHeader } from "../components/PageHeader";
 import { Card } from "../components/ui/Card";
@@ -13,10 +13,14 @@ import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm } from "../features/lessons/LessonCreateForm";
 import { findLessonConflicts, formatConflictRange } from "../features/lessons/conflict-check";
 import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
-import { createMockLesson, overlayMockLessons, saveMockState } from "../features/lessons/mock-lessons";
-import { seriesOccurrences } from "../features/lessons/recurrence";
-import { groupLessonStacks, stackDurationMinutes } from "../features/lessons/schedule-groups";
-import type { LessonCreatePayload, LessonReadDTO } from "../api/types";
+import { classifyStack, groupLessonStacks, stackDurationMinutes } from "../features/lessons/schedule-groups";
+import type {
+  LessonCreatePayload,
+  LessonConflict,
+  LessonFormPayload,
+  LessonReadDTO,
+  LessonSeriesPayload,
+} from "../api/types";
 import { dayStartUtc, formatLessonDateTime, formatLessonTime, lessonStartUtc, localDate, weekDays } from "../shared/lesson-time";
 import { DEFAULT_TIMEZONE } from "../shared/timezones";
 
@@ -105,8 +109,8 @@ interface RescheduleState {
 
 // ── Series conflict confirmation state ────────────────────────────────────
 interface SeriesConflictState {
-  payload: LessonCreatePayload;
-  conflicts: string[]; // human-readable conflict descriptions
+  payload: LessonFormPayload;
+  conflicts: string[];
 }
 
 interface ConflictDrawerState {
@@ -128,7 +132,7 @@ export function SchedulePage() {
   const shouldScrollToDetails = useRef(false);
   const [createSuccess, setCreateSuccess] = useState(false);
   const [conflictPayload, setConflictPayload] = useState<LessonCreatePayload | null>(null);
-  const [conflicts, setConflicts] = useState<LessonReadDTO[]>([]);
+  const [conflicts, setConflicts] = useState<LessonConflict[]>([]);
   const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [now, setNow] = useState(() => new Date().toISOString());
@@ -180,109 +184,53 @@ export function SchedulePage() {
     staleTime: 30_000,
   });
   const students = useQuery({ queryKey: queryKeys.teacherStudents, queryFn: api.teacherStudents, enabled: isTeacher });
-  const createLesson = useMutation({
-    mutationFn: api.createLesson,
-    onSuccess: async () => {
-      setCreateOpen(false);
-      setCreateSuccess(true);
-      await queryClient.invalidateQueries({ queryKey: ["lessons"] });
-    },
-  });
-
-  // ── Series creation (US-09) ──────────────────────────────────────────────
-  async function createSeriesNow(payload: LessonCreatePayload) {
-    if (!payload.recurrence) return;
-    const student = students.data?.find((item) => item.id === payload.student_id);
-    if (!student || !user) throw new Error("Не найден участник занятия");
-    const teacher = { id: user.id, first_name: user.first_name, last_name: user.last_name, middle_name: user.middle_name };
-    const createdLessons = seriesOccurrences(payload, timezone).map((seriesItem) => {
-      const occurrence: LessonCreatePayload = {
-        ...payload,
-        starts_at: seriesItem.startsAt,
-      };
-      delete occurrence.recurrence;
-      return occurrence;
-    });
-    // Temporary US-05…US-09 local layer: writes all occurrences without intermediate invalid state.
-    // Atomicity and persistence become backend responsibilities when the API exists.
-    createdLessons.forEach((occ) => createMockLesson(occ, student, teacher, occ.starts_at));
-    setSeriesConflict(null);
-    setCreateOpen(false);
-    setCreateSuccess(true);
-    await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+  function conflictItems(error: unknown): LessonConflict[] {
+    if (!(error instanceof ApiError) || !error.context) return [];
+    const value = error.context.conflicts;
+    return Array.isArray(value) ? value.filter((item): item is LessonConflict => Boolean(item) && typeof item === "object" && "title" in item) : [];
   }
 
-  async function requestCreate(payload: LessonCreatePayload) {
+  async function requestCreate(formPayload: LessonFormPayload, confirm_conflict = false) {
     setConflictCheckError(null);
     setCheckingConflicts(true);
     try {
-      if (payload.recurrence) {
-        // US-09: check conflicts for every occurrence, then allow teacher to confirm or abort
-        const count = payload.recurrence.count;
-        if (count < 2 || count > 52) {
-          setConflictCheckError(`Количество занятий должно быть от 2 до 52.`);
-          return;
+      if (formPayload.recurrence) {
+        const basePayload = {
+          student_id: formPayload.student_id,
+          title: formPayload.title,
+          ...(formPayload.description !== undefined ? { description: formPayload.description } : {}),
+          starts_at: formPayload.starts_at,
+          duration_minutes: formPayload.duration_minutes,
+        };
+        const payload: LessonSeriesPayload = {
+          ...basePayload,
+          recurrence: "weekly",
+          count: formPayload.recurrence.count,
+          confirm_conflict,
+        };
+        try {
+          await api.createLessonSeries(payload);
+          setCreateOpen(false);
+          setCreateSuccess(true);
+          await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        } catch (error) {
+          const conflicts = conflictItems(error);
+          if (conflicts.length && !confirm_conflict) {
+            setSeriesConflict({ payload: formPayload, conflicts: conflicts.map((item) => `${item.title} — ${formatConflictRange(item.starts_at, item.duration_minutes, timezone)}`) });
+          } else throw error;
         }
-        const occurrences = seriesOccurrences(payload, timezone).map(({ startsAt }) => ({
-          startsAt,
-          durationMinutes: payload.duration_minutes,
-        }));
-
-        // Check conflicts: each occurrence vs existing schedule + vs each other in series
-        const allConflictDescriptions: string[] = [];
-        for (const [i, occ] of occurrences.entries()) {
-          const from = new Date(Date.parse(occ.startsAt) - 24 * 60 * 60_000).toISOString();
-          const to = new Date(Date.parse(occ.startsAt) + occ.durationMinutes * 60_000 + 24 * 60 * 60_000).toISOString();
-          const existing = await api.searchLessons({ date_from: from, date_to: to });
-          const existingCandidates = existing
-            .filter((l) => l.status !== "cancelled")
-            .map((l) => ({ id: l.id, title: l.title, startsAt: l.starts_at, durationMinutes: l.duration_minutes }));
-          const found = findLessonConflicts(occ, existingCandidates);
-          for (const c of found) {
-            allConflictDescriptions.push(`Занятие ${String(i + 1)}: пересечение с «${c.title}» (${formatConflictRange(c.startsAt, c.durationMinutes, timezone)})`);
-          }
-
-          // Check intra-series conflicts (occurrence i vs previous occurrences)
-          for (const [j, other] of occurrences.slice(0, i).entries()) {
-            const otherStart = Date.parse(other.startsAt);
-            const otherEnd = otherStart + other.durationMinutes * 60_000;
-            const occStart = Date.parse(occ.startsAt);
-            const occEnd = occStart + occ.durationMinutes * 60_000;
-            if (occStart < otherEnd && occEnd > otherStart) {
-              allConflictDescriptions.push(`Занятие ${String(i + 1)} пересекается с занятием ${String(j + 1)} внутри серии`);
-            }
-          }
-        }
-
-        if (allConflictDescriptions.length > 0) {
-          // Show warning, let teacher confirm (AC-US09-17)
-          setSeriesConflict({ payload, conflicts: allConflictDescriptions });
-          return;
-        }
-
-        // No conflicts — create immediately
-        await createSeriesNow(payload);
       } else {
-        // Single lesson — existing conflict-check flow (US-04)
-        const startsAt = Date.parse(payload.starts_at);
-        const dateFrom = new Date(startsAt - 24 * 60 * 60_000).toISOString();
-        const dateTo = new Date(startsAt + payload.duration_minutes * 60_000 + 24 * 60 * 60_000).toISOString();
-        const schedule = await api.searchLessons({ date_from: dateFrom, date_to: dateTo });
-        const found = findLessonConflicts(
-          { startsAt: payload.starts_at, durationMinutes: payload.duration_minutes },
-          schedule
-            .filter((l) => l.status !== "cancelled")
-            .map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })),
-        );
-        if (found.length > 0) {
-          setConflictPayload(payload);
-          setConflicts(schedule.filter((l) => found.some((f) => f.id === l.id)));
-        } else {
-          createLesson.mutate(payload);
-        }
+        await api.createLesson({ ...formPayload, confirm_conflict });
+        setCreateOpen(false);
+        setCreateSuccess(true);
+        await queryClient.invalidateQueries({ queryKey: ["lessons"] });
       }
-    } catch {
-      setConflictCheckError("Не удалось проверить расписание. Повторите попытку.");
+    } catch (error) {
+      const conflicts = conflictItems(error);
+      if (conflicts.length && !confirm_conflict) {
+        setConflictPayload({ ...formPayload });
+        setConflicts(conflicts);
+      } else setConflictCheckError(readableError(error));
     } finally {
       setCheckingConflicts(false);
     }
@@ -309,62 +257,73 @@ export function SchedulePage() {
       const nowMs = Temporal.Instant.from(now).epochMilliseconds;
       if (Date.parse(newStartsAt) <= nowMs) { setRescheduleError("Новое время должно быть в будущем."); return; }
       // Temporary US-05 local layer; backend will own validation, conflict-check and atomic persistence.
-      saveMockState(lesson.id, { starts_at: newStartsAt, rescheduled: true });
-      setRescheduleState(null);
-      setSelectedCalendarLessonId(null);
-      void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+      void api.rescheduleLesson(lesson.id, newStartsAt).then(async () => {
+        setRescheduleState(null);
+        setSelectedCalendarLessonId(null);
+        await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+      }).catch((error: unknown) => {
+        setRescheduleError(readableError(error));
+      }).finally(() => {
+        setRescheduleApplying(false);
+      });
+      return;
     } catch {
       setRescheduleError("Некорректная дата или время в этом часовом поясе.");
-    } finally {
-      setRescheduleApplying(false);
-    }
+    } finally { /* async mutation clears state in its own handlers */ }
   }
 
   // US-06: cancel with confirmation
   function applyCancel() {
     if (!cancelTarget) return;
     setCancelApplying(true);
-    try {
-      // Temporary US-06 local layer; backend will own ownership/lifecycle checks and persistence.
-      saveMockState(cancelTarget.id, { status: "cancelled" });
+    void api.cancelLesson(cancelTarget.id).then(async () => {
       setCancelTarget(null);
       setSelectedCalendarLessonId(null);
-      void queryClient.invalidateQueries({ queryKey: ["lessons"] });
-    } finally {
+      await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    }).catch((error: unknown) => {
+      setRescheduleError(readableError(error));
+    }).finally(() => {
       setCancelApplying(false);
-    }
+    });
   }
 
   function applyAttendance(lesson: LessonReadDTO, attendance: "present" | "absent") {
     setAttendanceApplying(attendance);
-    try {
-      // Temporary US-08 local layer; backend will own availability and persistence checks.
-      saveMockState(lesson.id, { attendance });
-      void queryClient.invalidateQueries({ queryKey: ["lessons"] });
-    } finally {
-      setAttendanceApplying(null);
-    }
+    void api.updateLessonAttendance(lesson.id, attendance)
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+      })
+      .catch((error: unknown) => {
+        setConflictCheckError(readableError(error));
+      })
+      .finally(() => {
+        setAttendanceApplying(null);
+      });
   }
 
   const selectedDate = days[selectedDay]?.iso ?? days[0]?.iso ?? "";
-  const visibleItems = useMemo(() => overlayMockLessons(lessons.data ?? []), [lessons.data]);
+  const visibleItems = useMemo(() => lessons.data ?? [], [lessons.data]);
 
   const visibleLessons = useMemo(() => visibleItems
     .filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate)
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.id.localeCompare(b.id)), [visibleItems, selectedDate, timezone]);
   const selectedCalendarLesson = visibleItems.find((lesson) => lesson.id === selectedCalendarLessonId) ?? null;
-  const selectedLessonHasConflict = selectedCalendarLesson ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone)).map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0 : false;
-  const overlappingLessonIds = useMemo(() => new Set(visibleLessons.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, visibleLessons.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id)), [visibleLessons]);
+  const nowDate = useMemo(() => new Date(now), [now]);
+  const selectedLessonHasConflict = selectedCalendarLesson && effectiveLessonStatus(selectedCalendarLesson, nowDate) !== "cancelled"
+    ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone) && effectiveLessonStatus(lesson, nowDate) !== "cancelled").map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0
+    : false;
+  const overlappingLessonIds = useMemo(() => {
+    const active = visibleLessons.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled");
+    return new Set(active.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, active.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id));
+  }, [visibleLessons, nowDate]);
 
-  const nowDate = new Date(now);
   const nextLesson = visibleItems.find((lesson) => {
-    const status = effectiveLessonStatus(lesson, nowDate);
-    return status === "planned" && Date.parse(lesson.starts_at) >= Date.parse(now);
+    return lesson.status === "planned" && Date.parse(lesson.starts_at) >= Date.parse(now);
   });
   const weekLabel = `${days[0]?.date ?? ""} — ${days[6]?.date ?? ""} ${String(days[6]?.plainDate.year ?? "")}`;
 
   // Computed status of selected lesson
-  const selectedStatus = selectedCalendarLesson ? effectiveLessonStatus(selectedCalendarLesson, new Date(now)) : null;
+  const selectedStatus = selectedCalendarLesson?.status ?? null;
 
   if (profile.isLoading) return <LoadingState label="Загружаем часовой пояс…" />;
   if (profile.isError) return <ErrorState message={readableError(profile.error)} onRetry={() => { void profile.refetch(); }} />;
@@ -388,11 +347,14 @@ export function SchedulePage() {
     const first = stack.lessons[0];
     if (!first) return null;
 
-    const isConflict = stack.lessons.length > 1;
+    const info = classifyStack(stack, nowDate);
+    const isGroup = stack.lessons.length > 1;
+    const cancelledIds = new Set(info.cancelledLessons.map((lesson) => lesson.id));
+    const primaryId = info.countedLessons[0]?.id ?? first.id;
     const duration = stackDurationMinutes(stack);
     const range = stackTimeRange(stack.lessons, timezone);
     const position = lessonGridPosition(range, duration);
-    const selected = !isConflict && selectedCalendarLessonId === first.id;
+    const selected = !isGroup && selectedCalendarLessonId === first.id;
     const shortLesson = duration < 45;
     const openStack = () => {
       setConflictDrawer({ lessons: stack.lessons, dateLabel: `${dayNames[dayIndex] ?? ""}, ${day.date}` });
@@ -403,7 +365,7 @@ export function SchedulePage() {
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        if (isConflict) openStack(); else toggleLesson();
+        if (isGroup) openStack(); else toggleLesson();
       }
     };
     const positionStyle = {
@@ -414,32 +376,45 @@ export function SchedulePage() {
       alignSelf: "start" as const,
     };
 
-    if (isConflict) {
+    if (isGroup) {
       const compact = position.duration < 96;
+      const calm = info.kind !== "warning";
       return <article
         key={stack.id}
         role="button"
         tabIndex={0}
-        className={`schedule-stack${compact ? " schedule-stack--compact" : ""}`}
+        className={`schedule-stack${calm ? " schedule-stack--calm" : ""}${compact ? " schedule-stack--compact" : ""}`}
         style={{ ...positionStyle, marginLeft: ".3rem", width: "calc(100% - 1.1rem)" }}
-        title={`Открыть ${lessonCountLabel(stack.lessons.length)} в одно время`}
+        title={info.kind === "warning" ? `Открыть ${lessonCountLabel(info.counted)} в одно время` : "Открыть занятия в это время"}
         aria-haspopup="dialog"
         onClick={openStack}
         onKeyDown={handleKeyDown}
       >
         <span className="schedule-stack__top">
-          <span className="schedule-stack__kicker"><WarningIcon />Наложение</span>
-          <span className="schedule-stack__badge">{lessonCountLabel(stack.lessons.length)}</span>
+          {info.kind === "warning" ? (
+            <span className="schedule-stack__kicker"><WarningIcon />Наложение</span>
+          ) : info.kind === "none" ? (
+            <span className="schedule-stack__kicker schedule-stack__kicker--calm">Занятия</span>
+          ) : null}
+          {info.kind === "warning" ? (
+            <span className="schedule-stack__badge">{lessonCountLabel(info.counted)}</span>
+          ) : info.kind === "neutral" ? (
+            <span className="schedule-stack__badge schedule-stack__badge--calm">Пересечение</span>
+          ) : null}
         </span>
         <span className="schedule-stack__items">
-          {stack.lessons.map((lesson, index) => (
-            <span className={`schedule-stack__item schedule-stack__item--${subjectTone(lesson.title)}${index === 0 ? " schedule-stack__item--primary" : ""}`} key={lesson.id}>
-              <strong>{lesson.title}</strong>
-            </span>
-          ))}
+          {stack.lessons.map((lesson) => {
+            const cancelled = cancelledIds.has(lesson.id);
+            return (
+              <span className={`schedule-stack__item schedule-stack__item--${cancelled ? "cancelled" : subjectTone(lesson.title)}${!cancelled && lesson.id === primaryId ? " schedule-stack__item--primary" : ""}`} key={lesson.id}>
+                <strong>{lesson.title}</strong>
+                {cancelled ? <em className="schedule-stack__cancelled-tag">Отменено</em> : null}
+              </span>
+            );
+          })}
         </span>
         <span className="schedule-stack__meta">{personName(isTeacher ? first.student : first.teacher)}</span>
-        <span className="schedule-stack__hint">Открыть все →</span>
+        <span className="schedule-stack__hint">{info.kind === "warning" ? "Открыть все →" : "Открыть →"}</span>
       </article>;
     }
 
@@ -473,9 +448,9 @@ export function SchedulePage() {
         <div><dt>Название</dt><dd>{selectedCalendarLesson.title}</dd></div>
         <div><dt>Время</dt><dd>{formatLessonDateTime(selectedCalendarLesson.starts_at, timezone)} — {formatLessonTime(selectedCalendarLesson.starts_at, selectedCalendarLesson.duration_minutes, timezone).split(" — ")[1]}</dd></div>
         {selectedLessonHasConflict ? <div><dt>Расписание</dt><dd><span className="lesson-overlap-badge">Пересекается с другим занятием</span></dd></div> : null}
-        <div><dt>Статус</dt><dd>{selectedStatus === "unknown" || selectedStatus === null ? "Статус неизвестен" : statusLabels[selectedStatus]}</dd></div>
+        <div><dt>Статус</dt><dd>{selectedStatus === null ? "Статус неизвестен" : statusLabels[selectedStatus]}</dd></div>
         <div><dt>Посещение</dt><dd>{lessonAttendanceLabel(selectedCalendarLesson)}</dd></div>
-        {selectedCalendarLesson.rescheduled ? <div><dt>Изменения</dt><dd>Перенесено</dd></div> : null}
+      {selectedCalendarLesson.is_rescheduled ? <div><dt>Изменения</dt><dd>Перенесено</dd></div> : null}
       </dl>
       {selectedCalendarLesson.description ? <section className="selected-lesson-details__description"><h3>Описание</h3><p>{selectedCalendarLesson.description}</p></section> : null}
 
@@ -526,7 +501,7 @@ export function SchedulePage() {
     <Drawer
       open={Boolean(conflictDrawer)}
       eyebrow="Конфликт расписания"
-      title={conflictDrawer ? `${lessonCountLabel(conflictDrawer.lessons.length)} в одно время` : "Наложение занятий"}
+      title={conflictDrawer ? `${lessonCountLabel(conflictDrawer.lessons.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled").length)} в одно время` : "Наложение занятий"}
       description={conflictDrawer ? `${conflictDrawer.dateLabel} · ${stackTimeRange(conflictDrawer.lessons, timezone)}` : undefined}
       onClose={() => { setConflictDrawer(null); }}
     >
@@ -536,11 +511,12 @@ export function SchedulePage() {
       </div>
       <ul className="conflict-drawer__list">
         {conflictDrawer?.lessons.map((lesson) => {
-          const status = effectiveLessonStatus(lesson, nowDate);
+          const status = lesson.status;
+          const cancelled = effectiveLessonStatus(lesson, nowDate) === "cancelled";
           return <li key={lesson.id}>
             <button
               type="button"
-              className={`conflict-drawer__lesson conflict-drawer__lesson--${subjectTone(lesson.title)}`}
+              className={`conflict-drawer__lesson conflict-drawer__lesson--${subjectTone(lesson.title)}${cancelled ? " conflict-drawer__lesson--cancelled" : ""}`}
               onClick={() => {
                 setConflictDrawer(null);
                 shouldScrollToDetails.current = true;
@@ -552,7 +528,7 @@ export function SchedulePage() {
                 <strong>{lesson.title}</strong>
                 <span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span>
               </span>
-              <span className={`conflict-drawer__status${status === "unknown" ? "" : ` conflict-drawer__status--${status}`}`}>{status === "unknown" ? "Статус неизвестен" : statusLabels[status]}</span>
+              <span className={`conflict-drawer__status conflict-drawer__status--${status}`}>{statusLabels[status]}</span>
               <span className="conflict-drawer__arrow" aria-hidden="true">→</span>
             </button>
           </li>;
@@ -561,18 +537,18 @@ export function SchedulePage() {
     </Drawer>
 
     {/* ── Create lesson dialog ─────────────────────────────────────────── */}
-    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!createLesson.isPending) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={createLesson.isPending || checkingConflicts} serverError={conflictCheckError ?? (createLesson.isError ? readableError(createLesson.error) : undefined)} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
+    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!checkingConflicts) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={checkingConflicts} serverError={conflictCheckError ?? undefined} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
 
     {/* ── Single-lesson conflict dialog (US-04) ───────────────────────── */}
-    <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { if (!createLesson.isPending) { setConflictPayload(null); setConflicts([]); } }}>
+    <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { setConflictPayload(null); setConflicts([]); }}>
       <div className="conflict-warning-content">
         <p>Новое занятие пересекается с уже запланированным. Оно ещё не создано.</p>
         <div className="conflict-list" role="list" aria-label="Конфликтующие занятия">
           {conflicts.map((lesson) => <div className="conflict-item" role="listitem" key={lesson.id}><strong>{lesson.title}</strong><span>{formatConflictRange(lesson.starts_at, lesson.duration_minutes, timezone)}</span></div>)}
         </div>
         <div className="dialog__actions">
-          <button className="button button--secondary" type="button" disabled={createLesson.isPending} onClick={() => { setConflictPayload(null); setConflicts([]); }}>Изменить время</button>
-          <button className="button button--primary" type="button" disabled={!conflictPayload || createLesson.isPending} onClick={() => { if (!conflictPayload) return; createLesson.mutate(conflictPayload, { onSettled: () => { setConflictPayload(null); setConflicts([]); } }); }}>Создать несмотря на конфликт</button>
+          <button className="button button--secondary" type="button" onClick={() => { setConflictPayload(null); setConflicts([]); }}>Изменить время</button>
+          <button className="button button--primary" type="button" disabled={!conflictPayload || checkingConflicts} onClick={() => { if (!conflictPayload) return; void requestCreate(conflictPayload, true).finally(() => { setConflictPayload(null); setConflicts([]); }); }}>Создать несмотря на конфликт</button>
         </div>
       </div>
     </Dialog>
@@ -592,7 +568,7 @@ export function SchedulePage() {
             className="button button--primary"
             type="button"
             disabled={checkingConflicts}
-            onClick={() => { if (seriesConflict) void createSeriesNow(seriesConflict.payload); }}
+            onClick={() => { if (seriesConflict) void requestCreate(seriesConflict.payload, true).finally(() => { setSeriesConflict(null); }); }}
           >
             Создать несмотря на конфликт
           </button>

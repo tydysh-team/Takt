@@ -10,6 +10,7 @@ import type {
   StudentListItem,
   TeacherListItem,
   LessonCreatePayload,
+  LessonSeriesPayload,
   LessonDTO,
   LessonReadDTO,
   LessonSearchFilters,
@@ -36,6 +37,23 @@ export const api = {
     apiRequest<LessonReadDTO[]>("/api/v1/lessons/search", { method: "POST", body: filters }),
   createLesson: (payload: LessonCreatePayload) =>
     apiRequest<LessonDTO>("/api/v1/lessons", { method: "POST", body: payload }),
+  createLessonSeries: (payload: LessonSeriesPayload) =>
+    apiRequest<LessonDTO[]>("/api/v1/lessons/series", { method: "POST", body: payload }),
+  rescheduleLesson: (id: string, starts_at: string, confirm_conflict = false) =>
+    apiRequest<LessonReadDTO>(`/api/v1/lessons/${id}/schedule`, {
+      method: "PATCH",
+      body: { starts_at, confirm_conflict },
+    }),
+  cancelLesson: (id: string, reason?: string | null) =>
+    apiRequest<LessonReadDTO>(`/api/v1/lessons/${id}/cancel`, {
+      method: "POST",
+      body: reason ? { reason } : {},
+    }),
+  updateLessonAttendance: (id: string, attendance: "present" | "absent") =>
+    apiRequest<LessonReadDTO>(`/api/v1/lessons/${id}/attendance`, {
+      method: "PUT",
+      body: { attendance },
+    }),
   student: (id: string) => apiRequest<StudentDetail>(`/api/v1/students/${id}`),
   updateStudentNote: (id: string, note: string | null) =>
     apiRequest<StudentDetail>(`/api/v1/students/${id}/note`, {

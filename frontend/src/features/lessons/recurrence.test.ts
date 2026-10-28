@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { LessonCreatePayload } from "../../api/types";
+import type { LessonFormPayload } from "../../api/types";
 import { addCalendarWeeks, seriesCountError, seriesOccurrences, seriesSummary } from "./recurrence";
 
-const payload = (recurrence?: LessonCreatePayload["recurrence"]): LessonCreatePayload => ({
+const payload = (recurrence?: LessonFormPayload["recurrence"]): LessonFormPayload => ({
   student_id: "student-id",
   title: "Математика",
   description: null,
