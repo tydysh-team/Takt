@@ -62,7 +62,7 @@ export function AppShell() {
       ) : null}
       <aside id="application-sidebar" className={`sidebar ${menuOpen ? "sidebar--open" : ""}`}>
         <NavLink className="sidebar__brand" to="/dashboard" onClick={() => { setMenuOpen(false); }}>
-          <span className="brand-mark">T</span>
+          <img className="brand-mark" src="/takt-mark.png" alt="" aria-hidden="true" />
           <span>Takt</span>
         </NavLink>
         <nav className="sidebar__nav" aria-label="Основная навигация">

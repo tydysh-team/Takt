@@ -214,6 +214,10 @@ export interface LessonSeriesConflictInternal {
   series_number: number;
   series_starts_at: string;
   series_ends_at: string;
+  other_series_index: number;
+  other_series_number: number;
+  other_series_starts_at: string;
+  other_series_ends_at: string;
 }
 
 export type LessonSeriesConflict = LessonSeriesConflictExisting | LessonSeriesConflictInternal;

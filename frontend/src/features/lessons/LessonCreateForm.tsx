@@ -115,17 +115,20 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
     <p className="lesson-create-form__hint" title={timezone}>Дата и время интерпретируются в часовом поясе пользователя.</p>
     {submitted && invalid ? <p className="lesson-create-form__summary" role="alert">{requiredMissing ? "Заполните обязательные поля перед созданием занятия." : "Проверьте выделенные поля перед созданием занятия."}</p> : null}
     <div className="lesson-create-form__footer">
-      <div className="form-field lesson-create-form__duration">
-        <label htmlFor="lesson-duration">Длительность</label>
-        <select id="lesson-duration" name="duration_minutes" className="input" value={duration} onChange={(event) => { setDuration(event.target.value); }}>
-          {[30, 45, 60, 90, 120].map((minutes) => <option key={minutes} value={minutes}>{minutes} минут</option>)}
-        </select>
+      <div className="lesson-create-form__options">
+        <div className="form-field lesson-create-form__duration">
+          <label htmlFor="lesson-duration">Длительность</label>
+          <select id="lesson-duration" name="duration_minutes" className="input" value={duration} onChange={(event) => { setDuration(event.target.value); }}>
+            {[30, 45, 60, 90, 120].map((minutes) => <option key={minutes} value={minutes}>{minutes} минут</option>)}
+          </select>
+        </div>
+        <div className="lesson-create-form__repeat">
+          <span className="lesson-create-form__repeat-label">Регулярность</span>
+          <label className="lesson-create-form__repeat-toggle"><input type="checkbox" checked={repeat} onChange={(event) => { setRepeat(event.target.checked); }} /> Повторять каждую неделю</label>
+          {repeat ? <label className="lesson-create-form__repeat-count">Количество занятий <select className="input" aria-invalid={Boolean(seriesErrorMessage)} value={repeatCount} onChange={(event) => { setRepeatCount(event.target.value); }}>{Array.from({ length: 51 }, (_, index) => <option key={index + 2} value={index + 2}>{index + 2}</option>)}</select></label> : null}
+        </div>
       </div>
-      <div className="lesson-create-form__repeat">
-        <label><input type="checkbox" checked={repeat} onChange={(event) => { setRepeat(event.target.checked); }} /> Повторять каждую неделю</label>
-        {repeat ? <label>Количество занятий <select className="input" aria-invalid={Boolean(seriesErrorMessage)} value={repeatCount} onChange={(event) => { setRepeatCount(event.target.value); }}>{Array.from({ length: 51 }, (_, index) => <option key={index + 2} value={index + 2}>{index + 2}</option>)}</select></label> : null}
-        {repeat ? <p className={`lesson-create-form__series-summary${seriesErrorMessage ? " lesson-create-form__series-summary--error" : ""}`} role={seriesErrorMessage ? "alert" : undefined}>{seriesErrorMessage ?? draftSummary}</p> : null}
-      </div>
+      {repeat ? <p className={`lesson-create-form__series-summary${seriesErrorMessage ? " lesson-create-form__series-summary--error" : ""}`} role={seriesErrorMessage ? "alert" : undefined}>{seriesErrorMessage ?? draftSummary}</p> : null}
       <div className="dialog__actions">
         <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>Отмена</Button>
         <Button type="submit" loading={pending} disabled={submitted && invalid}>Создать занятие</Button>

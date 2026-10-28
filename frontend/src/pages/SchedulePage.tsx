@@ -11,7 +11,7 @@ import { Drawer } from "../components/ui/Drawer";
 import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm } from "../features/lessons/LessonCreateForm";
-import { findLessonConflicts, formatConflictRange } from "../features/lessons/conflict-check";
+import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seriesConflictCandidates } from "../features/lessons/conflict-check";
 import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
 import { classifyStack, groupLessonStacks, stackDurationMinutes } from "../features/lessons/schedule-groups";
 import type {
@@ -190,6 +190,11 @@ export function SchedulePage() {
     return Array.isArray(value) ? value.filter((item): item is LessonConflict => Boolean(item) && typeof item === "object" && "title" in item) : [];
   }
 
+  function seriesConflictItems(error: unknown): string[] {
+    if (!(error instanceof ApiError) || !error.context) return [];
+    return describeSeriesConflicts(seriesConflictCandidates(error.context.conflicts), timezone);
+  }
+
   async function requestCreate(formPayload: LessonFormPayload, confirm_conflict = false) {
     setConflictCheckError(null);
     setCheckingConflicts(true);
@@ -214,9 +219,9 @@ export function SchedulePage() {
           setCreateSuccess(true);
           await queryClient.invalidateQueries({ queryKey: ["lessons"] });
         } catch (error) {
-          const conflicts = conflictItems(error);
-          if (conflicts.length && !confirm_conflict) {
-            setSeriesConflict({ payload: formPayload, conflicts: conflicts.map((item) => `${item.title} — ${formatConflictRange(item.starts_at, item.duration_minutes, timezone)}`) });
+          const seriesConflicts = seriesConflictItems(error);
+          if (seriesConflicts.length && !confirm_conflict) {
+            setSeriesConflict({ payload: formPayload, conflicts: seriesConflicts });
           } else throw error;
         }
       } else {
@@ -360,7 +365,9 @@ export function SchedulePage() {
       setConflictDrawer({ lessons: stack.lessons, dateLabel: `${dayNames[dayIndex] ?? ""}, ${day.date}` });
     };
     const toggleLesson = () => {
-      setSelectedCalendarLessonId(selected ? null : first.id);
+      const next = selected ? null : first.id;
+      shouldScrollToDetails.current = next !== null;
+      setSelectedCalendarLessonId(next);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
       if (event.key === "Enter" || event.key === " ") {
@@ -379,6 +386,10 @@ export function SchedulePage() {
     if (isGroup) {
       const compact = position.duration < 96;
       const calm = info.kind !== "warning";
+      // Cards up to one hour cannot list every overlapping lesson without
+      // clipping the last title, so cap the list and mark the remainder.
+      const dense = stack.lessons.length > 2 && duration <= 60;
+      const shownLessons = dense ? stack.lessons.slice(0, 2) : stack.lessons;
       return <article
         key={stack.id}
         role="button"
@@ -392,18 +403,15 @@ export function SchedulePage() {
       >
         <span className="schedule-stack__top">
           {info.kind === "warning" ? (
-            <span className="schedule-stack__kicker"><WarningIcon />Наложение</span>
-          ) : info.kind === "none" ? (
-            <span className="schedule-stack__kicker schedule-stack__kicker--calm">Занятия</span>
-          ) : null}
-          {info.kind === "warning" ? (
-            <span className="schedule-stack__badge">{lessonCountLabel(info.counted)}</span>
+            <span className="schedule-stack__badge schedule-stack__badge--alert"><WarningIcon />Пересечение</span>
           ) : info.kind === "neutral" ? (
             <span className="schedule-stack__badge schedule-stack__badge--calm">Пересечение</span>
-          ) : null}
+          ) : (
+            <span className="schedule-stack__kicker schedule-stack__kicker--calm">Занятия</span>
+          )}
         </span>
         <span className="schedule-stack__items">
-          {stack.lessons.map((lesson) => {
+          {shownLessons.map((lesson) => {
             const cancelled = cancelledIds.has(lesson.id);
             return (
               <span className={`schedule-stack__item schedule-stack__item--${cancelled ? "cancelled" : subjectTone(lesson.title)}${!cancelled && lesson.id === primaryId ? " schedule-stack__item--primary" : ""}`} key={lesson.id}>
@@ -412,29 +420,44 @@ export function SchedulePage() {
               </span>
             );
           })}
+          {dense ? <span className="schedule-stack__more" aria-hidden="true">…</span> : null}
         </span>
-        <span className="schedule-stack__meta">{personName(isTeacher ? first.student : first.teacher)}</span>
         <span className="schedule-stack__hint">{info.kind === "warning" ? "Открыть все →" : "Открыть →"}</span>
       </article>;
     }
 
+    const cancelled = effectiveLessonStatus(first, nowDate) === "cancelled";
     return <article
       key={first.id}
       role="button"
       tabIndex={0}
-      className={`schedule-event schedule-event--${subjectTone(first.title)}${shortLesson ? " schedule-event--short" : ""}${selected ? " schedule-event--selected" : ""}`}
+      className={`schedule-event schedule-event--${subjectTone(first.title)}${shortLesson ? " schedule-event--short" : ""}${cancelled ? " schedule-event--cancelled" : ""}${selected ? " schedule-event--selected" : ""}`}
       style={{ ...positionStyle, marginLeft: ".3rem", width: "calc(100% - .6rem)", zIndex: selected ? 8 : 3 }}
       aria-pressed={selected}
       title="Показать детали занятия"
       onClick={toggleLesson}
       onKeyDown={handleKeyDown}
     >
-      <strong>{first.title}</strong>
+      <span className="schedule-event__title">
+        <strong>{first.title}</strong>
+        {cancelled ? <em className="schedule-event__cancelled-tag">Отменено</em> : null}
+      </span>
       <span>{personName(isTeacher ? first.student : first.teacher)}</span>
-      <small>{range}</small>
+      <span className="schedule-event__foot"><small>{range}</small></span>
+      <span className="schedule-event__chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+      </span>
     </article>;
   });
-})}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => { setSelectedDay(index); }}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}${overlappingLessonIds.has(lesson.id) ? " lesson-card--overlap" : ""}`} key={lesson.id}><time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time><div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>{overlappingLessonIds.has(lesson.id) ? <small className="lesson-overlap-badge">Пересечение</small> : null}</article>) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
+})}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => { setSelectedDay(index); }}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => {
+  const cancelled = effectiveLessonStatus(lesson, nowDate) === "cancelled";
+  const overlapping = overlappingLessonIds.has(lesson.id);
+  return <article className={`lesson-card lesson-card--${subjectTone(lesson.title)}${overlapping ? " lesson-card--overlap" : ""}${cancelled ? " lesson-card--cancelled" : ""}`} key={lesson.id}>
+    <time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time>
+    <div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>
+    {cancelled ? <small className="lesson-cancelled-badge">Отменено</small> : overlapping ? <small className="lesson-overlap-badge">Пересечение</small> : null}
+  </article>;
+}) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
 
     {/* ── Details panel (US-05, US-06, US-07, US-08) ─────────────────── */}
     {view === "week" && selectedCalendarLesson ? <div ref={detailsPanelRef}><Card className="selected-lesson-details" aria-live="polite">
