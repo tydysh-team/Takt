@@ -45,17 +45,17 @@ export function Dialog({ open, title, description, onClose, children, variant = 
       if (event.target === event.currentTarget) onClose();
     }}>
       <div className={`dialog-frame${variant === "lesson" ? " dialog-frame--lesson" : ""}`}>
-        {variant === "default" ? <div className="dialog-close-row">
-          <Button ref={closeRef} variant="ghost" className="icon-button dialog-close" onClick={onClose} aria-label="Закрыть">
-            ×
-          </Button>
-        </div> : null}
         <section ref={dialogRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabIndex={variant === "lesson" ? -1 : undefined}>
           {variant === "default" ? <header className="dialog__header">
             <div>
               <h2 id="dialog-title">{title}</h2>
               {description ? <p>{description}</p> : null}
             </div>
+            <Button ref={closeRef} variant="ghost" className="icon-button control-icon-button dialog-close" onClick={onClose} aria-label="Закрыть">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </Button>
           </header> : null}
           <div className="dialog__content">{children}</div>
         </section>
