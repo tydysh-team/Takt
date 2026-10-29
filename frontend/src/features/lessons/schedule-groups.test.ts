@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LessonReadDTO } from "../../api/types";
-import { classifyStack, groupLessonStacks, type LessonStack } from "./schedule-groups";
+import { calendarLessons, classifyStack, groupLessonStacks, type LessonStack } from "./schedule-groups";
 
 const NOW = new Date("2026-11-01T12:00:00Z");
 
@@ -96,5 +96,26 @@ describe("classifyStack", () => {
     const info = classifyStack(singleStack([lesson("a", 13, 0, 60, "planned"), lesson("b", 13, 30, 60, "planned")]), now);
     expect(info.liveCount).toBe(2);
     expect(info.kind).toBe("warning");
+  });
+});
+
+describe("calendarLessons", () => {
+  it("keeps a lone cancelled lesson visible", () => {
+    expect(calendarLessons([lesson("cancelled", 13, 0, 60, "cancelled")], NOW)).toHaveLength(1);
+  });
+
+  it("hides a cancelled lesson replaced by an overlapping active lesson", () => {
+    const visible = calendarLessons([
+      lesson("cancelled", 13, 0, 60, "cancelled"),
+      lesson("replacement", 13, 30, 60, "planned"),
+    ], NOW);
+    expect(visible.map((item) => item.id)).toEqual(["replacement"]);
+  });
+
+  it("does not hide a cancelled lesson when intervals only touch", () => {
+    expect(calendarLessons([
+      lesson("cancelled", 13, 0, 60, "cancelled"),
+      lesson("next", 14, 0, 60, "planned"),
+    ], NOW)).toHaveLength(2);
   });
 });

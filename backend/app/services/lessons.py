@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    AttendanceAlreadySetError,
     AttendanceNotAvailableError,
     ForbiddenError,
     LessonNotCancellableError,
@@ -250,9 +251,14 @@ class LessonService:
                 if payload.attendance == "present"
                 else AttendanceValue.ABSENT
             )
-            if lesson.attendance != value:
-                lesson.attendance = value
-                lesson.attendance_updated_at = now
+            if lesson.attendance is not None:
+                if lesson.attendance == value:
+                    await self._session.commit()
+                    return record
+                raise AttendanceAlreadySetError()
+
+            lesson.attendance = value
+            lesson.attendance_updated_at = now
             await self._session.commit()
         except Exception:
             await self._session.rollback()

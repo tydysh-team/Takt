@@ -27,6 +27,7 @@ export const queryKeys = {
   teacher: (id: string) => ["teachers", id] as const,
   teacherStudents: ["teachers", "me", "students"] as const,
   lessons: (dateFrom: string, dateTo: string) => ["lessons", dateFrom, dateTo] as const,
+  nextLesson: ["lessons", "next"] as const,
 };
 
 export const api = {

@@ -122,6 +122,11 @@ class AttendanceNotAvailableError(DomainError):
     message = "Посещаемость доступна только для начавшегося или завершённого занятия."
 
 
+class AttendanceAlreadySetError(DomainError):
+    code = "attendance_already_set"
+    message = "Посещаемость уже зафиксирована и не может быть изменена."
+
+
 class RateLimitExceededError(DomainError):
     code = "rate_limit_exceeded"
     message = "Слишком много запросов. Повторите попытку позже."
