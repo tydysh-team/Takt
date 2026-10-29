@@ -10,7 +10,7 @@ import { Dialog } from "../components/ui/Dialog";
 import { Drawer } from "../components/ui/Drawer";
 import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
-import { LessonCreateForm } from "../features/lessons/LessonCreateForm";
+import { LessonCreateForm, type StudentPickerState } from "../features/lessons/LessonCreateForm";
 import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seriesConflictCandidates } from "../features/lessons/conflict-check";
 import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
 import { classifyStack, groupLessonStacks, stackDurationMinutes } from "../features/lessons/schedule-groups";
@@ -184,6 +184,13 @@ export function SchedulePage() {
     staleTime: 30_000,
   });
   const students = useQuery({ queryKey: queryKeys.teacherStudents, queryFn: api.teacherStudents, enabled: isTeacher });
+  const studentsState: StudentPickerState = students.isLoading
+    ? "loading"
+    : students.isError
+      ? "error"
+      : (students.data?.length ?? 0) === 0
+        ? "empty"
+        : "ready";
   function conflictItems(error: unknown): LessonConflict[] {
     if (!(error instanceof ApiError) || !error.context) return [];
     const value = error.context.conflicts;
@@ -332,6 +339,20 @@ export function SchedulePage() {
 
   if (profile.isLoading) return <LoadingState label="Загружаем часовой пояс…" />;
   if (profile.isError) return <ErrorState message={readableError(profile.error)} onRetry={() => { void profile.refetch(); }} />;
+  // A failed schedule request must never fall through to the "successful empty
+  // schedule" UI: hide the calendar, summary and counters until it succeeds.
+  if (lessons.isLoading) {
+    return <>
+      <PageHeader eyebrow="Расписание" title="Неделя занятий" description="Все запланированные уроки на текущую неделю." />
+      <LoadingState label="Загружаем расписание…" />
+    </>;
+  }
+  if (lessons.isError) {
+    return <>
+      <PageHeader eyebrow="Расписание" title="Неделя занятий" description="Все запланированные уроки на текущую неделю." />
+      <ErrorState message={readableError(lessons.error)} onRetry={() => { void lessons.refetch(); }} />
+    </>;
+  }
 
   return <>
     <div className="schedule-page-heading">
@@ -342,8 +363,6 @@ export function SchedulePage() {
       </div>
     </div>
     {createSuccess ? <Alert>Занятие успешно создано.</Alert> : null}
-    {lessons.isError ? <ErrorState message={readableError(lessons.error)} onRetry={() => void lessons.refetch()} /> : null}
-    {lessons.isLoading ? <LoadingState label="Загружаем расписание…" /> : null}
     <div className="schedule-controls"><div className="schedule-view-actions"><div className="schedule-week-switcher"><button className="icon-button" type="button" aria-label="Предыдущая неделя" onClick={() => { setWeekOffset((value) => value - 1); }}>‹</button><strong>{weekLabel}</strong><button className="icon-button" type="button" aria-label="Следующая неделя" onClick={() => { setWeekOffset((value) => value + 1); }}>›</button></div><div className="schedule-view-toggle"><button className={view === "week" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => { setView("week"); }}>Неделя</button><button className={view === "list" ? "schedule-view-toggle--active" : ""} type="button" onClick={() => { setView("list"); }}>Список</button></div>{isTeacher ? <button className="button button--primary" type="button" onClick={() => { setCreateSuccess(false); setCreateOpen(true); }}>＋ Создать занятие</button> : null}</div></div>
     {view === "week" ? <Card className="schedule-calendar-card"><div className="schedule-calendar" style={{ "--schedule-hours": 13, "--schedule-hour-height": HOUR_HEIGHT, gridTemplateColumns: "64px repeat(7, minmax(112px, 1fr))" } as CSSProperties}><div className="schedule-calendar__corner">Время</div>{days.map((day, index) => <button key={day.iso} type="button" className={selectedDay === index ? "schedule-calendar__day schedule-calendar__day--active" : "schedule-calendar__day"} onClick={() => { setSelectedDay(index); }}><strong>{dayNames[index]}</strong><span>{day.date}</span></button>)}{Array.from({ length: 13 }, (_, index) => <div className="schedule-calendar__hour" style={{ gridRow: index + 2 }} key={hourKeys[index]}>{String(index + 8).padStart(2, "0")}:00</div>)}{Array.from({ length: 13 * 7 }, (_, index) => <div className="schedule-calendar__cell" style={{ gridColumn: (index % 7) + 2, gridRow: Math.floor(index / 7) + 2 }} key={cellKeys[index]} />)}{days.map((day, dayIndex) => {
   const dayLessons = visibleItems.filter((lesson) => localDate(lesson.starts_at, timezone) === day.iso);
@@ -560,7 +579,7 @@ export function SchedulePage() {
     </Drawer>
 
     {/* ── Create lesson dialog ─────────────────────────────────────────── */}
-    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!checkingConflicts) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} timezone={timezone} pending={checkingConflicts} serverError={conflictCheckError ?? undefined} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
+    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!checkingConflicts) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} studentsState={studentsState} onRetryStudents={() => { void students.refetch(); }} timezone={timezone} pending={checkingConflicts} serverError={conflictCheckError ?? undefined} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
 
     {/* ── Single-lesson conflict dialog (US-04) ───────────────────────── */}
     <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { setConflictPayload(null); setConflicts([]); }}>

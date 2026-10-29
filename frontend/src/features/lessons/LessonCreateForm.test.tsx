@@ -62,6 +62,39 @@ describe("lesson creation form", () => {
     expect(html).toContain("Повторять каждую неделю");
   });
 
+  it("shows a dedicated error state instead of an empty student list", () => {
+    const html = renderToStaticMarkup(<LessonCreateForm
+      students={[]}
+      studentsState="error"
+      onRetryStudents={vi.fn()}
+      timezone="Europe/Moscow"
+      pending={false}
+      onCancel={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+
+    expect(html).toContain("Не удалось загрузить список учеников");
+    expect(html).toContain("Повторить");
+    expect(html).toContain("Список учеников недоступен");
+    expect(html).not.toContain("Нет доступных учеников. Подключите");
+    expect(html).toMatch(/id="lesson-student"[^>]*disabled/);
+  });
+
+  it("shows a separate empty state when the teacher has no students", () => {
+    const html = renderToStaticMarkup(<LessonCreateForm
+      students={[]}
+      studentsState="empty"
+      timezone="Europe/Moscow"
+      pending={false}
+      onCancel={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+
+    expect(html).toContain("Нет доступных учеников. Подключите");
+    expect(html).not.toContain("Не удалось загрузить список учеников");
+    expect(html).toMatch(/id="lesson-student"[^>]*disabled/);
+  });
+
   it("suggests five-minute intervals but accepts any valid minute", () => {
     const values = { studentId: "student-id", title: "  Математика  ", date: "20.10.2026", start: "15:30" };
     expect(Object.values(lessonFormErrors(values)).every((error) => !error)).toBe(true);

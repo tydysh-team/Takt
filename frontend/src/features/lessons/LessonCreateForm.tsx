@@ -8,8 +8,12 @@ import { seriesCountError, seriesSummary } from "./recurrence";
 import { formatLessonDate, lessonFormErrors, parseLessonDate } from "./lesson-form-validation";
 import { LessonTimePicker } from "./LessonTimePicker";
 
-export function LessonCreateForm({ students, timezone, pending, serverError, onCancel, onCreate }: {
+export type StudentPickerState = "loading" | "error" | "empty" | "ready";
+
+export function LessonCreateForm({ students, studentsState = "ready", onRetryStudents, timezone, pending, serverError, onCancel, onCreate }: {
   students: StudentRef[];
+  studentsState?: StudentPickerState;
+  onRetryStudents?: (() => void) | undefined;
   timezone: string;
   pending: boolean;
   serverError?: string | undefined;
@@ -36,6 +40,14 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
   const recurrence = repeat ? { frequency: "weekly" as const, count: seriesCount } : undefined;
   const seriesErrorMessage = repeat ? seriesCountError(seriesCount) : null;
   const invalid = Object.values(errors).some(Boolean) || Boolean(seriesErrorMessage);
+  const studentsUnavailable = studentsState !== "ready";
+  const studentPlaceholder = studentsState === "loading"
+    ? "Загружаем учеников…"
+    : studentsState === "error"
+      ? "Список учеников недоступен"
+      : studentsState === "empty"
+        ? "Нет доступных учеников"
+        : "Выберите ученика";
   const requiredMissing = !studentId || !title.trim() || !date.trim() || !start.trim();
   const draftSummary = repeat && isoDate && !seriesErrorMessage && start && !errors.start
     ? seriesSummary({
@@ -73,10 +85,17 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
       <p>{submitted && invalid ? requiredMissing ? "Заполните обязательные поля." : "Проверьте дату и время." : "Запланируйте новую учебную встречу."}</p>
     </header>
     {serverError ? <Alert tone="error">{serverError}</Alert> : null}
+    {studentsState === "error" ? (
+      <Alert tone="error">
+        Не удалось загрузить список учеников. {onRetryStudents ? <button type="button" className="alert__action" onClick={onRetryStudents}>Повторить</button> : null}
+      </Alert>
+    ) : studentsState === "empty" ? (
+      <Alert tone="info">Нет доступных учеников. Подключите ученика в разделе «Ученики».</Alert>
+    ) : null}
     <div className="form-field">
       <label htmlFor="lesson-student">Ученик</label>
-      <select id="lesson-student" name="student_id" className="input" value={studentId} aria-invalid={submitted && Boolean(errors.student_id)} aria-describedby={submitted && errors.student_id ? "lesson-student-error" : undefined} onChange={(event) => { setStudentId(event.target.value); }}>
-        <option value="" disabled>Выберите ученика</option>
+      <select id="lesson-student" name="student_id" className="input" value={studentId} disabled={studentsUnavailable} aria-invalid={submitted && Boolean(errors.student_id)} aria-describedby={submitted && errors.student_id ? "lesson-student-error" : undefined} onChange={(event) => { setStudentId(event.target.value); }}>
+        <option value="" disabled>{studentPlaceholder}</option>
         {students.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name}</option>)}
       </select>
       {submitted && errors.student_id ? <span className="form-field__error" id="lesson-student-error" role="alert">{errors.student_id}</span> : null}
@@ -131,7 +150,7 @@ export function LessonCreateForm({ students, timezone, pending, serverError, onC
       {repeat ? <p className={`lesson-create-form__series-summary${seriesErrorMessage ? " lesson-create-form__series-summary--error" : ""}`} role={seriesErrorMessage ? "alert" : undefined}>{seriesErrorMessage ?? draftSummary}</p> : null}
       <div className="dialog__actions">
         <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>Отмена</Button>
-        <Button type="submit" loading={pending} disabled={submitted && invalid}>Создать занятие</Button>
+        <Button type="submit" loading={pending} disabled={(submitted && invalid) || studentsUnavailable}>Создать занятие</Button>
       </div>
     </div>
   </form>;
