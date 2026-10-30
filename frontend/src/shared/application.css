@@ -375,7 +375,15 @@ a { color: var(--brand); }
 .schedule-list { display: grid; gap: .65rem; padding-top: 1rem; }
 .lesson-card { position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: .9rem 2rem .9rem 1rem; border-left: 4px solid #6c63b8; border-radius: .7rem; background: #fafbfa; }
 .lesson-card--blue { border-color: #4c82bf; background: #f7faff; }
+.lesson-card--purple { border-color: #6c63b8; background: #f7f6ff; }
+.lesson-card--green { border-color: #4a8f68; background: #f4faf6; }
 .lesson-card--orange { border-color: #d58a4b; background: #fffaf5; }
+.lesson-card--teal { border-color: #0f766e; background: #f1faf8; }
+.lesson-card--amber { border-color: #b45309; background: #fff8eb; }
+.lesson-card--rose { border-color: #be123c; background: #fff5f7; }
+.lesson-card--indigo { border-color: #4338ca; background: #f5f5ff; }
+.lesson-card--cyan { border-color: #0e7490; background: #f2fafd; }
+.lesson-card--lime { border-color: #4d7c0f; background: #f8fbe9; }
 .lesson-card time { color: var(--muted); font-size: .78rem; font-weight: 700; }
 .lesson-card div { display: grid; gap: .2rem; }
 .lesson-card strong { font-size: .9rem; }
@@ -798,6 +806,12 @@ a { color: var(--brand); }
 .schedule-event--purple { border-color: #7b3ff2; background: #eee3ff; }
 .schedule-event--orange { border-color: #ef4d7a; background: #fbe1e6; }
 .schedule-event--green { border-color: #2c9a67; background: #e1f5e9; }
+.schedule-event--teal { border-color: #0d9488; background: #d9f4ef; }
+.schedule-event--amber { border-color: #d97706; background: #fff1d6; }
+.schedule-event--rose { border-color: #e11d48; background: #fde3e9; }
+.schedule-event--indigo { border-color: #4f46e5; background: #e9e9ff; }
+.schedule-event--cyan { border-color: #0891b2; background: #dcf5fb; }
+.schedule-event--lime { border-color: #65a30d; background: #eef8d9; }
 /* Lesson card stays compact; the chevron opens the details panel below the calendar. */
 .schedule-event .schedule-event__title { display: flex; align-items: start; justify-content: space-between; gap: .3rem; min-width: 0; color: var(--ink); }
 .schedule-event__title strong { flex: 1 1 auto; min-width: 0; }
@@ -867,6 +881,12 @@ a { color: var(--brand); }
 .schedule-stack__item--purple::before { background: #7b3ff2; }
 .schedule-stack__item--orange::before { background: #ef4d7a; }
 .schedule-stack__item--green::before { background: #2c9a67; }
+.schedule-stack__item--teal::before { background: #0d9488; }
+.schedule-stack__item--amber::before { background: #d97706; }
+.schedule-stack__item--rose::before { background: #e11d48; }
+.schedule-stack__item--indigo::before { background: #4f46e5; }
+.schedule-stack__item--cyan::before { background: #0891b2; }
+.schedule-stack__item--lime::before { background: #65a30d; }
 .schedule-stack__more { padding-left: .88rem; color: #9a5b0b; font-size: .72rem; font-weight: 850; line-height: 1; letter-spacing: .08em; }
 .schedule-stack__hint { align-self: end; justify-self: start; color: #9a5b0b; font-size: .56rem; font-weight: 850; }
 .schedule-stack--compact { gap: .1rem; padding: .28rem .38rem; }
@@ -922,6 +942,12 @@ a { color: var(--brand); }
 .conflict-drawer__lesson--purple { border-left-color: #7b3ff2; }
 .conflict-drawer__lesson--orange { border-left-color: #ef4d7a; }
 .conflict-drawer__lesson--green { border-left-color: #2c9a67; }
+.conflict-drawer__lesson--teal { border-left-color: #0d9488; }
+.conflict-drawer__lesson--amber { border-left-color: #d97706; }
+.conflict-drawer__lesson--rose { border-left-color: #e11d48; }
+.conflict-drawer__lesson--indigo { border-left-color: #4f46e5; }
+.conflict-drawer__lesson--cyan { border-left-color: #0891b2; }
+.conflict-drawer__lesson--lime { border-left-color: #65a30d; }
 .conflict-drawer__lesson--cancelled { opacity: .62; border-left-color: #c2c9c2; background: #f5f7f5; }
 .conflict-drawer__lesson--cancelled .conflict-drawer__body strong { color: var(--muted); text-decoration: line-through; }
 @keyframes drawer-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }

@@ -13,6 +13,7 @@ import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm, type StudentPickerState } from "../features/lessons/LessonCreateForm";
 import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seriesConflictCandidates } from "../features/lessons/conflict-check";
 import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
+import { subjectTone } from "../features/lessons/lesson-tone";
 import { classifyStack, groupLessonStacks, stackDurationMinutes, type StackConflictKind } from "../features/lessons/schedule-groups";
 import type {
   LessonCreatePayload,
@@ -88,15 +89,6 @@ function personName(person: { first_name: string; last_name: string; middle_name
 
 function personFullName(person: { first_name: string; last_name: string; middle_name: string | null }) {
   return [person.last_name, person.first_name, person.middle_name].filter(Boolean).join(" ");
-}
-
-function subjectTone(title: string) {
-  const subject = title.trim().toLocaleLowerCase("ru-RU");
-  if (subject.includes("истор")) return "orange";
-  if (subject.includes("физик") || subject.includes("англий") || subject.includes("математ")) {
-    return subject.includes("математ") ? "purple" : "blue";
-  }
-  return "green";
 }
 
 // ── Reschedule dialog state ────────────────────────────────────────────────
