@@ -373,17 +373,17 @@ a { color: var(--brand); }
 .schedule-day--active { border-color: #b7d1bd; color: var(--brand); background: var(--brand-soft); }
 .schedule-day--active strong { color: var(--brand-dark); }
 .schedule-list { display: grid; gap: .65rem; padding-top: 1rem; }
-.lesson-card { position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: .9rem 2rem .9rem 1rem; border-left: 4px solid #6c63b8; border-radius: .7rem; background: #fafbfa; }
-.lesson-card--blue { border-color: #4c82bf; background: #f7faff; }
-.lesson-card--purple { border-color: #6c63b8; background: #f7f6ff; }
-.lesson-card--green { border-color: #4a8f68; background: #f4faf6; }
-.lesson-card--orange { border-color: #d58a4b; background: #fffaf5; }
-.lesson-card--teal { border-color: #0f766e; background: #f1faf8; }
-.lesson-card--amber { border-color: #b45309; background: #fff8eb; }
-.lesson-card--rose { border-color: #be123c; background: #fff5f7; }
-.lesson-card--indigo { border-color: #4338ca; background: #f5f5ff; }
-.lesson-card--cyan { border-color: #0e7490; background: #f2fafd; }
-.lesson-card--lime { border-color: #4d7c0f; background: #f8fbe9; }
+.lesson-card { position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: .9rem 2rem .9rem 1rem; border: 1px solid #dfe7e1; border-left: 4px solid #6c63b8; border-radius: .65rem; background: #fafbfa; }
+.lesson-card--blue { border-left-color: #4c82bf; background: #f7faff; }
+.lesson-card--purple { border-left-color: #6c63b8; background: #f7f6ff; }
+.lesson-card--green { border-left-color: #4a8f68; background: #f4faf6; }
+.lesson-card--orange { border-left-color: #d58a4b; background: #fffaf5; }
+.lesson-card--teal { border-left-color: #0f766e; background: #f1faf8; }
+.lesson-card--amber { border-left-color: #b45309; background: #fff8eb; }
+.lesson-card--rose { border-left-color: #be123c; background: #fff5f7; }
+.lesson-card--indigo { border-left-color: #4338ca; background: #f5f5ff; }
+.lesson-card--cyan { border-left-color: #0e7490; background: #f2fafd; }
+.lesson-card--lime { border-left-color: #4d7c0f; background: #f8fbe9; }
 .lesson-card time { color: var(--muted); font-size: .78rem; font-weight: 700; }
 .lesson-card div { display: grid; gap: .2rem; }
 .lesson-card strong { font-size: .9rem; }
@@ -776,15 +776,15 @@ a { color: var(--brand); }
 .schedule-calendar__day--active { background: var(--brand-soft); }
 .schedule-calendar__hour { z-index: 2; padding: .45rem .55rem; border-top: 1px solid #e1e9e3; color: var(--muted); background: #fff; font-size: .68rem; font-weight: 700; }
 .schedule-calendar__cell { border-top: 1px solid #e1e9e3; border-left: 1px solid #e1e9e3; }
-.schedule-event { position: relative; z-index: 3; display: grid; align-content: start; gap: .15rem; min-width: 0; margin-bottom: 0; padding: .55rem .65rem; overflow: hidden; border-left: 4px solid var(--brand); border-radius: .65rem; background: #e8f3ec; }
-.schedule-event { box-sizing: border-box; border-top: 0; border-right: 0; border-bottom: 0; font: inherit; text-align: left; cursor: pointer; color: inherit; }
+.schedule-event { position: relative; z-index: 3; display: grid; align-content: start; gap: .15rem; min-width: 0; margin-bottom: 0; padding: .55rem .65rem; overflow: hidden; border: 1px solid #d8e1da; border-left: 4px solid var(--brand); border-radius: .65rem; background: #e8f3ec; }
+.schedule-event { box-sizing: border-box; font: inherit; text-align: left; cursor: pointer; color: inherit; }
 .schedule-event--overlap { z-index: 4; min-width: 0; padding: .35rem .4rem; }
 .schedule-event--overlap strong, .schedule-event--overlap span, .schedule-event--overlap small { font-size: .62rem; }
-.schedule-event--overlap:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: -2px; }
+.schedule-event:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: -2px; }
 .schedule-event--short { gap: .05rem; padding: .18rem .3rem; }
 .schedule-event--short strong, .schedule-event--short span { font-size: .58rem; line-height: 1.05; }
 .schedule-event--short.schedule-event--overlap strong, .schedule-event--short.schedule-event--overlap span { font-size: .54rem; }
-.schedule-event--selected { z-index: 7; outline: 2px solid var(--brand-dark); outline-offset: -2px; }
+.schedule-event--selected { z-index: 7; outline: 1px solid var(--brand-dark); outline-offset: -1px; }
 .schedule-event__more { flex: 0 0 auto; align-self: end; justify-self: start; min-height: 24px; padding: 0; border: 0; background: transparent; color: var(--brand-dark) !important; font: inherit; font-size: .68rem !important; font-weight: 800; cursor: pointer; text-decoration: underline; }
 .selected-lesson-details { display: grid; gap: .9rem; padding: .25rem 0; border-color: #cbd9ce; }
 .selected-lesson-details__heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
@@ -802,16 +802,16 @@ a { color: var(--brand); }
 .schedule-event strong, .schedule-event span, .schedule-event small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-event strong { font-size: .75rem; }
 .schedule-event span, .schedule-event small { color: #52665a; font-size: .65rem; }
-.schedule-event--blue { border-color: #31a8ff; background: #dceefe; }
-.schedule-event--purple { border-color: #7b3ff2; background: #eee3ff; }
-.schedule-event--orange { border-color: #ef4d7a; background: #fbe1e6; }
-.schedule-event--green { border-color: #2c9a67; background: #e1f5e9; }
-.schedule-event--teal { border-color: #0d9488; background: #d9f4ef; }
-.schedule-event--amber { border-color: #d97706; background: #fff1d6; }
-.schedule-event--rose { border-color: #e11d48; background: #fde3e9; }
-.schedule-event--indigo { border-color: #4f46e5; background: #e9e9ff; }
-.schedule-event--cyan { border-color: #0891b2; background: #dcf5fb; }
-.schedule-event--lime { border-color: #65a30d; background: #eef8d9; }
+.schedule-event--blue { border-left-color: #31a8ff; background: #dceefe; }
+.schedule-event--purple { border-left-color: #7b3ff2; background: #eee3ff; }
+.schedule-event--orange { border-left-color: #ef4d7a; background: #fbe1e6; }
+.schedule-event--green { border-left-color: #2c9a67; background: #e1f5e9; }
+.schedule-event--teal { border-left-color: #0d9488; background: #d9f4ef; }
+.schedule-event--amber { border-left-color: #d97706; background: #fff1d6; }
+.schedule-event--rose { border-left-color: #e11d48; background: #fde3e9; }
+.schedule-event--indigo { border-left-color: #4f46e5; background: #e9e9ff; }
+.schedule-event--cyan { border-left-color: #0891b2; background: #dcf5fb; }
+.schedule-event--lime { border-left-color: #65a30d; background: #eef8d9; }
 /* Lesson card stays compact; the chevron opens the details panel below the calendar. */
 .schedule-event .schedule-event__title { display: flex; align-items: start; justify-content: space-between; gap: .3rem; min-width: 0; color: var(--ink); }
 .schedule-event__title strong { flex: 1 1 auto; min-width: 0; }
@@ -862,9 +862,9 @@ a { color: var(--brand); }
 .selected-lesson-details__description p { margin: 0; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.55; }
 
 /* Conflict stacks: one card per overlapping group, details open in the side drawer. */
-.schedule-stack { position: relative; z-index: 6; display: grid; align-content: start; gap: .2rem; min-width: 0; padding: .48rem .52rem .42rem; overflow: hidden; border: 1px solid #eed6a8; border-left: 4px solid #d97706; border-radius: .7rem; color: #4a3410; background: linear-gradient(135deg, #fff8ea 0%, #fffdf8 100%); box-shadow: 0 10px 24px rgb(120 69 0 / 12%); font: inherit; text-align: left; cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-.schedule-stack:hover { transform: translateY(-2px); border-color: #e3bf7f; box-shadow: 0 16px 30px rgb(120 69 0 / 18%); }
-.schedule-stack:focus-visible { outline: 2px solid #b45309; outline-offset: 2px; }
+.schedule-stack { position: relative; z-index: 6; display: grid; align-content: start; gap: .18rem; min-width: 0; padding: .35rem .45rem; overflow: hidden; border: 1px solid #d8e1da; border-left: 4px solid #d97706; border-radius: .65rem; color: #4a3410; background: #fff8ea; font: inherit; text-align: left; cursor: pointer; }
+.schedule-stack:hover { border-color: #cdd8cf; border-left-color: #d97706; }
+.schedule-stack:focus-visible { outline: 2px solid #b45309; outline-offset: -2px; }
 .schedule-stack__top { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .3rem; }
 .schedule-stack__kicker { display: inline-flex; min-width: 0; align-items: center; gap: .25rem; overflow: hidden; color: #a16207; font-size: .55rem; font-weight: 850; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .conflict-icon { flex: 0 0 auto; width: 12px; height: 12px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
@@ -899,8 +899,8 @@ a { color: var(--brand); }
 .schedule-stack--compact .schedule-card-help { display: none; }
 
 /* Overlap card without an actionable conflict (completed / cancelled-heavy clusters). */
-.schedule-stack--calm { border-color: #cfe0d4; border-left-color: var(--brand); color: #2c4a35; background: linear-gradient(135deg, #f1f8f3 0%, #fbfdfb 100%); box-shadow: 0 10px 24px rgb(23 45 30 / 10%); }
-.schedule-stack--calm:hover { border-color: #b9d0c0; box-shadow: 0 16px 30px rgb(23 45 30 / 14%); }
+.schedule-stack--calm { border-color: #d8e1da; border-left-color: var(--brand); color: #2c4a35; background: #f1f8f3; }
+.schedule-stack--calm:hover { border-color: #cdd8cf; border-left-color: var(--brand); }
 .schedule-stack--calm .schedule-stack strong { color: #26402e; }
 .schedule-stack--calm .schedule-stack__item strong { color: #4a6b57; }
 .schedule-stack--calm .schedule-stack__more { color: #4a7a5c; }
@@ -927,8 +927,9 @@ a { color: var(--brand); }
 .conflict-drawer__notice .conflict-icon { width: 18px; height: 18px; margin-top: .1rem; color: #b45309; }
 .conflict-drawer__notice p { margin: 0; }
 .conflict-drawer__list { display: grid; gap: .6rem; margin: 0; padding: 0; list-style: none; }
-.conflict-drawer__lesson { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) auto; grid-template-areas: "time body status" "time body arrow"; align-items: center; gap: .15rem .75rem; width: 100%; padding: .8rem .85rem; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: .8rem; background: #fff; text-align: left; cursor: pointer; transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
-.conflict-drawer__lesson:hover { transform: translateY(-1px); border-color: #c8d6cb; box-shadow: 0 8px 18px rgb(23 35 28 / 8%); }
+.conflict-drawer__lesson { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) auto; grid-template-areas: "time body status" "time body arrow"; align-items: center; gap: .15rem .75rem; width: 100%; padding: .8rem .85rem; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: .65rem; background: #fff; text-align: left; cursor: pointer; }
+.conflict-drawer__lesson:hover { border-top-color: #c8d6cb; border-right-color: #c8d6cb; border-bottom-color: #c8d6cb; }
+.conflict-drawer__lesson:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: -2px; }
 .conflict-drawer__time { grid-area: time; color: var(--muted); font-size: .7rem; font-weight: 800; line-height: 1.3; }
 .conflict-drawer__body { display: grid; grid-area: body; gap: .15rem; min-width: 0; }
 .conflict-drawer__body strong { overflow: hidden; font-size: .88rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -972,7 +973,8 @@ a { color: var(--brand); }
 .lesson-card--status-cancelled .schedule-status-label { color: #a33b32; }
 .schedule-event--short > .schedule-status-label { display: none; }
 .lesson-card[role="button"] { cursor: pointer; }
-.lesson-card[role="button"]:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: 2px; }
+.lesson-card[role="button"]:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: -2px; }
+.schedule-context-link { margin: 0; }
 
 .schedule-calendar__corner, .schedule-calendar__day { position: sticky; z-index: 12; top: 0; }
 .schedule-calendar__corner { z-index: 14; left: 0; }

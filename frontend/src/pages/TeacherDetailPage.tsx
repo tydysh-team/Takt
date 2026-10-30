@@ -9,6 +9,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { Card } from "../components/ui/Card";
 import { ErrorState, LoadingState } from "../components/ui/Feedback";
 import { formatDate, fullName } from "../shared/format";
+import { SchedulePage } from "./SchedulePage";
 
 type DetailTab = "main" | "schedule" | "homework";
 
@@ -47,8 +48,10 @@ export function TeacherDetailPage() {
             <div><dt>Подключены с</dt><dd>{formatDate(data.connected_at)}</dd></div>
           </dl>
         </Card>
+      ) : tab === "schedule" ? (
+        <SchedulePage viewedTeacher={{ id: data.id, name: fullName(data) }} />
       ) : (
-        <Card className="placeholder-panel"><span className="badge">Скоро</span><h2>{tab === "schedule" ? "Расписание" : "Домашние задания"}</h2><p>Этот раздел появится на следующем этапе развития Takt.</p></Card>
+        <Card className="placeholder-panel"><span className="badge">Скоро</span><h2>Домашние задания</h2><p>Этот раздел появится на следующем этапе развития Takt.</p></Card>
       )}
     </>
   );

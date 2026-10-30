@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Temporal } from "@js-temporal/polyfill";
+import { Link } from "react-router-dom";
 
 import { ApiError, readableError } from "../api/client";
 import { api, queryKeys } from "../api/queries";
@@ -14,6 +15,7 @@ import { LessonCreateForm, type StudentPickerState } from "../features/lessons/L
 import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seriesConflictCandidates } from "../features/lessons/conflict-check";
 import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
 import { subjectTone } from "../features/lessons/lesson-tone";
+import { filterLessonsForSchedule, schedulePresentation, type SchedulePersonContext, type ScheduleViewContext } from "../features/lessons/schedule-context";
 import { classifyStack, groupLessonStacks, stackDurationMinutes, type StackConflictKind } from "../features/lessons/schedule-groups";
 import type {
   LessonCreatePayload,
@@ -110,10 +112,20 @@ interface ConflictDrawerState {
   kind: StackConflictKind;
 }
 
-export function SchedulePage() {
+interface SchedulePageProps {
+  viewedTeacher?: SchedulePersonContext;
+  viewedStudent?: SchedulePersonContext;
+}
+
+export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isTeacher = user?.role === "TEACHER";
+  const viewContext = useMemo<ScheduleViewContext>(() => ({
+    ...(viewedTeacher ? { teacher: viewedTeacher } : {}),
+    ...(viewedStudent ? { student: viewedStudent } : {}),
+  }), [viewedTeacher, viewedStudent]);
+  const presentation = schedulePresentation(user?.role, viewContext);
   const [selectedDay, setSelectedDay] = useState(0);
   const [weekOffset, setWeekOffset] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
@@ -318,7 +330,10 @@ export function SchedulePage() {
   }
 
   const selectedDate = days[selectedDay]?.iso ?? days[0]?.iso ?? "";
-  const visibleItems = useMemo(() => lessons.data ?? [], [lessons.data]);
+  const visibleItems = useMemo(
+    () => filterLessonsForSchedule(lessons.data ?? [], user?.role, viewContext, user?.id),
+    [lessons.data, user?.role, user?.id, viewContext],
+  );
   const nowDate = useMemo(() => new Date(now), [now]);
   const displayedItems = useMemo(
     () => showCancelled
@@ -344,9 +359,9 @@ export function SchedulePage() {
     return new Set(active.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, active.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id));
   }, [visibleLessons, nowDate]);
 
-  const nextLesson = useMemo(() => (nextLessonQuery.data ?? [])
+  const nextLesson = useMemo(() => filterLessonsForSchedule(nextLessonQuery.data ?? [], user?.role, viewContext, user?.id)
     .filter((lesson) => lesson.status !== "cancelled" && Date.parse(lesson.starts_at) >= Date.parse(now))
-    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null, [nextLessonQuery.data, now]);
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null, [nextLessonQuery.data, now, user?.role, user?.id, viewContext]);
   const calendarBounds = useMemo(() => {
     const starts = displayedItems.map((lesson) => {
       const local = Temporal.Instant.from(lesson.starts_at).toZonedDateTimeISO(timezone);
@@ -368,20 +383,20 @@ export function SchedulePage() {
   // schedule" UI: hide the calendar, summary and counters until it succeeds.
   if (lessons.isLoading) {
     return <>
-      <PageHeader eyebrow="Расписание" title="Неделя занятий" description="Все запланированные уроки на текущую неделю." />
+      <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <LoadingState label="Загружаем расписание…" />
     </>;
   }
   if (lessons.isError) {
     return <>
-      <PageHeader eyebrow="Расписание" title="Неделя занятий" description="Все запланированные уроки на текущую неделю." />
+      <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <ErrorState message={readableError(lessons.error)} onRetry={() => { void lessons.refetch(); }} />
     </>;
   }
 
   return <>
     <div className="schedule-page-heading">
-      <PageHeader eyebrow="Расписание" title="Неделя занятий" description="Все запланированные уроки на текущую неделю." />
+      <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <div className="schedule-summary-grid">
         <Card className="summary-card"><span>Занятий на неделе</span><strong>{scheduledLessonCount}</strong><small>{isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
         <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
