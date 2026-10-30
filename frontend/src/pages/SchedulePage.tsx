@@ -334,6 +334,11 @@ export function SchedulePage() {
       : visibleItems.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled"),
     [visibleItems, showCancelled, nowDate],
   );
+  // Cancelled lessons never count as scheduled work, even when they stay visible.
+  const scheduledLessonCount = useMemo(
+    () => visibleItems.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled").length,
+    [visibleItems, nowDate],
+  );
 
   const visibleLessons = useMemo(() => displayedItems
     .filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate)
@@ -386,7 +391,7 @@ export function SchedulePage() {
     <div className="schedule-page-heading">
       <PageHeader eyebrow="Расписание" title="Неделя занятий" description="Все запланированные уроки на текущую неделю." />
       <div className="schedule-summary-grid">
-        <Card className="summary-card"><span>Занятий на неделе</span><strong>{displayedItems.length}</strong><small>{isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
+        <Card className="summary-card"><span>Занятий на неделе</span><strong>{scheduledLessonCount}</strong><small>{isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
         <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
       </div>
     </div>
