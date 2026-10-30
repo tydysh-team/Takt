@@ -32,24 +32,6 @@ function durationMs(lesson: LessonReadDTO): number {
   return minutes * 60_000;
 }
 
-function overlaps(left: LessonReadDTO, right: LessonReadDTO): boolean {
-  const leftStart = Date.parse(left.starts_at);
-  const rightStart = Date.parse(right.starts_at);
-  return leftStart < rightStart + durationMs(right) && rightStart < leftStart + durationMs(left);
-}
-
-/**
- * A cancelled lesson remains available to list/history views, but the weekly
- * calendar hides it when a replacement occupies any part of the same interval.
- */
-export function calendarLessons(lessons: LessonReadDTO[], now: Date = new Date()): LessonReadDTO[] {
-  const active = lessons.filter((lesson) => effectiveLessonStatus(lesson, now) !== "cancelled");
-  return lessons.filter((lesson) => (
-    effectiveLessonStatus(lesson, now) !== "cancelled"
-    || !active.some((candidate) => overlaps(lesson, candidate))
-  ));
-}
-
 /**
  * Groups lessons that overlap in time into vertical stacks.
  * Lessons that only touch (one ends exactly when the next starts) stay separate.

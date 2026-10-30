@@ -114,17 +114,12 @@ class LessonScheduleUnchangedError(DomainError):
 
 class LessonNotCancellableError(DomainError):
     code = "lesson_not_cancellable"
-    message = "Отменить можно только запланированное или идущее занятие."
+    message = "Отменить можно только запланированное занятие."
 
 
 class AttendanceNotAvailableError(DomainError):
     code = "attendance_not_available"
     message = "Посещаемость доступна только для начавшегося или завершённого занятия."
-
-
-class AttendanceAlreadySetError(DomainError):
-    code = "attendance_already_set"
-    message = "Посещаемость уже зафиксирована и не может быть изменена."
 
 
 class RateLimitExceededError(DomainError):

@@ -799,14 +799,8 @@ a { color: var(--brand); }
 .schedule-event .schedule-event__title { display: flex; align-items: start; justify-content: space-between; gap: .3rem; min-width: 0; color: var(--ink); }
 .schedule-event__title strong { flex: 1 1 auto; min-width: 0; }
 .schedule-event .schedule-event__cancelled-tag { flex: 0 0 auto; margin-top: .05rem; color: #a33b32; font-size: .5rem; font-style: normal; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
-.schedule-event__foot { display: block; min-width: 0; padding-right: 1.3rem; }
+.schedule-event__foot { display: block; min-width: 0; }
 .schedule-event .schedule-event__foot small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-event .schedule-event__chevron { position: absolute; right: .3rem; bottom: .28rem; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; color: var(--brand-dark); background: rgb(255 255 255 / 72%); font-size: 0; transition: transform 160ms ease, background 160ms ease; }
-.schedule-event__chevron svg { width: 11px; height: 11px; }
-.schedule-event:hover .schedule-event__chevron { background: #fff; }
-.schedule-event--selected .schedule-event__chevron { transform: rotate(180deg); background: var(--brand); color: #fff; }
-.schedule-event--short .schedule-event__chevron { width: 13px; height: 13px; }
-.schedule-event--short .schedule-event__chevron svg { width: 9px; height: 9px; }
 .schedule-event--cancelled { border-left-color: #b9c2ba; background: #f1f4f1; opacity: .62; }
 .schedule-event--cancelled strong { color: #7b857d; text-decoration: line-through; }
 .schedule-event--cancelled span, .schedule-event--cancelled small { color: #98a19a; }
@@ -927,25 +921,22 @@ a { color: var(--brand); }
 @keyframes drawer-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 560px) { .drawer { width: 100%; } }
 
-/* Sprint 2: lifecycle status is distinct from subject colour and conflicts. */
-.schedule-event--status-planned { border-left-color: #2c9a67; background: #e9f7ee; }
-.schedule-event--status-in_progress { border-left-color: #2583c7; background: #e8f4fd; }
-.schedule-event--status-completed { border-left-color: #87928a; background: #f0f2f0; }
-.schedule-event--status-cancelled { border-left-color: #ba5a52; background: #f8ecea; }
-.schedule-event--status-unknown { border-left-color: #87928a; background: #f0f2f0; }
-.lesson-card--status-planned { border-left-color: #2c9a67; background: #f4fbf6; }
-.lesson-card--status-in_progress { border-left-color: #2583c7; background: #f2f8fd; }
-.lesson-card--status-completed { border-left-color: #87928a; background: #f5f6f5; }
-.lesson-card--status-cancelled { border-left-color: #ba5a52; background: #f8ecea; }
-.lesson-card--status-unknown { border-left-color: #87928a; background: #f5f6f5; }
-.schedule-stack__item--status-planned::before { background: #2c9a67; }
-.schedule-stack__item--status-in_progress::before { background: #2583c7; }
-.schedule-stack__item--status-completed::before { background: #87928a; }
-.schedule-stack__item--status-cancelled::before { background: #ba5a52; }
-.schedule-stack__item--status-unknown::before { background: #87928a; }
-.schedule-status-label { color: #68736b; font-size: .56rem; font-weight: 750; line-height: 1.2; }
-.schedule-event > .schedule-status-label { overflow: hidden; padding-right: 1rem; text-overflow: ellipsis; white-space: nowrap; }
+/* Lifecycle status tints the label, while the card keeps its subject colour. */
 .schedule-stack__item .schedule-status-label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-status-label { color: #68736b; font-size: .56rem; font-weight: 750; line-height: 1.2; }
+.schedule-event > .schedule-status-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-event--status-planned .schedule-status-label,
+.schedule-stack__item--status-planned .schedule-status-label,
+.lesson-card--status-planned .schedule-status-label { color: #2c9a67; }
+.schedule-event--status-in_progress .schedule-status-label,
+.schedule-stack__item--status-in_progress .schedule-status-label,
+.lesson-card--status-in_progress .schedule-status-label { color: #2583c7; }
+.schedule-event--status-completed .schedule-status-label,
+.schedule-stack__item--status-completed .schedule-status-label,
+.lesson-card--status-completed .schedule-status-label { color: #68736b; }
+.schedule-event--status-cancelled .schedule-status-label,
+.schedule-stack__item--status-cancelled .schedule-status-label,
+.lesson-card--status-cancelled .schedule-status-label { color: #a33b32; }
 .schedule-event--short > .schedule-status-label { display: none; }
 .lesson-card[role="button"] { cursor: pointer; }
 .lesson-card[role="button"]:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: 2px; }

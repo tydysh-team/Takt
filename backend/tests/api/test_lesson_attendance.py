@@ -112,20 +112,32 @@ async def test_new_lesson_has_not_set_attendance(api_context: ApiTestContext) ->
     assert lesson_get.json()["attendance"] == "not_set"
 
 
-@pytest.mark.parametrize("requested", ["present", "absent"])
-async def test_first_attendance_is_persisted_and_lesson_scoped(
+@pytest.mark.parametrize(
+    ("previous", "requested"),
+    [
+        (None, "present"),
+        (None, "absent"),
+        (AttendanceValue.PRESENT, "absent"),
+        (AttendanceValue.ABSENT, "present"),
+    ],
+)
+async def test_attendance_changes_are_persisted_and_lesson_scoped(
     api_context: ApiTestContext,
     monkeypatch: pytest.MonkeyPatch,
+    previous: AttendanceValue | None,
     requested: str,
 ) -> None:
     teacher_id, token, student_id, student_token = await participants(api_context)
     now = datetime(2030, 1, 1, 12, tzinfo=UTC)
     freeze_time(monkeypatch, now)
+    old_updated_at = now - timedelta(hours=2) if previous is not None else None
     lesson = await store_lesson(
         api_context,
         teacher_id,
         student_id,
         now - timedelta(minutes=30),
+        attendance=previous,
+        attendance_updated_at=old_updated_at,
     )
     other = await store_lesson(api_context, teacher_id, student_id, now - timedelta(days=1))
     lesson_id, other_id = lesson.id, other.id
@@ -156,42 +168,6 @@ async def test_first_attendance_is_persisted_and_lesson_scoped(
     assert other.id == other_id
     assert other.attendance is None
     assert other.attendance_updated_at is None
-
-
-@pytest.mark.parametrize(
-    ("previous", "requested"),
-    [(AttendanceValue.PRESENT, "absent"), (AttendanceValue.ABSENT, "present")],
-)
-async def test_attendance_cannot_be_changed_after_first_mark(
-    api_context: ApiTestContext,
-    monkeypatch: pytest.MonkeyPatch,
-    previous: AttendanceValue,
-    requested: str,
-) -> None:
-    teacher_id, token, student_id, _ = await participants(api_context)
-    now = datetime(2030, 1, 1, 12, tzinfo=UTC)
-    freeze_time(monkeypatch, now)
-    original_timestamp = now - timedelta(hours=2)
-    lesson = await store_lesson(
-        api_context,
-        teacher_id,
-        student_id,
-        now - timedelta(minutes=30),
-        attendance=previous,
-        attendance_updated_at=original_timestamp,
-    )
-
-    response = await api_context.client.put(
-        f"/api/v1/lessons/{lesson.id}/attendance",
-        headers=auth(token),
-        json={"attendance": requested},
-    )
-    await api_context.session.refresh(lesson)
-
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "attendance_already_set"
-    assert lesson.attendance == previous
-    assert lesson.attendance_updated_at == original_timestamp
 
 
 @pytest.mark.parametrize("value", ["present", "absent"])
@@ -355,13 +331,14 @@ async def test_attendance_rolls_back_on_commit_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     teacher_id, token, student_id, _ = await participants(api_context)
+    original_timestamp = utc_now() - timedelta(days=2)
     lesson = await store_lesson(
         api_context,
         teacher_id,
         student_id,
         utc_now() - timedelta(days=1),
-        attendance=None,
-        attendance_updated_at=None,
+        attendance=AttendanceValue.PRESENT,
+        attendance_updated_at=original_timestamp,
     )
     path = f"/api/v1/lessons/{lesson.id}/attendance"
 
@@ -372,5 +349,5 @@ async def test_attendance_rolls_back_on_commit_error(
     with pytest.raises(RuntimeError, match="Simulated commit failure"):
         await api_context.client.put(path, headers=auth(token), json={"attendance": "absent"})
     await api_context.session.refresh(lesson)
-    assert lesson.attendance is None
-    assert lesson.attendance_updated_at is None
+    assert lesson.attendance == AttendanceValue.PRESENT
+    assert lesson.attendance_updated_at == original_timestamp

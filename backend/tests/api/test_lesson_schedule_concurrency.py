@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -233,37 +233,6 @@ async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -
             assert len(warning.json()["error"]["context"]["conflicts"]) == 1
 
             created = first if first.status_code == 201 else second
-            lesson_id = UUID(created.json()["id"])
-            async with sessions() as make_in_progress:
-                await make_in_progress.execute(
-                    update(Lesson)
-                    .where(Lesson.id == lesson_id)
-                    .values(starts_at=utc_now() - timedelta(minutes=30))
-                )
-                await make_in_progress.commit()
-
-            attendance_path = f"/api/v1/lessons/{lesson_id}/attendance"
-
-            attendance_transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 12345))
-            async with httpx.AsyncClient(
-                transport=attendance_transport,
-                base_url="http://testserver",
-            ) as attendance_client:
-
-                async def mark_attendance(value: str) -> httpx.Response:
-                    return await attendance_client.put(
-                        attendance_path,
-                        headers={"Authorization": f"Bearer {token}"},
-                        json={"attendance": value},
-                    )
-
-                present, absent = await asyncio.gather(
-                    mark_attendance("present"), mark_attendance("absent")
-                )
-            assert sorted([present.status_code, absent.status_code]) == [200, 409]
-            rejected = present if present.status_code == 409 else absent
-            assert rejected.json()["error"]["code"] == "attendance_already_set"
-
             cancel_path = f"/api/v1/lessons/{created.json()['id']}/cancel"
             cancel_transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 12345))
             async with httpx.AsyncClient(
@@ -286,11 +255,10 @@ async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -
             assert cancelled.json()["cancellation_reason"] in {"First", "Second"}
 
             async with sessions() as verify:
-                lesson = await verify.get(Lesson, lesson_id)
+                lesson = await verify.get(Lesson, UUID(created.json()["id"]))
                 assert lesson is not None
                 assert lesson.cancelled_at is not None
                 assert lesson.cancellation_reason == cancelled.json()["cancellation_reason"]
-                assert lesson.attendance is not None
         finally:
             app.dependency_overrides.pop(get_db_session, None)
     finally:
