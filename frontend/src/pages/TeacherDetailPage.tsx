@@ -40,14 +40,25 @@ export function TeacherDetailPage() {
         ))}
       </div>
       {tab === "main" ? (
-        <Card className="detail-card detail-card--single">
-          <h2>Контактная информация</h2>
-          <dl className="details-list">
-            <div><dt>Email</dt><dd>{data.email}</dd></div>
-            <div><dt>Часовой пояс</dt><dd>{data.timezone}</dd></div>
-            <div><dt>Подключены с</dt><dd>{formatDate(data.connected_at)}</dd></div>
-          </dl>
-        </Card>
+        <div className="teacher-profile-layout teacher-profile-layout--design">
+          <Card className="teacher-profile-card teacher-profile-card--intro">
+            <Avatar firstName={data.first_name} lastName={data.last_name} size="large" />
+            <div>
+              <p className="eyebrow">Преподаватель</p>
+              <h2>{fullName(data)}</h2>
+              <p>{data.bio?.trim() ? data.bio.trim() : "Преподаватель пока не добавил описание."}</p>
+            </div>
+            <span className="badge badge--success">Активен</span>
+          </Card>
+          <Card className="teacher-profile-card">
+            <div className="section-heading section-heading--compact"><h2>Контактная информация</h2></div>
+            <dl className="details-list">
+              <div><dt>Email</dt><dd>{data.email}</dd></div>
+              <div><dt>Часовой пояс</dt><dd>{data.timezone}</dd></div>
+              <div><dt>Подключены с</dt><dd>{formatDate(data.connected_at)}</dd></div>
+            </dl>
+          </Card>
+        </div>
       ) : tab === "schedule" ? (
         <SchedulePage viewedTeacher={{ id: data.id, name: fullName(data) }} />
       ) : (

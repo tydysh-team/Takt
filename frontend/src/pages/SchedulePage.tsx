@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Temporal } from "@js-temporal/polyfill";
 import { Link } from "react-router-dom";
@@ -12,9 +12,11 @@ import { Drawer } from "../components/ui/Drawer";
 import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
 import { LessonCreateForm, type StudentPickerState } from "../features/lessons/LessonCreateForm";
+import { lessonActions } from "../features/lessons/lesson-actions";
 import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seriesConflictCandidates } from "../features/lessons/conflict-check";
-import { effectiveLessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
+import { lessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
 import { subjectTone } from "../features/lessons/lesson-tone";
+import { rescheduleConflicts } from "../features/lessons/reschedule-response";
 import { filterLessonsForSchedule, schedulePresentation, type SchedulePersonContext, type ScheduleViewContext } from "../features/lessons/schedule-context";
 import { classifyStack, groupLessonStacks, stackDurationMinutes, type StackConflictKind } from "../features/lessons/schedule-groups";
 import type {
@@ -100,6 +102,11 @@ interface RescheduleState {
   time: string;   // HH:MM local
 }
 
+interface RescheduleConflictState {
+  startsAt: string;
+  conflicts: LessonConflict[];
+}
+
 // ── Series conflict confirmation state ────────────────────────────────────
 interface SeriesConflictState {
   payload: LessonFormPayload;
@@ -137,6 +144,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const [conflictPayload, setConflictPayload] = useState<LessonCreatePayload | null>(null);
   const [conflicts, setConflicts] = useState<LessonConflict[]>([]);
   const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
+  const [createTimeError, setCreateTimeError] = useState<string | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [now, setNow] = useState(() => new Date().toISOString());
 
@@ -144,6 +152,8 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const [rescheduleState, setRescheduleState] = useState<RescheduleState | null>(null);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [rescheduleApplying, setRescheduleApplying] = useState(false);
+  const [rescheduleConflict, setRescheduleConflict] = useState<RescheduleConflictState | null>(null);
+  const reschedulePendingRef = useRef(false);
 
   // US-06: cancel confirmation dialog
   const [cancelTarget, setCancelTarget] = useState<LessonReadDTO | null>(null);
@@ -181,19 +191,16 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     enabled: Boolean(user && profile.data),
     retry: false,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
   const nextLessonQuery = useQuery({
     queryKey: queryKeys.nextLesson,
-    queryFn: () => {
-      const from = new Date().toISOString();
-      return api.searchLessons({ date_from: from });
-    },
+    queryFn: () => api.searchLessons(),
     enabled: Boolean(user && profile.data),
     retry: false,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
   const students = useQuery({ queryKey: queryKeys.teacherStudents, queryFn: api.teacherStudents, enabled: isTeacher });
@@ -217,6 +224,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
 
   async function requestCreate(formPayload: LessonFormPayload, confirm_conflict = false) {
     setConflictCheckError(null);
+    setCreateTimeError(null);
     setCheckingConflicts(true);
     try {
       if (formPayload.recurrence) {
@@ -255,6 +263,8 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       if (conflicts.length && !confirm_conflict) {
         setConflictPayload({ ...formPayload });
         setConflicts(conflicts);
+      } else if (error instanceof ApiError && error.code === "lesson_start_in_past") {
+        setCreateTimeError("Время занятия должно быть в будущем.");
       } else setConflictCheckError(readableError(error));
     } finally {
       setCheckingConflicts(false);
@@ -271,31 +281,48 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     });
     setSelectedCalendarLessonId(null);
     setRescheduleError(null);
+    setRescheduleConflict(null);
   }
 
-  function applyReschedule() {
-    if (!rescheduleState) return;
+  async function applyReschedule(confirmConflict = false) {
+    if (!rescheduleState || reschedulePendingRef.current) return;
     const { lesson, date, time } = rescheduleState;
     if (!date || !time) { setRescheduleError("Укажите дату и время."); return; }
+    reschedulePendingRef.current = true;
     setRescheduleApplying(true);
     try {
       const newStartsAt = lessonStartUtc(date, time, timezone);
-      const nowMs = Temporal.Instant.from(now).epochMilliseconds;
-      if (Date.parse(newStartsAt) <= nowMs) { setRescheduleError("Новое время должно быть в будущем."); return; }
-      // Temporary US-05 local layer; backend will own validation, conflict-check and atomic persistence.
-      void api.rescheduleLesson(lesson.id, newStartsAt).then(async () => {
+      if (confirmConflict && rescheduleConflict?.startsAt !== newStartsAt) {
+        setRescheduleConflict(null);
+        return;
+      }
+      setRescheduleError(null);
+      try {
+        await api.rescheduleLesson(lesson.id, newStartsAt, confirmConflict);
+        setRescheduleConflict(null);
         setRescheduleState(null);
         setSelectedCalendarLessonId(null);
         await queryClient.invalidateQueries({ queryKey: ["lessons"] });
-      }).catch((error: unknown) => {
-        setRescheduleError(readableError(error));
-      }).finally(() => {
-        setRescheduleApplying(false);
-      });
-      return;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        }
+        const conflicts = rescheduleConflicts(error);
+        if (conflicts !== null && !confirmConflict) {
+          setRescheduleConflict({ startsAt: newStartsAt, conflicts });
+        } else {
+          setRescheduleConflict(null);
+          setRescheduleError(error instanceof ApiError && error.code === "lesson_start_in_past"
+            ? "Новое время должно быть в будущем."
+            : readableError(error));
+        }
+      }
     } catch {
       setRescheduleError("Некорректная дата или время в этом часовом поясе.");
-    } finally { /* async mutation clears state in its own handlers */ }
+    } finally {
+      reschedulePendingRef.current = false;
+      setRescheduleApplying(false);
+    }
   }
 
   // US-06: cancel with confirmation
@@ -310,6 +337,9 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       await queryClient.invalidateQueries({ queryKey: ["lessons"] });
     }).catch((error: unknown) => {
       setCancelError(readableError(error));
+      if (error instanceof ApiError && error.status === 409) {
+        void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+      }
     }).finally(() => {
       setCancelApplying(false);
     });
@@ -323,6 +353,9 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       })
       .catch((error: unknown) => {
         setConflictCheckError(readableError(error));
+        if (error instanceof ApiError && error.status === 409) {
+          void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        }
       })
       .finally(() => {
         setAttendanceApplying(null);
@@ -334,34 +367,33 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     () => filterLessonsForSchedule(lessons.data ?? [], user?.role, viewContext, user?.id),
     [lessons.data, user?.role, user?.id, viewContext],
   );
-  const nowDate = useMemo(() => new Date(now), [now]);
   const displayedItems = useMemo(
     () => showCancelled
       ? visibleItems
-      : visibleItems.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled"),
-    [visibleItems, showCancelled, nowDate],
+      : visibleItems.filter((lesson) => lessonStatus(lesson) !== "cancelled"),
+    [visibleItems, showCancelled],
   );
   // Cancelled lessons never count as scheduled work, even when they stay visible.
   const scheduledLessonCount = useMemo(
-    () => visibleItems.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled").length,
-    [visibleItems, nowDate],
+    () => visibleItems.filter((lesson) => lessonStatus(lesson) !== "cancelled").length,
+    [visibleItems],
   );
 
   const visibleLessons = useMemo(() => displayedItems
     .filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate)
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.id.localeCompare(b.id)), [displayedItems, selectedDate, timezone]);
   const selectedCalendarLesson = displayedItems.find((lesson) => lesson.id === selectedCalendarLessonId) ?? null;
-  const selectedLessonHasConflict = selectedCalendarLesson && effectiveLessonStatus(selectedCalendarLesson, nowDate) !== "cancelled"
-    ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, displayedItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone) && effectiveLessonStatus(lesson, nowDate) !== "cancelled").map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0
+  const selectedLessonHasConflict = selectedCalendarLesson && lessonStatus(selectedCalendarLesson) !== "cancelled"
+    ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, displayedItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone) && lessonStatus(lesson) !== "cancelled").map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0
     : false;
   const overlappingLessonIds = useMemo(() => {
-    const active = visibleLessons.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled");
+    const active = visibleLessons.filter((lesson) => lessonStatus(lesson) !== "cancelled");
     return new Set(active.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, active.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id));
-  }, [visibleLessons, nowDate]);
+  }, [visibleLessons]);
 
   const nextLesson = useMemo(() => filterLessonsForSchedule(nextLessonQuery.data ?? [], user?.role, viewContext, user?.id)
-    .filter((lesson) => lesson.status !== "cancelled" && Date.parse(lesson.starts_at) >= Date.parse(now))
-    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null, [nextLessonQuery.data, now, user?.role, user?.id, viewContext]);
+    .filter((lesson) => lessonStatus(lesson) === "planned")
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null, [nextLessonQuery.data, user?.role, user?.id, viewContext]);
   const calendarBounds = useMemo(() => {
     const starts = displayedItems.map((lesson) => {
       const local = Temporal.Instant.from(lesson.starts_at).toZonedDateTimeISO(timezone);
@@ -375,7 +407,8 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const weekLabel = `${days[0]?.date ?? ""} — ${days[6]?.date ?? ""} ${String(days[6]?.plainDate.year ?? "")}`;
 
   // Computed status of selected lesson
-  const selectedStatus = selectedCalendarLesson ? effectiveLessonStatus(selectedCalendarLesson, nowDate) : null;
+  const selectedStatus = selectedCalendarLesson ? lessonStatus(selectedCalendarLesson) : null;
+  const selectedActions = lessonActions(selectedStatus, isTeacher);
 
   if (profile.isLoading) return <LoadingState label="Загружаем часовой пояс…" />;
   if (profile.isError) return <ErrorState message={readableError(profile.error)} onRetry={() => { void profile.refetch(); }} />;
@@ -411,7 +444,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     const first = stack.lessons[0];
     if (!first) return null;
 
-    const info = classifyStack(stack, nowDate);
+    const info = classifyStack(stack);
     const isGroup = stack.lessons.length > 1;
     const cancelledIds = new Set(info.cancelledLessons.map((lesson) => lesson.id));
     const primaryId = info.countedLessons[0]?.id ?? first.id;
@@ -472,9 +505,9 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
           {shownLessons.map((lesson) => {
             const cancelled = cancelledIds.has(lesson.id);
             return (
-              <span className={`schedule-stack__item schedule-stack__item--${cancelled ? "cancelled" : subjectTone(lesson.title)} schedule-stack__item--status-${effectiveLessonStatus(lesson, nowDate)}${!cancelled && lesson.id === primaryId ? " schedule-stack__item--primary" : ""}`} key={lesson.id} aria-label={`Статус: ${statusLabels[effectiveLessonStatus(lesson, nowDate)]}`}>
+              <span className={`schedule-stack__item schedule-stack__item--${cancelled ? "cancelled" : subjectTone(lesson.title)} schedule-stack__item--status-${lessonStatus(lesson)}${!cancelled && lesson.id === primaryId ? " schedule-stack__item--primary" : ""}`} key={lesson.id} aria-label={`Статус: ${statusLabels[lessonStatus(lesson)]}`}>
                 <strong>{lesson.title}</strong>
-                {!cancelled ? <small className="schedule-status-label">{statusLabels[effectiveLessonStatus(lesson, nowDate)]}</small> : null}
+                {!cancelled ? <small className="schedule-status-label">{statusLabels[lessonStatus(lesson)]}</small> : null}
                 {cancelled ? <em className="schedule-stack__cancelled-tag">Отменено</em> : null}
               </span>
             );
@@ -486,16 +519,16 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       </article>;
     }
 
-    const cancelled = effectiveLessonStatus(first, nowDate) === "cancelled";
+    const cancelled = lessonStatus(first) === "cancelled";
     return <article
       key={first.id}
       role="button"
       tabIndex={0}
-      className={`schedule-event schedule-event--${subjectTone(first.title)} schedule-event--status-${effectiveLessonStatus(first, nowDate)}${shortLesson ? " schedule-event--short" : ""}${cancelled ? " schedule-event--cancelled" : ""}${selected ? " schedule-event--selected" : ""}`}
+      className={`schedule-event schedule-event--${subjectTone(first.title)} schedule-event--status-${lessonStatus(first)}${shortLesson ? " schedule-event--short" : ""}${cancelled ? " schedule-event--cancelled" : ""}${selected ? " schedule-event--selected" : ""}`}
       style={{ ...positionStyle, marginLeft: ".3rem", width: "calc(100% - .6rem)", zIndex: selected ? 8 : 3 }}
       aria-pressed={selected}
       title="Показать детали занятия"
-      aria-label={`${first.title}. Статус: ${statusLabels[effectiveLessonStatus(first, nowDate)]}. Показать детали`}
+      aria-label={`${first.title}. Статус: ${statusLabels[lessonStatus(first)]}. Показать детали`}
       onClick={toggleLesson}
       onKeyDown={handleKeyDown}
     >
@@ -505,17 +538,17 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       </span>
       <span>{personName(isTeacher ? first.student : first.teacher)}</span>
       <span className="schedule-event__foot"><small>{range}</small></span>
-      {cancelled ? null : <small className="schedule-status-label">{statusLabels[effectiveLessonStatus(first, nowDate)]}</small>}
+      {cancelled ? null : <small className="schedule-status-label">{statusLabels[lessonStatus(first)]}</small>}
       <span className="schedule-card-help" aria-hidden="true">?</span>
     </article>;
   });
 })}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => { setSelectedDay(index); }}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => {
-  const cancelled = effectiveLessonStatus(lesson, nowDate) === "cancelled";
+  const cancelled = lessonStatus(lesson) === "cancelled";
   const overlapping = overlappingLessonIds.has(lesson.id);
-  return <article role="button" tabIndex={0} title="Нажмите, чтобы открыть описание занятия" aria-label={`${lesson.title}. Статус: ${statusLabels[effectiveLessonStatus(lesson, nowDate)]}. Показать детали`} className={`lesson-card lesson-card--${subjectTone(lesson.title)} lesson-card--status-${effectiveLessonStatus(lesson, nowDate)}${overlapping ? " lesson-card--overlap" : ""}${cancelled ? " lesson-card--cancelled" : ""}`} key={lesson.id} onClick={() => { setSelectedCalendarLessonId(lesson.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCalendarLessonId(lesson.id); } }}>
+  return <article role="button" tabIndex={0} title="Нажмите, чтобы открыть описание занятия" aria-label={`${lesson.title}. Статус: ${statusLabels[lessonStatus(lesson)]}. Показать детали`} className={`lesson-card lesson-card--${subjectTone(lesson.title)} lesson-card--status-${lessonStatus(lesson)}${overlapping ? " lesson-card--overlap" : ""}${cancelled ? " lesson-card--cancelled" : ""}`} key={lesson.id} onClick={() => { setSelectedCalendarLessonId(lesson.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCalendarLessonId(lesson.id); } }}>
     <time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time>
     <div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>
-    {cancelled ? <small className="lesson-cancelled-badge">Отменено</small> : overlapping ? <small className="lesson-overlap-badge">Пересечение</small> : <small className="schedule-status-label">{statusLabels[effectiveLessonStatus(lesson, nowDate)]}</small>}
+    {cancelled ? <small className="lesson-cancelled-badge">Отменено</small> : overlapping ? <small className="lesson-overlap-badge">Пересечение</small> : <small className="schedule-status-label">{statusLabels[lessonStatus(lesson)]}</small>}
     <span className="schedule-card-help" aria-hidden="true">?</span>
   </article>;
 }) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
@@ -537,7 +570,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       {selectedCalendarLesson.description ? <section className="selected-lesson-details__description"><h3>Описание</h3><p>{selectedCalendarLesson.description}</p></section> : null}
 
       {/* US-08: attendance — доступна только для in_progress и completed (Teacher) */}
-      {isTeacher && (selectedStatus === "in_progress" || selectedStatus === "completed") ? (
+      {selectedActions.canUpdateAttendance ? (
         <div className="selected-lesson-details__actions">
           <button
             className="button button--secondary"
@@ -558,23 +591,23 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         </div>
       ) : null}
 
-      {/* US-05 & US-06: reschedule/cancel — только для planned (Teacher) */}
-      {isTeacher && selectedStatus === "planned" ? (
+      {/* Backend validates both actions; API status only controls their visibility. */}
+      {selectedActions.canReschedule || selectedActions.canCancel ? (
         <div className="selected-lesson-details__actions">
-          <button
+          {selectedActions.canReschedule ? <button
             className="button button--secondary"
             type="button"
             onClick={() => { openReschedule(selectedCalendarLesson); }}
           >
             Перенести…
-          </button>
-          <button
+          </button> : null}
+          {selectedActions.canCancel ? <button
             className="button button--secondary"
             type="button"
             onClick={() => { setCancelTarget(selectedCalendarLesson); setCancelReason(""); setCancelError(null); setSelectedCalendarLessonId(null); }}
           >
             Отменить занятие
-          </button>
+          </button> : null}
         </div>
       ) : null}
       </div> : null}
@@ -584,7 +617,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     <Drawer
       open={Boolean(conflictDrawer)}
       eyebrow={conflictDrawer?.kind === "warning" ? "Конфликт расписания" : "Занятия"}
-      title={conflictDrawer ? (conflictDrawer.kind === "warning" ? `${lessonCountLabel(conflictDrawer.lessons.filter((lesson) => effectiveLessonStatus(lesson, nowDate) !== "cancelled").length)} в одно время` : `${lessonCountLabel(conflictDrawer.lessons.length)} рядом`) : "Наложение занятий"}
+      title={conflictDrawer ? (conflictDrawer.kind === "warning" ? `${lessonCountLabel(conflictDrawer.lessons.filter((lesson) => lessonStatus(lesson) !== "cancelled").length)} в одно время` : `${lessonCountLabel(conflictDrawer.lessons.length)} рядом`) : "Наложение занятий"}
       description={conflictDrawer ? `${conflictDrawer.dateLabel} · ${stackTimeRange(conflictDrawer.lessons, timezone)}` : undefined}
       onClose={() => { setConflictDrawer(null); }}
     >
@@ -594,8 +627,8 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       </div> : null}
       <ul className="conflict-drawer__list">
         {conflictDrawer?.lessons.map((lesson) => {
-          const status = lesson.status;
-          const cancelled = effectiveLessonStatus(lesson, nowDate) === "cancelled";
+          const status = lessonStatus(lesson);
+          const cancelled = status === "cancelled";
           return <li key={lesson.id}>
             <button
               type="button"
@@ -619,7 +652,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     </Drawer>
 
     {/* ── Create lesson dialog ─────────────────────────────────────────── */}
-    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!checkingConflicts) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} studentsState={studentsState} onRetryStudents={() => { void students.refetch(); }} timezone={timezone} pending={checkingConflicts} serverError={conflictCheckError ?? undefined} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
+    <Dialog open={createOpen} title="Создать занятие" variant="lesson" onClose={() => { if (!checkingConflicts) setCreateOpen(false); }}><LessonCreateForm students={students.data ?? []} studentsState={studentsState} onRetryStudents={() => { void students.refetch(); }} timezone={timezone} pending={checkingConflicts} serverError={conflictCheckError ?? undefined} serverTimeError={createTimeError ?? undefined} onTimeChange={() => { setCreateTimeError(null); }} onCancel={() => { setCreateOpen(false); }} onCreate={(payload) => { void requestCreate(payload); }} /></Dialog>
 
     {/* ── Single-lesson conflict dialog (US-04) ───────────────────────── */}
     <Dialog open={Boolean(conflictPayload)} title="Найдено пересечение" description="Проверьте расписание перед созданием занятия." onClose={() => { setConflictPayload(null); setConflicts([]); }}>
@@ -660,13 +693,12 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
 
     {/* ── Reschedule dialog (US-05) ────────────────────────────────────── */}
     <Dialog
-      open={Boolean(rescheduleState)}
+      open={Boolean(rescheduleState && !rescheduleConflict)}
       title="Перенести занятие"
       description="Выберите новую дату и время. Остальные данные сохранятся."
-      onClose={() => { setRescheduleState(null); setRescheduleError(null); }}
+      onClose={() => { if (!rescheduleApplying) { setRescheduleState(null); setRescheduleError(null); setRescheduleConflict(null); } }}
     >
       <div className="conflict-warning-content">
-        {rescheduleError ? <p style={{ color: "var(--danger)", fontSize: "0.85rem", margin: 0 }}>{rescheduleError}</p> : null}
         <div className="form-field">
           <label htmlFor="reschedule-date">Новая дата</label>
           <input
@@ -674,7 +706,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
             className="input"
             type="date"
             value={rescheduleState?.date ?? ""}
-            onChange={(e) => { setRescheduleError(null); setRescheduleState((s) => s ? { ...s, date: e.target.value } : s); }}
+            onChange={(e) => { setRescheduleError(null); setRescheduleConflict(null); setRescheduleState((s) => s ? { ...s, date: e.target.value } : s); }}
           />
         </div>
         <div className="form-field">
@@ -684,12 +716,31 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
             className="input"
             type="time"
             value={rescheduleState?.time ?? ""}
-            onChange={(e) => { setRescheduleError(null); setRescheduleState((s) => s ? { ...s, time: e.target.value } : s); }}
+            onChange={(e) => { setRescheduleError(null); setRescheduleConflict(null); setRescheduleState((s) => s ? { ...s, time: e.target.value } : s); }}
           />
         </div>
+        {rescheduleError ? <p className="form-field__error" role="alert">{rescheduleError}</p> : null}
         <div className="dialog__actions">
-          <button className="button button--secondary" type="button" onClick={() => { setRescheduleState(null); setRescheduleError(null); }}>Отмена</button>
-          <button className="button button--primary" type="button" disabled={rescheduleApplying} onClick={applyReschedule}>{rescheduleApplying ? "Сохраняем…" : "Сохранить перенос"}</button>
+          <button className="button button--secondary" type="button" disabled={rescheduleApplying} onClick={() => { setRescheduleState(null); setRescheduleError(null); }}>Отмена</button>
+          <button className="button button--primary" type="button" disabled={rescheduleApplying} onClick={() => { void applyReschedule(); }}>{rescheduleApplying ? "Сохраняем…" : "Сохранить перенос"}</button>
+        </div>
+      </div>
+    </Dialog>
+
+    <Dialog
+      open={Boolean(rescheduleConflict)}
+      title="Найдено пересечение"
+      description="Проверьте расписание перед переносом занятия."
+      onClose={() => { if (!rescheduleApplying) setRescheduleConflict(null); }}
+    >
+      <div className="conflict-warning-content">
+        <p>Новое время пересекается с другими занятиями. Перенос ещё не выполнен.</p>
+        <div className="conflict-list" role="list" aria-label="Конфликтующие занятия при переносе">
+          {rescheduleConflict?.conflicts.map((lesson) => <div className="conflict-item" role="listitem" key={lesson.id}><strong>{lesson.title}</strong><span>{formatConflictRange(lesson.starts_at, lesson.duration_minutes, timezone)}</span></div>)}
+        </div>
+        <div className="dialog__actions">
+          <button className="button button--secondary" type="button" disabled={rescheduleApplying} onClick={() => { setRescheduleConflict(null); }}>Изменить время</button>
+          <button className="button button--primary" type="button" disabled={rescheduleApplying} onClick={() => { void applyReschedule(true); }}>{rescheduleApplying ? "Переносим…" : "Перенести несмотря на конфликт"}</button>
         </div>
       </div>
     </Dialog>

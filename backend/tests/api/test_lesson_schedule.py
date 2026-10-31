@@ -10,7 +10,7 @@ from sqlalchemy.inspection import inspect
 
 from app.core.config import get_settings
 from app.core.security import TokenService, utc_now
-from app.models.enums import RoleCode
+from app.models.enums import AttendanceValue, RoleCode
 from app.models.lesson import Lesson
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
@@ -479,19 +479,62 @@ async def test_cancel_rejects_invalid_reason_or_extra_fields(
     assert lesson.cancellation_reason is None
 
 
-async def test_cancel_rejects_in_progress(api_context: ApiTestContext) -> None:
-    teacher, token, student, _ = await participants(api_context)
+@pytest.mark.parametrize(
+    ("body", "expected_reason"),
+    [({"reason": "  Student is unavailable  "}, "Student is unavailable"), (None, None)],
+)
+async def test_cancel_in_progress_preserves_attendance_and_is_idempotent(
+    api_context: ApiTestContext,
+    body: dict[str, str] | None,
+    expected_reason: str | None,
+) -> None:
+    teacher, token, student, student_token = await participants(api_context)
     lesson = await store_lesson(
         api_context, teacher, student, utc_now() - timedelta(minutes=30)
     )
-    response = await api_context.client.post(
-        f"/api/v1/lessons/{lesson.id}/cancel", headers=auth(token)
+    path = f"/api/v1/lessons/{lesson.id}"
+    attendance = await api_context.client.put(
+        f"{path}/attendance", headers=auth(token), json={"attendance": "present"}
+    )
+    await api_context.session.refresh(lesson)
+    attendance_updated_at = lesson.attendance_updated_at
+    if body is None:
+        response = await api_context.client.post(f"{path}/cancel", headers=auth(token))
+    else:
+        response = await api_context.client.post(f"{path}/cancel", headers=auth(token), json=body)
+    await api_context.session.refresh(lesson)
+    cancelled_at = lesson.cancelled_at
+    repeated = await api_context.client.post(
+        f"{path}/cancel", headers=auth(token), json={"reason": "Different reason"}
+    )
+    blocked_attendance = await api_context.client.put(
+        f"{path}/attendance", headers=auth(token), json={"attendance": "absent"}
+    )
+    student_get = await api_context.client.get(path, headers=auth(student_token))
+    student_search = await api_context.client.post(
+        "/api/v1/lessons/search", headers=auth(student_token), json={}
     )
     await api_context.session.refresh(lesson)
 
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "lesson_not_cancellable"
-    assert lesson.cancelled_at is None
+    assert attendance.status_code == 200
+    assert response.status_code == repeated.status_code == 200
+    assert response.json()["status"] == repeated.json()["status"] == "cancelled"
+    assert response.json()["cancellation_reason"] == expected_reason
+    assert repeated.json()["cancellation_reason"] == expected_reason
+    assert response.json()["attendance"] == repeated.json()["attendance"] == "present"
+    assert cancelled_at is not None
+    assert lesson.cancelled_at == cancelled_at
+    assert lesson.cancellation_reason == expected_reason
+    assert lesson.attendance == AttendanceValue.PRESENT
+    assert attendance_updated_at is not None
+    assert lesson.attendance_updated_at == attendance_updated_at
+    assert blocked_attendance.status_code == 409
+    assert blocked_attendance.json()["error"]["code"] == "attendance_not_available"
+    assert student_get.json()["status"] == "cancelled"
+    assert student_get.json()["cancellation_reason"] == expected_reason
+    searched = next(item for item in student_search.json() if item["id"] == str(lesson.id))
+    assert searched["status"] == "cancelled"
+    assert searched["cancellation_reason"] == expected_reason
 
 
 async def test_cancel_rejects_completed(
@@ -528,7 +571,7 @@ async def test_cancel_private_not_found_and_authentication(api_context: ApiTestC
 
 
 @pytest.mark.parametrize("at_end", [False, True])
-async def test_exact_start_and_end_reject_schedule_changes(
+async def test_exact_start_and_end_cancel_boundaries(
     api_context: ApiTestContext,
     monkeypatch: pytest.MonkeyPatch,
     at_end: bool,
@@ -548,8 +591,12 @@ async def test_exact_start_and_end_reject_schedule_changes(
 
     assert reschedule.status_code == 409
     assert reschedule.json()["error"]["code"] == "lesson_not_reschedulable"
-    assert cancel.status_code == 409
-    assert cancel.json()["error"]["code"] == "lesson_not_cancellable"
+    if at_end:
+        assert cancel.status_code == 409
+        assert cancel.json()["error"]["code"] == "lesson_not_cancellable"
+    else:
+        assert cancel.status_code == 200
+        assert cancel.json()["status"] == "cancelled"
 
 
 @pytest.mark.parametrize("action", ["reschedule", "cancel"])

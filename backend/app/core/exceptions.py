@@ -114,7 +114,7 @@ class LessonScheduleUnchangedError(DomainError):
 
 class LessonNotCancellableError(DomainError):
     code = "lesson_not_cancellable"
-    message = "Отменить можно только запланированное занятие."
+    message = "Отменить можно только запланированное или идущее занятие."
 
 
 class AttendanceNotAvailableError(DomainError):

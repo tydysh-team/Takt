@@ -99,6 +99,7 @@ export interface TeacherListItem {
   email: string;
   timezone: string;
   connected_at: string;
+  bio: string | null;
 }
 
 export interface InvitationCreateResponse {

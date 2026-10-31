@@ -7,7 +7,6 @@ import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { SchedulePage } from "../pages/SchedulePage";
-import { TeacherProfilePage } from "../pages/TeacherProfilePage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { StudentDetailPage } from "../pages/StudentDetailPage";
@@ -15,6 +14,7 @@ import { StudentsPage } from "../pages/StudentsPage";
 import { TeacherDetailPage } from "../pages/TeacherDetailPage";
 import { TeachersPage } from "../pages/TeachersPage";
 import { RoleGate, SessionGate } from "./guards";
+import { LegacyTeacherProfileRedirect } from "./LegacyTeacherProfileRedirect";
 
 export const router = createBrowserRouter([
   {
@@ -41,7 +41,6 @@ export const router = createBrowserRouter([
               { path: "/profile", element: <ProfilePage /> },
               { path: "/schedule", element: <SchedulePage /> },
               { path: "/teacher-profile", element: <Navigate to="/profile" replace /> },
-              { path: "/teacher-profile/:id", element: <TeacherProfilePage /> },
               { path: "/homework", element: <PlaceholderPage /> },
               {
                 element: <RoleGate allowed={["TEACHER"]} />,
@@ -55,6 +54,7 @@ export const router = createBrowserRouter([
                 children: [
                   { path: "/teachers", element: <TeachersPage /> },
                   { path: "/teachers/:id", element: <TeacherDetailPage /> },
+                  { path: "/teacher-profile/:id", element: <LegacyTeacherProfileRedirect /> },
                 ],
               },
               { path: "*", element: <NotFoundPage /> },

@@ -119,4 +119,17 @@ describe("auth API contract", () => {
     const body = JSON.parse(init.body) as Record<string, unknown>;
     expect(body.timezone).toBe("Europe/Samara");
   });
+
+  it("sends the CSRF header and refresh cookie credentials on logout", async () => {
+    vi.stubGlobal("document", { cookie: "takt_csrf=logout-token" });
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", request);
+
+    await authApi.logout();
+
+    expect(requestPath(request.mock.calls[0]?.[0] ?? "http://api.example")).toBe("/api/v1/auth/logout");
+    const init = request.mock.calls[0]?.[1];
+    expect(init?.credentials).toBe("include");
+    expect(new Headers(init?.headers).get("X-CSRF-Token")).toBe("logout-token");
+  });
 });

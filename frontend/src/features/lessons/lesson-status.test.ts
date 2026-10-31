@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LessonReadDTO } from "../../api/types";
-import { effectiveLessonStatus, isLessonAttendance, isLessonStatus, lessonAttendanceLabel, lessonStatusLabel } from "./lesson-status";
+import { isLessonAttendance, isLessonStatus, lessonAttendanceLabel, lessonStatus, lessonStatusLabel } from "./lesson-status";
 
 const lesson = (overrides: Omit<Partial<LessonReadDTO>, "status" | "attendance"> & {
   status?: LessonReadDTO["status"] | undefined;
@@ -28,33 +28,29 @@ const lesson = (overrides: Omit<Partial<LessonReadDTO>, "status" | "attendance">
   return result;
 };
 
-describe("effectiveLessonStatus", () => {
-  it("uses exact boundaries and time-derived statuses", () => {
-    const base = lesson({ status: "planned" });
-    expect(effectiveLessonStatus(base, new Date("2026-11-01T09:59:59Z"))).toBe("planned");
-    expect(effectiveLessonStatus(base, new Date("2026-11-01T10:00:00Z"))).toBe("in_progress");
-    expect(effectiveLessonStatus(base, new Date("2026-11-01T10:59:59Z"))).toBe("in_progress");
-    expect(effectiveLessonStatus(base, new Date("2026-11-01T11:00:00Z"))).toBe("completed");
-  });
-
-  it("gives cancelled priority and keeps it over time", () => {
-    const cancelled = lesson({ status: "cancelled", starts_at: "2026-10-01T10:00:00Z" });
-    expect(effectiveLessonStatus(cancelled, new Date("2026-12-01T10:00:00Z"))).toBe("cancelled");
+describe("lessonStatus", () => {
+  it("uses the API status even when the client clock is wrong", () => {
+    const planned = lesson({ status: "planned", starts_at: "2026-01-01T10:00:00Z" });
+    const inProgress = lesson({ status: "in_progress", starts_at: "2030-01-01T10:00:00Z" });
+    expect(lessonStatus(planned)).toBe("planned");
+    expect(lessonStatus(inProgress)).toBe("in_progress");
+    expect(lessonStatusLabel(inProgress)).toBe("Идёт");
+    expect(lessonStatus(lesson({ status: "cancelled" }))).toBe("cancelled");
+    expect(lessonStatus(lesson({ status: "completed" }))).toBe("completed");
   });
 
   it("never silently substitutes an invalid or missing status", () => {
     const missingStatus = { ...lesson({}), status: undefined } as unknown as LessonReadDTO;
-    expect(effectiveLessonStatus(missingStatus)).toBe("unknown");
-    expect(effectiveLessonStatus(lesson({ status: "unknown-status" as LessonReadDTO["status"] }))).toBe("unknown");
+    expect(lessonStatus(missingStatus)).toBe("unknown");
+    expect(lessonStatus(lesson({ status: "unknown-status" as LessonReadDTO["status"] }))).toBe("unknown");
     expect(lessonStatusLabel(missingStatus)).toBe("Статус неизвестен");
     expect(isLessonStatus(undefined)).toBe(false);
     expect(isLessonStatus("planned")).toBe(true);
   });
 
-  it("uses current time after reschedule without losing the flag", () => {
+  it("keeps the API status after reschedule", () => {
     const rescheduled = lesson({ starts_at: "2026-11-08T09:00:00Z", status: "planned", is_rescheduled: true });
-    expect(effectiveLessonStatus(rescheduled, new Date("2026-11-08T08:59:59Z"))).toBe("planned");
-    expect(effectiveLessonStatus(rescheduled, new Date("2026-11-08T09:00:00Z"))).toBe("in_progress");
+    expect(lessonStatus(rescheduled)).toBe("planned");
   });
 });
 

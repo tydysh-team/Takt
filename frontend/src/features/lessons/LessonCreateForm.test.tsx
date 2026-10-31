@@ -5,6 +5,19 @@ import { LessonCreateForm } from "./LessonCreateForm";
 import { lessonFormErrors, minuteSuggestions, parseLessonDate } from "./lesson-form-validation";
 
 describe("lesson creation form", () => {
+  it("shows backend past-time rejection beside date and time without local-clock gating", () => {
+    const html = renderToStaticMarkup(<LessonCreateForm
+      students={[{ id: "student-id", first_name: "Иван", last_name: "Смирнов", middle_name: null }]}
+      timezone="Europe/Moscow"
+      pending={false}
+      serverTimeError="Время занятия должно быть в будущем."
+      onCancel={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+    expect(html).toContain('id="lesson-server-time-error"');
+    expect(html).toContain("Время занятия должно быть в будущем.");
+    expect(html).toMatch(/id="lesson-date"[^>]*aria-invalid="true"/);
+  });
   it("uses connected students, title, optional description and standard duration select", () => {
     const html = renderToStaticMarkup(<LessonCreateForm
       students={[{ id: "student-id", first_name: "Иван", last_name: "Смирнов", middle_name: null }]}

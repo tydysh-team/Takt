@@ -1,5 +1,5 @@
 import type { LessonReadDTO } from "../../api/types";
-import { effectiveLessonStatus } from "./lesson-status";
+import { lessonStatus } from "./lesson-status";
 
 export interface LessonStack {
   /** Id of the first lesson in the stack; unique inside one day. */
@@ -72,13 +72,13 @@ export function stackDurationMinutes(stack: LessonStack): number {
  * instead of a warning. A real scheduling conflict (warning) needs at least two
  * lessons that are still actionable (planned / in_progress).
  */
-export function classifyStack(stack: LessonStack, now: Date = new Date()): StackConflictInfo {
+export function classifyStack(stack: LessonStack): StackConflictInfo {
   const countedLessons: LessonReadDTO[] = [];
   const liveLessons: LessonReadDTO[] = [];
   const cancelledLessons: LessonReadDTO[] = [];
 
   for (const lesson of stack.lessons) {
-    const status = effectiveLessonStatus(lesson, now);
+    const status = lessonStatus(lesson);
     if (status === "cancelled") {
       cancelledLessons.push(lesson);
       continue;

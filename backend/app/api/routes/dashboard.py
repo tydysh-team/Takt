@@ -37,6 +37,7 @@ def _teacher(record: ConnectionRecord) -> TeacherListItem:
         email=record.user.email,
         timezone=record.profile.timezone,
         connected_at=record.relation.created_at,
+        bio=record.profile.bio,
     )
 
 

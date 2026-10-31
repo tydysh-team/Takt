@@ -1,4 +1,6 @@
 import { environment } from "../shared/config/environment";
+import { apiSettings } from "../shared/config/api-settings";
+import { resolveApiUrl } from "../shared/config/api-url";
 
 import type { AccessTokenResponse, ApiErrorEnvelope } from "./types";
 
@@ -39,8 +41,7 @@ let refreshRequest: Promise<string> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
 export function buildApiUrl(path: string): URL {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return new URL(normalizedPath, `${environment.apiBaseUrl}/`);
+  return resolveApiUrl(environment.apiBaseUrl, path, apiSettings.prefix);
 }
 
 export function setAccessToken(token: string | null): void {
@@ -56,12 +57,13 @@ export function onSessionExpired(handler: (() => void) | null): void {
 }
 
 function csrfToken(): string | null {
+  const cookiePrefix = `${apiSettings.csrfCookieName}=`;
   const cookie = document.cookie
     .split(";")
     .map((part) => part.trim())
-    .find((part) => part.startsWith("takt_csrf="));
+    .find((part) => part.startsWith(cookiePrefix));
 
-  return cookie ? decodeURIComponent(cookie.slice("takt_csrf=".length)) : null;
+  return cookie ? decodeURIComponent(cookie.slice(cookiePrefix.length)) : null;
 }
 
 function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
@@ -111,7 +113,7 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
   }
   if (csrf) {
     const token = csrfToken();
-    if (token) headers.set("X-CSRF-Token", token);
+    if (token) headers.set(apiSettings.csrfHeaderName, token);
   }
 
   const requestInit: RequestInit = {
@@ -141,7 +143,7 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
 export async function refreshAccessToken(): Promise<string> {
   if (refreshRequest) return refreshRequest;
 
-  refreshRequest = execute<AccessTokenResponse>("/api/v1/auth/refresh", {
+  refreshRequest = execute<AccessTokenResponse>("/auth/refresh", {
     method: "POST",
     authenticated: false,
     retryAfterRefresh: false,

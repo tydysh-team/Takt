@@ -25,28 +25,11 @@ export function lessonAttendanceLabel(lesson: LessonReadDTO): string {
   return isLessonAttendance(lesson.attendance) ? lessonAttendanceLabels[lesson.attendance] : "Статус посещения неизвестен";
 }
 
-/**
- * Determines the lifecycle status for the temporary local US-05…US-09 layer.
- * `cancelled` is persistent and has priority; `planned`/`in_progress`/`completed`
- * are time-derived. An invalid persisted status is never silently replaced.
- */
-export function effectiveLessonStatus(
-  lesson: LessonReadDTO,
-  now: Date = new Date(),
-): LessonLifecycleStatus | "unknown" {
-  if (!isLessonStatus(lesson.status)) return "unknown";
-  if (lesson.status === "cancelled") return "cancelled";
-
-  const start = Date.parse(lesson.starts_at);
-  if (!Number.isFinite(start) || !Number.isFinite(lesson.duration_minutes) || lesson.duration_minutes <= 0) {
-    return "unknown";
-  }
-  const end = start + lesson.duration_minutes * 60_000;
-  const current = now.getTime();
-  return current < start ? "planned" : current < end ? "in_progress" : "completed";
+export function lessonStatus(lesson: LessonReadDTO): LessonLifecycleStatus | "unknown" {
+  return isLessonStatus(lesson.status) ? lesson.status : "unknown";
 }
 
-export function lessonStatusLabel(lesson: LessonReadDTO, now: Date = new Date()): string {
-  const status = effectiveLessonStatus(lesson, now);
+export function lessonStatusLabel(lesson: LessonReadDTO): string {
+  const status = lessonStatus(lesson);
   return status === "unknown" ? "Статус неизвестен" : lessonStatusLabels[status];
 }

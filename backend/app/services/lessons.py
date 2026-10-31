@@ -211,7 +211,10 @@ class LessonService:
             if lesson.cancelled_at is not None:
                 await self._session.commit()
                 return record
-            if calculate_lesson_status(lesson, now) != LessonStatus.PLANNED:
+            if calculate_lesson_status(lesson, now) not in (
+                LessonStatus.PLANNED,
+                LessonStatus.IN_PROGRESS,
+            ):
                 raise LessonNotCancellableError()
 
             lesson.cancelled_at = now

@@ -20,7 +20,7 @@ const currentUserSchema = z.object({
 
 export const authApi = {
   currentUser: async (): Promise<CurrentUser> => {
-    const payload = await apiRequest<unknown>("/api/v1/me", { retryAfterRefresh: false });
+    const payload = await apiRequest<unknown>("/me", { retryAfterRefresh: false });
     const result = currentUserSchema.safeParse(payload);
     if (!result.success) {
       throw new ApiError(
@@ -32,21 +32,21 @@ export const authApi = {
     return result.data;
   },
   login: (payload: LoginPayload) =>
-    apiRequest<AccessTokenResponse>("/api/v1/auth/login", {
+    apiRequest<AccessTokenResponse>("/auth/login", {
       method: "POST",
       body: payload,
       authenticated: false,
       retryAfterRefresh: false,
     }),
   register: (payload: RegisterPayload) =>
-    apiRequest<RegisterResponse>("/api/v1/auth/register", {
+    apiRequest<RegisterResponse>("/auth/register", {
       method: "POST",
       body: payload,
       authenticated: false,
       retryAfterRefresh: false,
     }),
   logout: () =>
-    apiRequest<undefined>("/api/v1/auth/logout", {
+    apiRequest<undefined>("/auth/logout", {
       method: "POST",
       authenticated: false,
       retryAfterRefresh: false,

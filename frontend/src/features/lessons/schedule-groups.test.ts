@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { LessonReadDTO } from "../../api/types";
 import { classifyStack, groupLessonStacks, type LessonStack } from "./schedule-groups";
 
-const NOW = new Date("2026-11-01T12:00:00Z");
-
 const lesson = (
   id: string,
   startHour: number,
@@ -53,7 +51,7 @@ describe("groupLessonStacks", () => {
 
 describe("classifyStack", () => {
   it("flags two actionable overlapping lessons as a warning", () => {
-    const info = classifyStack(singleStack([lesson("a", 13, 0, 60, "planned"), lesson("b", 13, 30, 60, "planned")]), NOW);
+    const info = classifyStack(singleStack([lesson("a", 13, 0, 60, "planned"), lesson("b", 13, 30, 60, "planned")]));
     expect(info.kind).toBe("warning");
     expect(info.counted).toBe(2);
     expect(info.liveCount).toBe(2);
@@ -61,7 +59,7 @@ describe("classifyStack", () => {
   });
 
   it("treats completed-only overlaps as neutral, not a warning", () => {
-    const info = classifyStack(singleStack([lesson("a", 9, 0, 60, "planned"), lesson("b", 9, 30, 60, "planned")]), NOW);
+    const info = classifyStack(singleStack([lesson("a", 9, 0, 60, "completed"), lesson("b", 9, 30, 60, "completed")]));
     expect(info.kind).toBe("neutral");
     expect(info.counted).toBe(2);
     expect(info.liveCount).toBe(0);
@@ -73,7 +71,7 @@ describe("classifyStack", () => {
       lesson("b", 13, 30, 60, "planned"),
       lesson("c", 13, 15, 60, "cancelled"),
       lesson("d", 13, 45, 60, "cancelled"),
-    ]), NOW);
+    ]));
     expect(info.cancelledLessons).toHaveLength(2);
     expect(info.counted).toBe(2);
     expect(info.liveCount).toBe(2);
@@ -85,15 +83,14 @@ describe("classifyStack", () => {
       lesson("a", 13, 0, 60, "planned"),
       lesson("c", 13, 30, 60, "cancelled"),
       lesson("d", 13, 15, 60, "cancelled"),
-    ]), NOW);
+    ]));
     expect(info.counted).toBe(1);
     expect(info.cancelledLessons).toHaveLength(2);
     expect(info.kind).toBe("none");
   });
 
   it("warns for in-progress overlaps", () => {
-    const now = new Date("2026-11-01T13:30:00Z");
-    const info = classifyStack(singleStack([lesson("a", 13, 0, 60, "planned"), lesson("b", 13, 30, 60, "planned")]), now);
+    const info = classifyStack(singleStack([lesson("a", 13, 0, 60, "in_progress"), lesson("b", 13, 30, 60, "in_progress")]));
     expect(info.liveCount).toBe(2);
     expect(info.kind).toBe("warning");
   });
