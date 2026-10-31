@@ -28,6 +28,16 @@ class InvalidCredentialsError(DomainError):
     message = "Неверный email или пароль"
 
 
+class CurrentPasswordInvalidError(DomainError):
+    code = "current_password_invalid"
+    message = "Неверный текущий пароль."
+
+
+class PasswordUnchangedError(DomainError):
+    code = "password_unchanged"
+    message = "Новый пароль должен отличаться от текущего."
+
+
 class AuthenticationRequiredError(DomainError):
     code = "authentication_required"
     message = "Требуется аутентификация."

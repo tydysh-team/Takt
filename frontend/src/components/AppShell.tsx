@@ -35,7 +35,9 @@ export function AppShell() {
   const roleItem = hasRole(user, "TEACHER")
     ? { to: "/students", label: "Ученики", icon: "users" }
     : { to: "/teachers", label: "Преподаватели", icon: "users" };
-  const items = [...commonItems.slice(0, 1), roleItem, ...commonItems.slice(1)];
+  const items = hasRole(user, "ADMIN")
+    ? commonItems.slice(3)
+    : [...commonItems.slice(0, 1), roleItem, ...commonItems.slice(1)];
 
   const handleLogout = async () => {
     try {
@@ -61,7 +63,7 @@ export function AppShell() {
         <button className="sidebar-scrim" aria-label="Закрыть меню" onClick={() => { setMenuOpen(false); }} />
       ) : null}
       <aside id="application-sidebar" className={`sidebar ${menuOpen ? "sidebar--open" : ""}`}>
-        <NavLink className="sidebar__brand" to="/dashboard" onClick={() => { setMenuOpen(false); }}>
+        <NavLink className="sidebar__brand" to={hasRole(user, "ADMIN") ? "/profile" : "/dashboard"} onClick={() => { setMenuOpen(false); }}>
           <img className="brand-mark" src="/takt-mark.png" alt="" aria-hidden="true" />
           <span>Takt</span>
         </NavLink>

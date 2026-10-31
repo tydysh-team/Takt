@@ -69,6 +69,15 @@ class LoginRequest(BaseModel):
     _email_normalizer = field_validator("email", mode="before")(_normalize_email)
 
 
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: SecretStr
+    new_password: SecretStr
+
+    _password_policy = field_validator("new_password", mode="before")(_validate_password)
+
+
 class AccessTokenResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

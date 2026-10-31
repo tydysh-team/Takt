@@ -132,4 +132,25 @@ describe("auth API contract", () => {
     expect(init?.credentials).toBe("include");
     expect(new Headers(init?.headers).get("X-CSRF-Token")).toBe("logout-token");
   });
+
+  it("sends password change with the access token and CSRF header", async () => {
+    vi.stubGlobal("document", { cookie: "takt_csrf=change-token" });
+    setAccessToken("access-token");
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", request);
+
+    await authApi.changePassword({ current_password: "old-password", new_password: "new-password" });
+
+    expect(requestPath(request.mock.calls[0]?.[0] ?? "http://api.example"))
+      .toBe("/api/v1/auth/change-password");
+    const init = request.mock.calls[0]?.[1];
+    expect(init?.method).toBe("POST");
+    expect(init?.credentials).toBe("include");
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer access-token");
+    expect(new Headers(init?.headers).get("X-CSRF-Token")).toBe("change-token");
+    if (typeof init?.body !== "string") throw new Error("Expected a JSON request body");
+    expect(JSON.parse(init.body)).toEqual({
+      current_password: "old-password", new_password: "new-password",
+    });
+  });
 });

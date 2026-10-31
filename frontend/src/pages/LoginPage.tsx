@@ -24,6 +24,7 @@ export function LoginPage() {
   const location = useLocation();
   const [serverError, setServerError] = useState<string | null>(null);
   const registered = (location.state as { registered?: boolean } | null)?.registered === true;
+  const passwordChanged = (location.state as { passwordChanged?: boolean } | null)?.passwordChanged === true;
   const {
     register,
     handleSubmit,
@@ -33,15 +34,15 @@ export function LoginPage() {
 
   const submit = handleSubmit(async (values) => {
     setServerError(null);
-    let authenticated = false;
+    let destination: string | null = null;
     try {
-      await login(values);
-      authenticated = true;
+      const user = await login(values);
+      destination = user.role === "ADMIN" ? "/profile" : "/dashboard";
     } catch (error) {
       setServerError(readableError(error));
     }
     resetField("password");
-    if (authenticated) await navigate("/dashboard", { replace: true });
+    if (destination) await navigate(destination, { replace: true });
   });
 
   return (
@@ -53,6 +54,7 @@ export function LoginPage() {
           <p>Продолжите работу в своём учебном пространстве.</p>
         </div>
         {registered ? <Alert>Аккаунт создан. Теперь войдите в систему.</Alert> : null}
+        {passwordChanged ? <Alert>Пароль изменён. Войдите заново</Alert> : null}
         {serverError ? <Alert tone="error">{serverError}</Alert> : null}
         <form className="form-stack" onSubmit={(event) => void submit(event)} noValidate>
           <Input

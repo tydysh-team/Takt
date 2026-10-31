@@ -31,6 +31,7 @@ export const router = createBrowserRouter([
   {
     element: <SessionGate />,
     children: [
+      { element: <AppShell />, children: [{ path: "/profile", element: <ProfilePage /> }] },
       {
         element: <RoleGate allowed={["TEACHER", "STUDENT"]} />,
         children: [
@@ -38,7 +39,6 @@ export const router = createBrowserRouter([
             element: <AppShell />,
             children: [
               { path: "/dashboard", element: <DashboardPage /> },
-              { path: "/profile", element: <ProfilePage /> },
               { path: "/schedule", element: <SchedulePage /> },
               { path: "/teacher-profile", element: <Navigate to="/profile" replace /> },
               { path: "/homework", element: <PlaceholderPage /> },

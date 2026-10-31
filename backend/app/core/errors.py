@@ -27,6 +27,7 @@ from app.core.exceptions import (
     LessonSeriesTimeInvalidError,
     LessonStartInPastError,
     LessonTimeConflictError,
+    PasswordUnchangedError,
     ProfileNotFoundError,
     RateLimitExceededError,
     StudentNotAvailableError,
@@ -144,6 +145,7 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
             LessonScheduleUnchangedError,
             LessonNotCancellableError,
             AttendanceNotAvailableError,
+            PasswordUnchangedError,
         ),
     ):
         status_code = 409

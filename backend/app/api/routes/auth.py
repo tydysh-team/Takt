@@ -7,17 +7,20 @@ from app.api.cookies import clear_auth_cookies, set_auth_cookies
 from app.api.dependencies.auth import (
     enforce_rate_limit,
     get_auth_service,
+    get_current_active_user,
     get_rate_limiter,
     get_token_service,
     validate_csrf,
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import error_response
-from app.core.exceptions import AuthenticationRequiredError
-from app.core.rate_limit import RateLimiter
+from app.core.exceptions import AuthenticationRequiredError, RateLimitExceededError
+from app.core.rate_limit import RateLimiter, RateLimitKeyFactory
 from app.core.security import TokenService
+from app.models.user import User
 from app.schemas.auth import (
     AccessTokenResponse,
+    ChangePasswordRequest,
     LoginRequest,
     RegisterRequest,
     RegisterResponse,
@@ -168,6 +171,53 @@ async def logout(
 ) -> Response:
     validate_csrf(request, settings, tokens)
     await service.logout(request.cookies.get(settings.refresh_cookie_name))
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    clear_auth_cookies(response, settings)
+    return response
+
+
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Change the current user's password",
+    description="Requires an access JWT and CSRF token; revokes all refresh sessions on success.",
+    responses={
+        400: {"model": ErrorResponse, "description": "Current password is incorrect"},
+        401: {"model": ErrorResponse, "description": "Authentication required"},
+        403: {"model": ErrorResponse, "description": "CSRF validation failed"},
+        409: {"model": ErrorResponse, "description": "Password is unchanged"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+    },
+)
+async def change_password(
+    payload: ChangePasswordRequest,
+    request: Request,
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tokens: Annotated[TokenService, Depends(get_token_service)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+) -> Response:
+    validate_csrf(request, settings, tokens)
+    await enforce_rate_limit(
+        request=request,
+        scope="auth:change-password:ip",
+        limit=settings.login_rate_limit,
+        settings=settings,
+        limiter=limiter,
+    )
+    user_limit = await limiter.check(
+        scope="auth:change-password:user",
+        subject_key=RateLimitKeyFactory(
+            settings.rate_limit_hmac_key.get_secret_value()
+        ).for_user(str(user.id)),
+        limit=settings.login_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
+    if not user_limit.allowed:
+        raise RateLimitExceededError(retry_after=user_limit.retry_after)
+    await service.change_password(user.id, payload)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     clear_auth_cookies(response, settings)
     return response

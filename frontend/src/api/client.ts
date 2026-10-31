@@ -37,6 +37,7 @@ interface RequestOptions {
 }
 
 let accessToken: string | null = null;
+let tokenGeneration = 0;
 let refreshRequest: Promise<string> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
@@ -46,6 +47,7 @@ export function buildApiUrl(path: string): URL {
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  tokenGeneration += 1;
 }
 
 export function getAccessToken(): string | null {
@@ -143,6 +145,8 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
 export async function refreshAccessToken(): Promise<string> {
   if (refreshRequest) return refreshRequest;
 
+  const generationAtStart = tokenGeneration;
+
   refreshRequest = execute<AccessTokenResponse>("/auth/refresh", {
     method: "POST",
     authenticated: false,
@@ -150,11 +154,11 @@ export async function refreshAccessToken(): Promise<string> {
     csrf: true,
   })
     .then((response) => {
-      setAccessToken(response.access_token);
+      if (generationAtStart === tokenGeneration) setAccessToken(response.access_token);
       return response.access_token;
     })
     .catch((error: unknown) => {
-      setAccessToken(null);
+      if (generationAtStart === tokenGeneration) setAccessToken(null);
       throw error;
     })
     .finally(() => {
@@ -195,6 +199,8 @@ export function readableError(error: unknown): string {
 
   const messages: Record<string, string> = {
     invalid_credentials: "Неверный email или пароль.",
+    current_password_invalid: "Неверный текущий пароль.",
+    password_unchanged: "Новый пароль должен отличаться от текущего.",
     email_already_registered: "Пользователь с таким email уже зарегистрирован.",
     rate_limit_exceeded: "Слишком много попыток. Повторите позже.",
     invitation_invalid: "Код недействителен, истёк или уже использован.",

@@ -8,6 +8,7 @@ import {
   apiRequest,
   getAccessToken,
   onSessionExpired,
+  refreshAccessToken,
   setAccessToken,
 } from "./client";
 
@@ -123,5 +124,21 @@ describe("API client session behavior", () => {
     expect(refreshCalls).toBe(1);
     expect(new Headers(refreshRequestInits[0]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
     expect(getAccessToken()).toBe("rotated-token");
+  });
+
+  it("does not restore a token from a refresh completed after session clearing", async () => {
+    let releaseRefresh: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    vi.stubGlobal("document", { cookie: "takt_csrf=csrf-value" });
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(async () => {
+      await gate;
+      return jsonResponse({ access_token: "late-token", token_type: "bearer", expires_in: 900 });
+    }));
+    setAccessToken("old-token");
+    const pending = refreshAccessToken();
+    setAccessToken(null);
+    releaseRefresh?.();
+    await pending;
+    expect(getAccessToken()).toBeNull();
   });
 });

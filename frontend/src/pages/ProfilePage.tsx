@@ -14,6 +14,7 @@ import { Card } from "../components/ui/Card";
 import { ErrorState, LoadingState } from "../components/ui/Feedback";
 import { Input, Select, Textarea } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
+import { ChangePasswordForm } from "../features/auth/ChangePasswordForm";
 import { profileSchema, type ProfileFormValues } from "../features/profile/profile-schema";
 import { formatFullName, roleLabel } from "../shared/format";
 import { timezoneOptions } from "../shared/timezones";
@@ -159,15 +160,17 @@ export function ProfilePage() {
       </div>
       {tab === "main" ? (
         <Card className="profile-card"><ProfileForm profile={data} /></Card>
+      ) : tab === "security" ? (
+        <Card className="profile-card"><ChangePasswordForm /></Card>
       ) : (
         <Card className="placeholder-panel">
           <span className="badge">Скоро</span>
-          <h2>{tab === "security" ? "Безопасность аккаунта" : "Настройки уведомлений"}</h2>
-          <p>{tab === "security" ? "Смена пароля, двухфакторная защита и управление сессиями появятся позже." : "Управление каналами и частотой уведомлений появится позже."}</p>
+          <h2>Настройки уведомлений</h2>
+          <p>Управление каналами и частотой уведомлений появится позже.</p>
         </Card>
       )}
         </section>
-        <aside className="profile-side-column">
+        {data.role !== "ADMIN" ? <aside className="profile-side-column">
           {data.role === "STUDENT" ? <>
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Мои преподаватели</h2><Link to="/teachers">Все преподаватели →</Link></div><div className="profile-person-list">{(teachers.data ?? []).slice(0, 4).map((person) => <Link to={`/teachers/${person.id}`} key={person.id}><Avatar firstName={person.first_name} lastName={person.last_name} size="small" /><span><strong>{formatFullName(person)}</strong><small>{person.email}</small></span><b>Преподаватель</b><i>›</i></Link>)}</div>{teachers.data?.length === 0 ? <p className="profile-side-muted">Вы пока не подключили преподавателей.</p> : null}</Card>
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Ближайшие занятия</h2><Link to="/schedule">Все занятия →</Link></div><p className="profile-side-muted">Актуальные занятия доступны в расписании.</p><Link className="profile-side-cta" to="/schedule">Перейти к расписанию →</Link></Card>
@@ -176,7 +179,7 @@ export function ProfilePage() {
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Мои ученики</h2><Link to="/students">Все ученики →</Link></div><div className="profile-person-list">{(students.data ?? []).slice(0, 5).map((person) => <Link to={`/students/${person.id}`} key={person.id}><Avatar firstName={person.first_name} lastName={person.last_name} size="small" /><span><strong>{formatFullName(person)}</strong><small>{person.email}</small></span><b>{person.status === "ACTIVE" ? "Подключён" : "Неактивен"}</b><i>›</i></Link>)}</div>{students.data?.length === 0 ? <p className="profile-side-muted">У вас пока нет подключённых учеников.</p> : null}</Card>
             <Card className="profile-side-card"><div className="profile-side-heading"><h2>Активные приглашения</h2><Link to="/students">Все приглашения →</Link></div><div className="profile-invitation-list">{(invitations.data ?? []).filter((item) => item.status === "ACTIVE").slice(0, 3).map((item) => <div key={item.id}><span className="profile-invitation-dot" /><span><strong>Приглашение</strong><small>Создано {new Date(item.created_at).toLocaleDateString("ru-RU")}</small></span><b>Ожидает ответа</b></div>)}</div>{invitations.data?.filter((item) => item.status === "ACTIVE").length === 0 ? <p className="profile-side-muted">Активных приглашений нет.</p> : null}</Card>
           </>}
-        </aside>
+        </aside> : null}
       </div>
     </div>
   );

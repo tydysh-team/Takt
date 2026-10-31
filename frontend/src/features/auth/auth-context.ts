@@ -12,9 +12,10 @@ export type SessionStatus = "bootstrapping" | "authenticated" | "unauthenticated
 export interface AuthContextValue {
   status: SessionStatus;
   user: CurrentUser | null;
-  login: (payload: LoginPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<CurrentUser>;
   register: (payload: RegisterPayload) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
+  endSession: () => void;
   updateCurrentUser: (user: CurrentUser) => void;
 }
 

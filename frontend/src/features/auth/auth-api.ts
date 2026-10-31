@@ -52,4 +52,10 @@ export const authApi = {
       retryAfterRefresh: false,
       csrf: true,
     }),
+  changePassword: (payload: { current_password: string; new_password: string }) =>
+    apiRequest<undefined>("/auth/change-password", {
+      method: "POST",
+      body: payload,
+      csrf: true,
+    }),
 };
