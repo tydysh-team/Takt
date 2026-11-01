@@ -22,11 +22,20 @@ from app.schemas.auth import (
     AccessTokenResponse,
     ChangePasswordRequest,
     LoginRequest,
+    MfaBackupCodesResponse,
+    MfaCodeRequest,
+    MfaLoginVerifyRequest,
+    MfaManageRequest,
+    MfaPasswordRequest,
+    MfaRequiredResponse,
+    MfaSetupResponse,
+    MfaStatusResponse,
     RegisterRequest,
     RegisterResponse,
 )
 from app.schemas.error import ErrorResponse
 from app.services.auth import AuthService, LoginResult
+from app.services.mfa import MfaChallengeResult
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -84,7 +93,7 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=AccessTokenResponse,
+    response_model=AccessTokenResponse | MfaRequiredResponse,
     summary="Create an authenticated session",
     description="Returns a short-lived access JWT and sets rotating refresh and CSRF cookies.",
     responses=common_auth_errors,
@@ -96,7 +105,7 @@ async def login(
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
     limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
-) -> AccessTokenResponse:
+) -> AccessTokenResponse | MfaRequiredResponse:
     await enforce_rate_limit(
         request=request,
         scope="auth:login",
@@ -105,6 +114,9 @@ async def login(
         limiter=limiter,
     )
     result = await service.login(payload)
+    if isinstance(result, MfaChallengeResult):
+        clear_auth_cookies(response, settings)
+        return MfaRequiredResponse(challenge=result.challenge, expires_in=result.expires_in)
     set_auth_cookies(
         response,
         refresh_token=result.refresh_token,
@@ -112,6 +124,127 @@ async def login(
         settings=settings,
     )
     return _token_response(result, settings)
+
+
+@router.post("/mfa/verify", response_model=AccessTokenResponse)
+async def verify_mfa_login(
+    payload: MfaLoginVerifyRequest,
+    request: Request,
+    response: Response,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+) -> AccessTokenResponse:
+    await enforce_rate_limit(
+        request=request, scope="auth:mfa:verify", limit=settings.login_rate_limit,
+        settings=settings, limiter=limiter,
+    )
+    result = await service.verify_mfa_login(payload.challenge, payload.code)
+    set_auth_cookies(
+        response, refresh_token=result.refresh_token, csrf_token=result.csrf_token,
+        settings=settings,
+    )
+    return _token_response(result, settings)
+
+
+async def _limit_mfa_user(
+    request: Request, user: User, settings: Settings, limiter: RateLimiter, scope: str
+) -> None:
+    await enforce_rate_limit(
+        request=request, scope=f"auth:mfa:{scope}:ip", limit=settings.login_rate_limit,
+        settings=settings, limiter=limiter,
+    )
+    result = await limiter.check(
+        scope=f"auth:mfa:{scope}:user",
+        subject_key=RateLimitKeyFactory(
+            settings.rate_limit_hmac_key.get_secret_value()
+        ).for_user(str(user.id)),
+        limit=settings.login_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
+    if not result.allowed:
+        raise RateLimitExceededError(retry_after=result.retry_after)
+
+
+@router.get("/mfa/status", response_model=MfaStatusResponse)
+async def mfa_status(
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> MfaStatusResponse:
+    return MfaStatusResponse(enabled=await service.mfa.status(user.id))
+
+
+@router.post("/mfa/setup", response_model=MfaSetupResponse)
+async def start_mfa_setup(
+    payload: MfaPasswordRequest,
+    request: Request,
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tokens: Annotated[TokenService, Depends(get_token_service)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+) -> MfaSetupResponse:
+    validate_csrf(request, settings, tokens)
+    await _limit_mfa_user(request, user, settings, limiter, "setup")
+    result = await service.mfa.start_setup(user.id, payload.current_password.get_secret_value())
+    return MfaSetupResponse(
+        secret=result.secret, provisioning_uri=result.provisioning_uri,
+        expires_in=result.expires_in,
+    )
+
+
+@router.post("/mfa/confirm", response_model=MfaBackupCodesResponse)
+async def confirm_mfa_setup(
+    payload: MfaCodeRequest,
+    request: Request,
+    response: Response,
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tokens: Annotated[TokenService, Depends(get_token_service)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+) -> MfaBackupCodesResponse:
+    validate_csrf(request, settings, tokens)
+    await _limit_mfa_user(request, user, settings, limiter, "confirm")
+    codes = await service.mfa.confirm_setup(user.id, payload.code)
+    clear_auth_cookies(response, settings)
+    return MfaBackupCodesResponse(backup_codes=codes)
+
+
+@router.post("/mfa/disable", status_code=status.HTTP_204_NO_CONTENT)
+async def disable_mfa(
+    payload: MfaManageRequest,
+    request: Request,
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tokens: Annotated[TokenService, Depends(get_token_service)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+) -> Response:
+    validate_csrf(request, settings, tokens)
+    await _limit_mfa_user(request, user, settings, limiter, "disable")
+    await service.mfa.disable(user.id, payload.current_password.get_secret_value(), payload.code)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    clear_auth_cookies(response, settings)
+    return response
+
+
+@router.post("/mfa/backup-codes/regenerate", response_model=MfaBackupCodesResponse)
+async def regenerate_mfa_backup_codes(
+    payload: MfaManageRequest,
+    request: Request,
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tokens: Annotated[TokenService, Depends(get_token_service)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+) -> MfaBackupCodesResponse:
+    validate_csrf(request, settings, tokens)
+    await _limit_mfa_user(request, user, settings, limiter, "regenerate")
+    codes = await service.mfa.regenerate(
+        user.id, payload.current_password.get_secret_value(), payload.code
+    )
+    return MfaBackupCodesResponse(backup_codes=codes)
 
 
 @router.post(

@@ -2,6 +2,7 @@
 
 from app.models.enums import RelationStatus, RoleCode
 from app.models.lesson import Lesson
+from app.models.mfa import MfaBackupCode, MfaChallenge, UserTotp
 from app.models.profile import Profile
 from app.models.refresh_session import RefreshSession
 from app.models.role_profiles import StudentProfile, TeacherProfile
@@ -11,6 +12,9 @@ from app.models.user import User
 
 __all__ = [
     "Lesson",
+    "MfaBackupCode",
+    "MfaChallenge",
+    "UserTotp",
     "Profile",
     "RefreshSession",
     "RelationStatus",

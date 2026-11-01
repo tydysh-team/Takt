@@ -26,6 +26,11 @@ os.environ.setdefault(
     "ADMIN_SESSION_SECRET",
     "test-admin-session-key-which-is-longer-than-thirty-two-characters",
 )
+os.environ.setdefault("TOTP_ENCRYPTION_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+os.environ.setdefault(
+    "MFA_BACKUP_HMAC_KEY",
+    "test-mfa-backup-key-which-is-longer-than-thirty-two-characters",
+)
 
 import httpx  # noqa: E402
 import pytest_asyncio  # noqa: E402

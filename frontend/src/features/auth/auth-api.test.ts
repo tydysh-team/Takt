@@ -4,7 +4,7 @@ vi.mock("../../shared/config/environment", () => ({
   environment: { apiBaseUrl: "http://api.example" },
 }));
 
-import { setAccessToken } from "../../api/client";
+import { getAccessToken, setAccessToken } from "../../api/client";
 import { authApi } from "./auth-api";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -27,6 +27,23 @@ afterEach(() => {
 });
 
 describe("auth API contract", () => {
+  it("keeps MFA challenge separate from access tokens until verification", async () => {
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation((input) => {
+      const path = requestPath(input);
+      paths.push(path);
+      return Promise.resolve(jsonResponse(path.endsWith("/login")
+        ? { mfa_required: true, challenge: "temporary-challenge", expires_in: 300 }
+        : { access_token: "verified-token", token_type: "bearer", expires_in: 900 }));
+    }));
+    const first = await authApi.login({ email: "teacher@example.com", password: "12345678" });
+    expect("mfa_required" in first && first.mfa_required).toBe(true);
+    expect(getAccessToken()).toBeNull();
+    const verified = await authApi.verifyMfaLogin({ challenge: "temporary-challenge", code: "123456" });
+    expect(verified.access_token).toBe("verified-token");
+    expect(paths).toEqual(["/api/v1/auth/login", "/api/v1/auth/mfa/verify"]);
+  });
+
   it("uses login followed by the top-level current-user endpoint", async () => {
     const paths: string[] = [];
     const request = vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -54,6 +71,7 @@ describe("auth API contract", () => {
       email: "teacher@example.com",
       password: "12345678",
     });
+    if ("mfa_required" in login) throw new Error("Expected password-only login");
     setAccessToken(login.access_token);
     await expect(authApi.currentUser()).resolves.toMatchObject({
       email: "teacher@example.com",

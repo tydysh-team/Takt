@@ -32,7 +32,14 @@ export const authApi = {
     return result.data;
   },
   login: (payload: LoginPayload) =>
-    apiRequest<AccessTokenResponse>("/auth/login", {
+    apiRequest<AccessTokenResponse | { mfa_required: true; challenge: string; expires_in: number }>("/auth/login", {
+      method: "POST",
+      body: payload,
+      authenticated: false,
+      retryAfterRefresh: false,
+    }),
+  verifyMfaLogin: (payload: { challenge: string; code: string }) =>
+    apiRequest<AccessTokenResponse>("/auth/mfa/verify", {
       method: "POST",
       body: payload,
       authenticated: false,

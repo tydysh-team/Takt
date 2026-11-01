@@ -86,6 +86,48 @@ class AccessTokenResponse(BaseModel):
     expires_in: int
 
 
+class MfaRequiredResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mfa_required: Literal[True] = True
+    challenge: str
+    expires_in: int
+
+
+class MfaCodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=6, max_length=64)
+
+
+class MfaLoginVerifyRequest(MfaCodeRequest):
+    challenge: str = Field(min_length=32, max_length=128)
+
+
+class MfaPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: SecretStr
+
+
+class MfaManageRequest(MfaPasswordRequest):
+    code: str = Field(min_length=6, max_length=64)
+
+
+class MfaStatusResponse(BaseModel):
+    enabled: bool
+
+
+class MfaSetupResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+    expires_in: int
+
+
+class MfaBackupCodesResponse(BaseModel):
+    backup_codes: list[str]
+
+
 class CurrentUserResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 
 import { readableError } from "../api/client";
@@ -15,6 +15,8 @@ import { ErrorState, LoadingState } from "../components/ui/Feedback";
 import { Input, Select, Textarea } from "../components/ui/FormField";
 import { useAuth } from "../features/auth/auth-context";
 import { ChangePasswordForm } from "../features/auth/ChangePasswordForm";
+import { MfaSettings } from "../features/auth/MfaSettings";
+import { SecurityHub } from "../features/auth/SecurityHub";
 import { profileSchema, type ProfileFormValues } from "../features/profile/profile-schema";
 import { formatFullName, roleLabel } from "../shared/format";
 import { timezoneOptions } from "../shared/timezones";
@@ -132,6 +134,9 @@ function ProfileForm({ profile }: { profile: Profile }) {
 
 export function ProfilePage() {
   const [tab, setTab] = useState<ProfileTab>("main");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = location.pathname.startsWith("/profile/security") ? "security" : tab;
   const profile = useQuery({ queryKey: queryKeys.profile, queryFn: api.profile });
   const students = useQuery({ queryKey: queryKeys.students, queryFn: api.students, enabled: profile.data?.role === "TEACHER" });
   const invitations = useQuery({ queryKey: queryKeys.invitations, queryFn: api.invitations, enabled: profile.data?.role === "TEACHER" });
@@ -153,15 +158,25 @@ export function ProfilePage() {
       </div>
       <div className="tabs" role="tablist" aria-label="Настройки профиля">
         {(["main", "security", "notifications"] as const).map((value) => (
-          <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "tab--active" : ""} onClick={() => { setTab(value); }}>
+          <button key={value} role="tab" aria-selected={activeTab === value} className={activeTab === value ? "tab--active" : ""} onClick={() => {
+            if (value === "security") void navigate("/profile/security");
+            else {
+              setTab(value);
+              if (location.pathname !== "/profile") void navigate("/profile");
+            }
+          }}>
             {value === "main" ? "Основное" : value === "security" ? "Безопасность" : "Уведомления"}
           </button>
         ))}
       </div>
-      {tab === "main" ? (
+      {activeTab === "main" ? (
         <Card className="profile-card"><ProfileForm profile={data} /></Card>
-      ) : tab === "security" ? (
-        <Card className="profile-card"><ChangePasswordForm /></Card>
+      ) : activeTab === "security" ? (
+        <Card className="profile-card profile-card--security">
+          {location.pathname !== "/profile/security" ? <Link className="security-back" to="/profile/security">← Назад к безопасности</Link> : null}
+          {location.pathname === "/profile/security/password" ? <ChangePasswordForm />
+            : location.pathname === "/profile/security/2fa" ? <MfaSettings /> : <SecurityHub />}
+        </Card>
       ) : (
         <Card className="placeholder-panel">
           <span className="badge">Скоро</span>

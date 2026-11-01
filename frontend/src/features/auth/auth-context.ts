@@ -12,7 +12,8 @@ export type SessionStatus = "bootstrapping" | "authenticated" | "unauthenticated
 export interface AuthContextValue {
   status: SessionStatus;
   user: CurrentUser | null;
-  login: (payload: LoginPayload) => Promise<CurrentUser>;
+  login: (payload: LoginPayload) => Promise<CurrentUser | { mfa_required: true; challenge: string }>;
+  verifyMfaLogin: (payload: { challenge: string; code: string }) => Promise<CurrentUser>;
   register: (payload: RegisterPayload) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
   endSession: () => void;

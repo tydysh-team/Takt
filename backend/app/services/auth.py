@@ -23,6 +23,7 @@ from app.models.user import User
 from app.repositories.refresh_sessions import RefreshSessionRepository
 from app.repositories.users import UserRepository
 from app.schemas.auth import ChangePasswordRequest, LoginRequest, RegisterRequest
+from app.services.mfa import MfaChallengeResult, MfaService
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +54,7 @@ class AuthService:
         self._tokens = tokens
         self._users = UserRepository(session)
         self._refresh_sessions = RefreshSessionRepository(session)
+        self.mfa = MfaService(session, settings, passwords)
 
     async def register(self, payload: RegisterRequest) -> RegistrationResult:
         email = str(payload.email).strip().lower()
@@ -94,7 +96,7 @@ class AuthService:
             raise
         return RegistrationResult(user=user, profile=profile)
 
-    async def login(self, payload: LoginRequest) -> LoginResult:
+    async def login(self, payload: LoginRequest) -> LoginResult | MfaChallengeResult:
         email = str(payload.email).strip().lower()
         raw_password = payload.password.get_secret_value()
         try:
@@ -110,7 +112,11 @@ class AuthService:
             if self._passwords.needs_rehash(user.password_hash):
                 user.password_hash = self._passwords.hash(raw_password)
 
-            result = self._new_login_result(user)
+            result: LoginResult | MfaChallengeResult
+            if await self.mfa.is_enabled(user.id):
+                result = self.mfa.create_challenge(user.id)
+            else:
+                result = self._new_login_result(user)
             await self._session.commit()
         except InvalidCredentialsError:
             await self._session.rollback()
@@ -119,6 +125,16 @@ class AuthService:
             await self._session.rollback()
             raise
         return result
+
+    async def verify_mfa_login(self, challenge: str, code: str) -> LoginResult:
+        try:
+            user = await self.mfa.verify_challenge(challenge, code)
+            result = self._new_login_result(user)
+            await self._session.commit()
+            return result
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def refresh(self, raw_refresh_token: str) -> LoginResult:
         token_hash = self._tokens.digest_refresh_token(raw_refresh_token)

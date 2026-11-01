@@ -31,7 +31,12 @@ export const router = createBrowserRouter([
   {
     element: <SessionGate />,
     children: [
-      { element: <AppShell />, children: [{ path: "/profile", element: <ProfilePage /> }] },
+      { element: <AppShell />, children: [
+        { path: "/profile", element: <ProfilePage /> },
+        { path: "/profile/security", element: <ProfilePage /> },
+        { path: "/profile/security/password", element: <ProfilePage /> },
+        { path: "/profile/security/2fa", element: <ProfilePage /> },
+      ] },
       {
         element: <RoleGate allowed={["TEACHER", "STUDENT"]} />,
         children: [

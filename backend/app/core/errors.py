@@ -27,6 +27,10 @@ from app.core.exceptions import (
     LessonSeriesTimeInvalidError,
     LessonStartInPastError,
     LessonTimeConflictError,
+    MfaAlreadyEnabledError,
+    MfaChallengeInvalidError,
+    MfaConfigurationError,
+    MfaNotEnabledError,
     PasswordUnchangedError,
     ProfileNotFoundError,
     RateLimitExceededError,
@@ -146,10 +150,14 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
             LessonNotCancellableError,
             AttendanceNotAvailableError,
             PasswordUnchangedError,
+            MfaAlreadyEnabledError,
+            MfaNotEnabledError,
         ),
     ):
         status_code = 409
-    elif isinstance(exc, (InvalidCredentialsError, AuthenticationRequiredError)):
+    elif isinstance(
+        exc, (InvalidCredentialsError, AuthenticationRequiredError, MfaChallengeInvalidError)
+    ):
         status_code = 401
         headers = {"WWW-Authenticate": "Bearer"}
     elif isinstance(exc, (ForbiddenError, CsrfValidationError)):
@@ -173,6 +181,8 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
     elif isinstance(exc, RateLimitExceededError):
         status_code = 429
         headers = {"Retry-After": str(exc.retry_after)}
+    elif isinstance(exc, MfaConfigurationError):
+        status_code = 503
     return error_response(
         status_code=status_code,
         code=exc.code,

@@ -38,6 +38,36 @@ class PasswordUnchangedError(DomainError):
     message = "Новый пароль должен отличаться от текущего."
 
 
+class MfaConfigurationError(DomainError):
+    code = "mfa_unavailable"
+    message = "Двухфакторная аутентификация временно недоступна."
+
+
+class MfaInvalidCodeError(DomainError):
+    code = "mfa_invalid_code"
+    message = "Неверный или уже использованный код."
+
+
+class MfaChallengeInvalidError(DomainError):
+    code = "mfa_challenge_invalid"
+    message = "Время подтверждения входа истекло. Введите пароль заново."
+
+
+class MfaSetupExpiredError(DomainError):
+    code = "mfa_setup_expired"
+    message = "Время настройки истекло. Начните подключение заново."
+
+
+class MfaAlreadyEnabledError(DomainError):
+    code = "mfa_already_enabled"
+    message = "Двухфакторная аутентификация уже включена."
+
+
+class MfaNotEnabledError(DomainError):
+    code = "mfa_not_enabled"
+    message = "Двухфакторная аутентификация не включена."
+
+
 class AuthenticationRequiredError(DomainError):
     code = "authentication_required"
     message = "Требуется аутентификация."
