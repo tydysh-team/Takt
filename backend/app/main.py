@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import SecurityHeadersMiddleware
+from app.core.static import SpaStaticFiles
 from app.db.session import engine
 from app.schemas.error import ErrorResponse
 
@@ -45,7 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=resolved_settings.trusted_hosts,
+        allowed_hosts=resolved_settings.allowed_hosts,
     )
     application.add_middleware(
         CORSMiddleware,
@@ -64,6 +66,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health_router)
     application.include_router(api_router, prefix=resolved_settings.api_v1_prefix)
     setup_admin(application)
+    if resolved_settings.app_env == "production":
+        static_dir = Path(__file__).resolve().parent.parent / "static"
+        application.mount("/", SpaStaticFiles(directory=static_dir, html=True), name="frontend")
     return application
 
 

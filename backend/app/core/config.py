@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from cryptography.fernet import Fernet
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
     cors_origins: list[AnyHttpUrl] = Field(default_factory=list)
     cors_allow_private_network: bool = True
     trusted_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
+    render_external_hostname: str | None = None
     enable_hsts: bool = False
 
     jwt_secret_key: SecretStr = Field(min_length=32)
@@ -58,9 +60,11 @@ class Settings(BaseSettings):
     def empty_mfa_key_is_missing(cls, value: object) -> object:
         return None if value == "" else value
 
-    @field_validator("database_url")
+    @field_validator("database_url", mode="before")
     @classmethod
     def require_async_postgresql(cls, value: str) -> str:
+        if value.startswith("postgresql://"):
+            value = "postgresql+asyncpg://" + value[len("postgresql://"):]
         if not value.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL must use the postgresql+asyncpg driver")
         return value
@@ -104,6 +108,12 @@ class Settings(BaseSettings):
     def reject_placeholder_production_secrets(self) -> "Settings":
         if self.app_env != "production":
             return self
+        if self.totp_encryption_key is None or self.mfa_backup_hmac_key is None:
+            raise ValueError("Production requires TOTP_ENCRYPTION_KEY and MFA_BACKUP_HMAC_KEY")
+        try:
+            Fernet(self.totp_encryption_key.get_secret_value().encode())
+        except (ValueError, TypeError) as exc:
+            raise ValueError("TOTP_ENCRYPTION_KEY must be a Fernet key") from exc
         for secret in (
             self.jwt_secret_key,
             self.refresh_token_hmac_key,
@@ -138,6 +148,13 @@ class Settings(BaseSettings):
     @property
     def secure_cookies(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        hosts = list(self.trusted_hosts)
+        if self.app_env == "production" and self.render_external_hostname:
+            hosts.append(self.render_external_hostname)
+        return hosts
 
     @property
     def allow_private_network_cors(self) -> bool:

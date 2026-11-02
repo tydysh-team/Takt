@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: takt-web
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: takt-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: '[]'
+      - key: TRUSTED_HOSTS
+        value: '["localhost","127.0.0.1"]'
+      - key: ENABLE_HSTS
+        value: 'true'
+      - key: FORWARDED_ALLOW_IPS
+        value: '*'
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: REFRESH_TOKEN_HMAC_KEY
+        generateValue: true
+      - key: RATE_LIMIT_HMAC_KEY
+        generateValue: true
+      - key: INVITATION_CODE_SECRET
+        generateValue: true
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+      - key: TOTP_ENCRYPTION_KEY
+        sync: false
+      - key: MFA_BACKUP_HMAC_KEY
+        generateValue: true
+
+databases:
+  - name: takt-db
+    databaseName: takt
+    user: takt
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: '17'
+    ipAllowList: []
