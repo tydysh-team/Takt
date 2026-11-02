@@ -25,4 +25,10 @@ describe("lesson time in profile timezone", () => {
     expect(dayStartUtc(sunday.add({ days: 1 }), "Europe/Warsaw")).toBe("2026-03-29T22:00:00Z");
     expect(localDate("2026-03-29T22:30:00Z", "Europe/Warsaw")).toBe("2026-03-30");
   });
+
+  it("keeps the full duration when a lesson crosses midnight", () => {
+    const startsAt = lessonStartUtc("2026-10-29", "23:25", "Europe/Minsk");
+    expect(formatLessonTime(startsAt, 60, "Europe/Minsk")).toBe("23:25 — 00:25");
+    expect(localDate(lessonEndUtc(startsAt, 60), "Europe/Minsk")).toBe("2026-10-30");
+  });
 });

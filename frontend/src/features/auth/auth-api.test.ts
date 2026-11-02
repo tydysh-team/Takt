@@ -4,7 +4,7 @@ vi.mock("../../shared/config/environment", () => ({
   environment: { apiBaseUrl: "http://api.example" },
 }));
 
-import { setAccessToken } from "../../api/client";
+import { getAccessToken, setAccessToken } from "../../api/client";
 import { authApi } from "./auth-api";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -27,6 +27,23 @@ afterEach(() => {
 });
 
 describe("auth API contract", () => {
+  it("keeps MFA challenge separate from access tokens until verification", async () => {
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation((input) => {
+      const path = requestPath(input);
+      paths.push(path);
+      return Promise.resolve(jsonResponse(path.endsWith("/login")
+        ? { mfa_required: true, challenge: "temporary-challenge", expires_in: 300 }
+        : { access_token: "verified-token", token_type: "bearer", expires_in: 900 }));
+    }));
+    const first = await authApi.login({ email: "teacher@example.com", password: "12345678" });
+    expect("mfa_required" in first && first.mfa_required).toBe(true);
+    expect(getAccessToken()).toBeNull();
+    const verified = await authApi.verifyMfaLogin({ challenge: "temporary-challenge", code: "123456" });
+    expect(verified.access_token).toBe("verified-token");
+    expect(paths).toEqual(["/api/v1/auth/login", "/api/v1/auth/mfa/verify"]);
+  });
+
   it("uses login followed by the top-level current-user endpoint", async () => {
     const paths: string[] = [];
     const request = vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -54,6 +71,7 @@ describe("auth API contract", () => {
       email: "teacher@example.com",
       password: "12345678",
     });
+    if ("mfa_required" in login) throw new Error("Expected password-only login");
     setAccessToken(login.access_token);
     await expect(authApi.currentUser()).resolves.toMatchObject({
       email: "teacher@example.com",
@@ -118,5 +136,39 @@ describe("auth API contract", () => {
     if (typeof init?.body !== "string") throw new Error("Expected a JSON request body");
     const body = JSON.parse(init.body) as Record<string, unknown>;
     expect(body.timezone).toBe("Europe/Samara");
+  });
+
+  it("sends the CSRF header and refresh cookie credentials on logout", async () => {
+    vi.stubGlobal("document", { cookie: "takt_csrf=logout-token" });
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", request);
+
+    await authApi.logout();
+
+    expect(requestPath(request.mock.calls[0]?.[0] ?? "http://api.example")).toBe("/api/v1/auth/logout");
+    const init = request.mock.calls[0]?.[1];
+    expect(init?.credentials).toBe("include");
+    expect(new Headers(init?.headers).get("X-CSRF-Token")).toBe("logout-token");
+  });
+
+  it("sends password change with the access token and CSRF header", async () => {
+    vi.stubGlobal("document", { cookie: "takt_csrf=change-token" });
+    setAccessToken("access-token");
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", request);
+
+    await authApi.changePassword({ current_password: "old-password", new_password: "new-password" });
+
+    expect(requestPath(request.mock.calls[0]?.[0] ?? "http://api.example"))
+      .toBe("/api/v1/auth/change-password");
+    const init = request.mock.calls[0]?.[1];
+    expect(init?.method).toBe("POST");
+    expect(init?.credentials).toBe("include");
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer access-token");
+    expect(new Headers(init?.headers).get("X-CSRF-Token")).toBe("change-token");
+    if (typeof init?.body !== "string") throw new Error("Expected a JSON request body");
+    expect(JSON.parse(init.body)).toEqual({
+      current_password: "old-password", new_password: "new-password",
+    });
   });
 });

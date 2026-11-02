@@ -24,7 +24,7 @@ class RefreshSessionRepository:
             .options(selectinload(RefreshSession.user))
         )
         if for_update:
-            statement = statement.with_for_update()
+            statement = statement.with_for_update().execution_options(populate_existing=True)
         return await self._session.scalar(statement)
 
     def add(self, refresh_session: RefreshSession) -> None:
@@ -35,6 +35,16 @@ class RefreshSessionRepository:
             update(RefreshSession)
             .where(
                 RefreshSession.family_id == family_id,
+                RefreshSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=revoked_at)
+        )
+
+    async def revoke_user(self, user_id: UUID, revoked_at: datetime) -> None:
+        await self._session.execute(
+            update(RefreshSession)
+            .where(
+                RefreshSession.user_id == user_id,
                 RefreshSession.revoked_at.is_(None),
             )
             .values(revoked_at=revoked_at)

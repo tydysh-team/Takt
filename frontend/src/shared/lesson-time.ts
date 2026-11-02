@@ -23,7 +23,8 @@ export function lessonStartUtc(date: string, time: string, timezone: string): st
 }
 
 export function lessonEndUtc(startsAt: string, durationMinutes: number): string {
-  return Temporal.Instant.from(startsAt).add({ minutes: durationMinutes }).toString();
+  const minutes = Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : 60;
+  return Temporal.Instant.from(startsAt).add({ minutes }).toString();
 }
 
 export function formatLessonTime(startsAt: string, durationMinutes: number, timezone: string): string {

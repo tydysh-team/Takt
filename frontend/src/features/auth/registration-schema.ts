@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const passwordSchema = z
+export const passwordSchema = z
   .string()
   .min(8, "Минимум 8 символов")
   .max(128, "Не более 128 символов");

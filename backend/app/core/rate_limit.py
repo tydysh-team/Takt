@@ -64,3 +64,6 @@ class RateLimitKeyFactory:
     def for_ip(self, ip_address: str) -> str:
         return hmac.new(self._key, ip_address.encode(), hashlib.sha256).hexdigest()
 
+    def for_user(self, user_id: str) -> str:
+        return hmac.new(self._key, user_id.encode(), hashlib.sha256).hexdigest()
+

@@ -55,5 +55,6 @@ async def accept_invitation(
             email=result.teacher.email,
             timezone=result.teacher_profile.timezone,
             connected_at=result.relation.created_at,
+            bio=result.teacher_profile.bio,
         )
     )

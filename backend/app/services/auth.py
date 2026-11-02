@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.core.exceptions import (
     AuthenticationRequiredError,
+    CurrentPasswordInvalidError,
     EmailAlreadyRegisteredError,
     InvalidCredentialsError,
+    PasswordUnchangedError,
     RefreshReplayError,
 )
 from app.core.security import AccessToken, PasswordService, TokenService, utc_now
@@ -20,7 +22,8 @@ from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.user import User
 from app.repositories.refresh_sessions import RefreshSessionRepository
 from app.repositories.users import UserRepository
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, RegisterRequest
+from app.services.mfa import MfaChallengeResult, MfaService
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +54,7 @@ class AuthService:
         self._tokens = tokens
         self._users = UserRepository(session)
         self._refresh_sessions = RefreshSessionRepository(session)
+        self.mfa = MfaService(session, settings, passwords)
 
     async def register(self, payload: RegisterRequest) -> RegistrationResult:
         email = str(payload.email).strip().lower()
@@ -92,7 +96,7 @@ class AuthService:
             raise
         return RegistrationResult(user=user, profile=profile)
 
-    async def login(self, payload: LoginRequest) -> LoginResult:
+    async def login(self, payload: LoginRequest) -> LoginResult | MfaChallengeResult:
         email = str(payload.email).strip().lower()
         raw_password = payload.password.get_secret_value()
         try:
@@ -108,7 +112,11 @@ class AuthService:
             if self._passwords.needs_rehash(user.password_hash):
                 user.password_hash = self._passwords.hash(raw_password)
 
-            result = self._new_login_result(user)
+            result: LoginResult | MfaChallengeResult
+            if await self.mfa.is_enabled(user.id):
+                result = self.mfa.create_challenge(user.id)
+            else:
+                result = self._new_login_result(user)
             await self._session.commit()
         except InvalidCredentialsError:
             await self._session.rollback()
@@ -118,13 +126,30 @@ class AuthService:
             raise
         return result
 
+    async def verify_mfa_login(self, challenge: str, code: str) -> LoginResult:
+        try:
+            user = await self.mfa.verify_challenge(challenge, code)
+            result = self._new_login_result(user)
+            await self._session.commit()
+            return result
+        except Exception:
+            await self._session.rollback()
+            raise
+
     async def refresh(self, raw_refresh_token: str) -> LoginResult:
         token_hash = self._tokens.digest_refresh_token(raw_refresh_token)
-        now = utc_now()
         failure: AuthenticationRequiredError | None = None
         result: LoginResult | None = None
 
         try:
+            refresh_session = await self._refresh_sessions.get_by_token_hash(
+                token_hash,
+            )
+            if refresh_session is None:
+                raise AuthenticationRequiredError()
+
+            # Serialize token rotation with password changes and logins for this user.
+            await self._users.get_by_id(refresh_session.user_id, for_update=True)
             refresh_session = await self._refresh_sessions.get_by_token_hash(
                 token_hash,
                 for_update=True,
@@ -132,6 +157,7 @@ class AuthService:
             if refresh_session is None:
                 raise AuthenticationRequiredError()
 
+            now = utc_now()
             if refresh_session.revoked_at is not None:
                 await self._refresh_sessions.revoke_family(refresh_session.family_id, now)
                 failure = RefreshReplayError()
@@ -174,6 +200,25 @@ class AuthService:
             if refresh_session is not None and refresh_session.revoked_at is None:
                 refresh_session.revoked_at = now
                 refresh_session.last_used_at = now
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+
+    async def change_password(self, user_id: UUID, payload: ChangePasswordRequest) -> None:
+        try:
+            user = await self._users.get_by_id(user_id, for_update=True)
+            if user is None or not user.is_active:
+                raise AuthenticationRequiredError()
+            current_password = payload.current_password.get_secret_value()
+            if not self._passwords.verify(user.password_hash, current_password):
+                raise CurrentPasswordInvalidError()
+            new_password = payload.new_password.get_secret_value()
+            if new_password == current_password:
+                raise PasswordUnchangedError()
+
+            user.password_hash = self._passwords.hash(new_password)
+            await self._refresh_sessions.revoke_user(user.id, utc_now())
             await self._session.commit()
         except Exception:
             await self._session.rollback()

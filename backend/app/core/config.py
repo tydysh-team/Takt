@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     rate_limit_hmac_key: SecretStr = Field(min_length=32)
     invitation_code_secret: SecretStr = Field(min_length=32)
     admin_session_secret: SecretStr = Field(min_length=32)
+    totp_encryption_key: SecretStr | None = None
+    mfa_backup_hmac_key: SecretStr | None = Field(default=None, min_length=32)
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "takt-api"
     jwt_audience: str = "takt-web"
@@ -50,6 +52,11 @@ class Settings(BaseSettings):
     register_rate_limit: int = Field(default=3, ge=1, le=100)
     invitation_accept_rate_limit: int = Field(default=10, ge=1, le=100)
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
+
+    @field_validator("totp_encryption_key", "mfa_backup_hmac_key", mode="before")
+    @classmethod
+    def empty_mfa_key_is_missing(cls, value: object) -> object:
+        return None if value == "" else value
 
     @field_validator("database_url")
     @classmethod
@@ -103,6 +110,7 @@ class Settings(BaseSettings):
             self.rate_limit_hmac_key,
             self.invitation_code_secret,
             self.admin_session_secret,
+            *(secret for secret in (self.totp_encryption_key, self.mfa_backup_hmac_key) if secret),
         ):
             value = secret.get_secret_value().lower()
             if "replace" in value or "test" in value or "default" in value:

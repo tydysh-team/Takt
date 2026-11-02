@@ -16,6 +16,7 @@ import {
 import type { CurrentUser, LoginPayload, RegisterPayload } from "../../api/types";
 import { authApi } from "./auth-api";
 import { AuthContext, type AuthContextValue, type SessionStatus } from "./auth-context";
+import { clearAuthClientState } from "./auth-session";
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
@@ -24,16 +25,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const bootstrapStarted = useRef(false);
 
   const clearSession = useCallback(() => {
-    setAccessToken(null);
+    clearAuthClientState(queryClient);
     setUser(null);
     setStatus("unauthenticated");
-    queryClient.clear();
   }, [queryClient]);
 
   const loadCurrentUser = useCallback(async () => {
     const currentUser = await authApi.currentUser();
     setUser(currentUser);
     setStatus("authenticated");
+    return currentUser;
   }, []);
 
   useEffect(() => {
@@ -53,10 +54,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const login = useCallback(
     async (payload: LoginPayload) => {
       queryClient.clear();
+      setAccessToken(null);
+      setUser(null);
+      setStatus("unauthenticated");
       const token = await authApi.login(payload);
+      if ("mfa_required" in token) {
+        return { mfa_required: true as const, challenge: token.challenge };
+      }
       setAccessToken(token.access_token);
       try {
-        await loadCurrentUser();
+        return await loadCurrentUser();
       } catch (error) {
         clearSession();
         throw error;
@@ -64,6 +71,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     [clearSession, loadCurrentUser, queryClient],
   );
+
+  const verifyMfaLogin = useCallback(async (payload: { challenge: string; code: string }) => {
+    const token = await authApi.verifyMfaLogin(payload);
+    setAccessToken(token.access_token);
+    try {
+      return await loadCurrentUser();
+    } catch (error) {
+      clearSession();
+      throw error;
+    }
+  }, [clearSession, loadCurrentUser]);
 
   const register = useCallback((payload: RegisterPayload) => {
     return authApi.register(payload);
@@ -78,8 +96,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [clearSession]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, login, register, logout, updateCurrentUser: setUser }),
-    [status, user, login, register, logout],
+    () => ({ status, user, login, verifyMfaLogin, register, logout, endSession: clearSession, updateCurrentUser: setUser }),
+    [status, user, login, verifyMfaLogin, register, logout, clearSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

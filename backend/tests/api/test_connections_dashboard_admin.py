@@ -329,6 +329,45 @@ async def test_student_gets_own_connected_teacher(api_context: ApiTestContext) -
     assert "teacher_note" not in response.text
 
 
+@pytest.mark.parametrize("bio", ["Преподаю математику", None, ""])
+async def test_connected_teacher_bio_is_returned_in_related_responses(
+    api_context: ApiTestContext,
+    bio: str | None,
+) -> None:
+    teacher, teacher_token = await register_and_login(api_context, "TEACHER")
+    _, student_token = await register_and_login(api_context, "STUDENT")
+    profile = await api_context.session.get(Profile, UUID(teacher["id"]))
+    assert profile is not None
+    profile.bio = bio
+    await api_context.session.commit()
+
+    invitation = await create_invitation(api_context, teacher_token)
+    accepted = await api_context.client.post(
+        "/api/v1/connections/accept",
+        headers=authorization(student_token),
+        json={"code": invitation["code"]},
+    )
+    listed = await api_context.client.get(
+        "/api/v1/teachers", headers=authorization(student_token)
+    )
+    detail = await api_context.client.get(
+        f"/api/v1/teachers/{teacher['id']}", headers=authorization(student_token)
+    )
+    dashboard = await api_context.client.get(
+        "/api/v1/dashboard/summary", headers=authorization(student_token)
+    )
+    teacher_access = await api_context.client.get(
+        f"/api/v1/teachers/{teacher['id']}", headers=authorization(teacher_token)
+    )
+
+    assert all(response.status_code == 200 for response in (accepted, listed, detail, dashboard))
+    assert accepted.json()["teacher"]["bio"] == bio
+    assert listed.json()[0]["bio"] == bio
+    assert detail.json()["bio"] == bio
+    assert dashboard.json()["recent_teachers"][0]["bio"] == bio
+    assert teacher_access.status_code == 403
+
+
 async def test_teacher_has_no_teachers_access(api_context: ApiTestContext) -> None:
     _, token = await register_and_login(api_context, "TEACHER")
     response = await api_context.client.get(

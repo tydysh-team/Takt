@@ -1,4 +1,6 @@
 import { environment } from "../shared/config/environment";
+import { apiSettings } from "../shared/config/api-settings";
+import { resolveApiUrl } from "../shared/config/api-url";
 
 import type { AccessTokenResponse, ApiErrorEnvelope } from "./types";
 
@@ -12,13 +14,15 @@ export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly details: ApiErrorDetail[];
+  readonly context: Record<string, unknown> | null;
 
-  constructor(code: string, message: string, status: number, details: ApiErrorDetail[] = []) {
+  constructor(code: string, message: string, status: number, details: ApiErrorDetail[] = [], context: Record<string, unknown> | null = null) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.details = details;
+    this.context = context;
   }
 }
 
@@ -33,16 +37,17 @@ interface RequestOptions {
 }
 
 let accessToken: string | null = null;
+let tokenGeneration = 0;
 let refreshRequest: Promise<string> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
 export function buildApiUrl(path: string): URL {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return new URL(normalizedPath, `${environment.apiBaseUrl}/`);
+  return resolveApiUrl(environment.apiBaseUrl, path, apiSettings.prefix);
 }
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  tokenGeneration += 1;
 }
 
 export function getAccessToken(): string | null {
@@ -54,12 +59,13 @@ export function onSessionExpired(handler: (() => void) | null): void {
 }
 
 function csrfToken(): string | null {
+  const cookiePrefix = `${apiSettings.csrfCookieName}=`;
   const cookie = document.cookie
     .split(";")
     .map((part) => part.trim())
-    .find((part) => part.startsWith("takt_csrf="));
+    .find((part) => part.startsWith(cookiePrefix));
 
-  return cookie ? decodeURIComponent(cookie.slice("takt_csrf=".length)) : null;
+  return cookie ? decodeURIComponent(cookie.slice(cookiePrefix.length)) : null;
 }
 
 function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
@@ -89,6 +95,7 @@ async function responseError(response: Response): Promise<ApiError> {
       payload.error.message,
       response.status,
       payload.error.details ?? [],
+      payload.error.context ?? null,
     );
   }
 
@@ -108,7 +115,7 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
   }
   if (csrf) {
     const token = csrfToken();
-    if (token) headers.set("X-CSRF-Token", token);
+    if (token) headers.set(apiSettings.csrfHeaderName, token);
   }
 
   const requestInit: RequestInit = {
@@ -138,18 +145,20 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
 export async function refreshAccessToken(): Promise<string> {
   if (refreshRequest) return refreshRequest;
 
-  refreshRequest = execute<AccessTokenResponse>("/api/v1/auth/refresh", {
+  const generationAtStart = tokenGeneration;
+
+  refreshRequest = execute<AccessTokenResponse>("/auth/refresh", {
     method: "POST",
     authenticated: false,
     retryAfterRefresh: false,
     csrf: true,
   })
     .then((response) => {
-      setAccessToken(response.access_token);
+      if (generationAtStart === tokenGeneration) setAccessToken(response.access_token);
       return response.access_token;
     })
     .catch((error: unknown) => {
-      setAccessToken(null);
+      if (generationAtStart === tokenGeneration) setAccessToken(null);
       throw error;
     })
     .finally(() => {
@@ -190,6 +199,8 @@ export function readableError(error: unknown): string {
 
   const messages: Record<string, string> = {
     invalid_credentials: "Неверный email или пароль.",
+    current_password_invalid: "Неверный текущий пароль.",
+    password_unchanged: "Новый пароль должен отличаться от текущего.",
     email_already_registered: "Пользователь с таким email уже зарегистрирован.",
     rate_limit_exceeded: "Слишком много попыток. Повторите позже.",
     invitation_invalid: "Код недействителен, истёк или уже использован.",

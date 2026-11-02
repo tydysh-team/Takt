@@ -69,6 +69,7 @@ class TeacherListItem(BaseModel):
     email: EmailStr
     timezone: str
     connected_at: datetime
+    bio: str | None
 
 
 class ConnectionAcceptedResponse(BaseModel):

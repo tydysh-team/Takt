@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.core.config import get_settings
+from app.main import app, create_app
 
 
 def test_health_returns_ok() -> None:
@@ -63,4 +64,30 @@ def test_local_frontend_preflight_is_allowed(origin: str, private_network: bool)
     assert response.headers["access-control-allow-origin"] == origin
     if private_network:
         assert response.headers["access-control-allow-private-network"] == "true"
+
+
+def test_custom_csrf_header_is_allowed_by_cors_without_opening_other_origins() -> None:
+    custom_settings = get_settings().model_copy(update={"csrf_header_name": "X-Takt-CSRF"})
+    with TestClient(create_app(custom_settings)) as client:
+        allowed = client.options(
+            "/api/v1/auth/refresh",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "X-Takt-CSRF",
+            },
+        )
+        foreign = client.options(
+            "/api/v1/auth/refresh",
+            headers={
+                "Origin": "https://foreign.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "X-Takt-CSRF",
+            },
+        )
+
+    assert allowed.status_code == 200
+    assert "x-takt-csrf" in allowed.headers["access-control-allow-headers"].lower()
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "access-control-allow-origin" not in foreign.headers
 
