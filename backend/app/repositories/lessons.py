@@ -8,6 +8,7 @@ from sqlalchemy.orm import aliased
 
 from app.models.lesson import Lesson
 from app.models.profile import Profile
+from app.models.user import User
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,43 @@ class LessonRepository:
 
     def add(self, lesson: Lesson) -> None:
         self._session.add(lesson)
+
+    async def lock_student_schedule(self, student_id: UUID) -> None:
+        # All schedule writes lock teacher, then student, then the relation or lesson.
+        # A student row is shared by every teacher and serializes conflict checks.
+        await self._session.execute(
+            select(User.id)
+            .where(User.id == student_id)
+            .with_for_update(of=User, key_share=True)
+        )
+
+    async def find_student_conflicts(
+        self,
+        student_id: UUID,
+        teacher_id: UUID,
+        starts_at: datetime,
+        duration_minutes: int,
+        *,
+        exclude_lesson_id: UUID | None = None,
+    ) -> list[tuple[datetime, datetime]]:
+        ends_at = starts_at + timedelta(minutes=duration_minutes)
+        existing_ends_at = Lesson.starts_at + Lesson.duration_minutes * literal_column(
+            "INTERVAL '1 minute'"
+        )
+        statement = select(Lesson.starts_at, Lesson.duration_minutes).where(
+            Lesson.student_id == student_id,
+            Lesson.teacher_id != teacher_id,
+            Lesson.cancelled_at.is_(None),
+            Lesson.starts_at < ends_at,
+            existing_ends_at > starts_at,
+        )
+        if exclude_lesson_id is not None:
+            statement = statement.where(Lesson.id != exclude_lesson_id)
+        rows = (await self._session.execute(statement.order_by(Lesson.starts_at))).all()
+        return [
+            (row.starts_at, row.starts_at + timedelta(minutes=row.duration_minutes))
+            for row in rows
+        ]
 
     async def find_conflicts(
         self,
@@ -85,6 +123,15 @@ class LessonRepository:
             lesson=row[0],
             teacher_profile=row[1],
             student_profile=row[2],
+        )
+
+    async def get_teacher_lesson_student_id(
+        self, teacher_id: UUID, lesson_id: UUID,
+    ) -> UUID | None:
+        return await self._session.scalar(
+            select(Lesson.student_id).where(
+                Lesson.id == lesson_id, Lesson.teacher_id == teacher_id,
+            )
         )
 
     async def search(

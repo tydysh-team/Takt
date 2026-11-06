@@ -164,18 +164,105 @@ async def test_conflict_lists_all_lessons_and_confirmation_creates(
     assert count_after == 3
 
 
-async def test_cancelled_and_other_teacher_do_not_conflict(api_context: ApiTestContext) -> None:
+@pytest.mark.parametrize("other_teacher", [False, True])
+async def test_cancelled_lesson_does_not_conflict(
+    api_context: ApiTestContext, other_teacher: bool,
+) -> None:
     teacher, token, student, _ = await participants(api_context)
-    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
+    blocker_teacher = (await actor(api_context, RoleCode.TEACHER))[0] if other_teacher else teacher
     start = utc_now() + timedelta(days=30)
-    await store_lesson(api_context, teacher, student, start, cancelled_at=utc_now())
-    await store_lesson(api_context, other_teacher, student, start)
+    await store_lesson(api_context, blocker_teacher, student, start, cancelled_at=utc_now())
 
     response = await api_context.client.post(
         "/api/v1/lessons", headers=auth(token), json=payload(student, start)
     )
 
     assert response.status_code == 201
+
+
+async def test_other_teacher_student_conflict_is_hard_and_private(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
+    await connect(api_context, other_teacher, student)
+    start = utc_now() + timedelta(days=30)
+    foreign = await store_lesson(api_context, other_teacher, student, start)
+    proposed = payload(student, start + timedelta(minutes=30))
+
+    for confirmed in (False, True):
+        response = await api_context.client.post(
+            "/api/v1/lessons",
+            headers=auth(token),
+            json={**proposed, "confirm_conflict": confirmed},
+        )
+        assert response.status_code == 409
+        error = response.json()["error"]
+        assert error["code"] == "student_schedule_conflict"
+        assert error["context"] == {"conflicts": [{
+            "starts_at": start.isoformat(),
+            "ends_at": (start + timedelta(hours=1)).isoformat(),
+        }]}
+        assert str(foreign.id) not in response.text
+        assert str(other_teacher.id) not in response.text
+        assert "История" not in response.text
+        assert "Тема" not in response.text
+
+    stored = (await api_context.session.scalars(
+        select(Lesson).where(Lesson.teacher_id == teacher.id)
+    )).all()
+    assert stored == []
+
+
+async def test_other_teacher_adjacent_lesson_does_not_conflict(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
+    start = utc_now() + timedelta(days=30)
+    await store_lesson(api_context, other_teacher, student, start)
+
+    response = await api_context.client.post(
+        "/api/v1/lessons",
+        headers=auth(token),
+        json=payload(student, start + timedelta(hours=1)),
+    )
+    assert response.status_code == 201
+
+
+async def test_student_conflict_takes_priority_over_teacher_conflict(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
+    start = utc_now() + timedelta(days=30)
+    await store_lesson(api_context, teacher, student, start)
+    await store_lesson(api_context, other_teacher, student, start)
+
+    response = await api_context.client.post(
+        "/api/v1/lessons", headers=auth(token), json=payload(student, start)
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "student_schedule_conflict"
+
+
+async def test_other_student_teacher_conflict_can_be_confirmed(api_context: ApiTestContext) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    other_student, _ = await actor(api_context, RoleCode.STUDENT)
+    await connect(api_context, teacher, other_student)
+    start = utc_now() + timedelta(days=30)
+    await store_lesson(api_context, teacher, student, start)
+    proposed = payload(other_student, start + timedelta(minutes=15))
+
+    warning = await api_context.client.post(
+        "/api/v1/lessons", headers=auth(token), json=proposed
+    )
+    confirmed = await api_context.client.post(
+        "/api/v1/lessons", headers=auth(token), json={**proposed, "confirm_conflict": True}
+    )
+    assert warning.status_code == 409
+    assert warning.json()["error"]["code"] == "lesson_time_conflict"
+    assert confirmed.status_code == 201
 
 
 async def test_confirm_conflict_does_not_bypass_validation_or_access(
@@ -287,6 +374,30 @@ async def test_reschedule_conflict_requires_confirmation(api_context: ApiTestCon
     )
     assert confirmed.status_code == 200
     assert confirmed.json()["is_rescheduled"] is True
+
+
+async def test_reschedule_rejects_other_teacher_student_conflict(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
+    start = utc_now() + timedelta(days=30)
+    lesson = await store_lesson(api_context, teacher, student, start)
+    await store_lesson(api_context, other_teacher, student, start + timedelta(hours=2))
+    path = f"/api/v1/lessons/{lesson.id}/schedule"
+
+    for confirmed in (False, True):
+        response = await api_context.client.patch(
+            path, headers=auth(token), json={
+                "starts_at": (start + timedelta(hours=2, minutes=15)).isoformat(),
+                "confirm_conflict": confirmed,
+            }
+        )
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "student_schedule_conflict"
+    await api_context.session.refresh(lesson)
+    assert lesson.starts_at == start
+    assert lesson.rescheduled_at is None
 
 
 @pytest.mark.parametrize("offset", [timedelta(), timedelta(minutes=-90)])

@@ -17,6 +17,7 @@ import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seri
 import { lessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
 import { subjectTone } from "../features/lessons/lesson-tone";
 import { rescheduleConflicts } from "../features/lessons/reschedule-response";
+import { studentScheduleConflictMessage } from "../features/lessons/student-conflict";
 import { filterLessonsForSchedule, schedulePresentation, type SchedulePersonContext, type ScheduleViewContext } from "../features/lessons/schedule-context";
 import { classifyStack, groupLessonStacks, stackDurationMinutes, type StackConflictKind } from "../features/lessons/schedule-groups";
 import type {
@@ -212,13 +213,13 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         ? "empty"
         : "ready";
   function conflictItems(error: unknown): LessonConflict[] {
-    if (!(error instanceof ApiError) || !error.context) return [];
+    if (!(error instanceof ApiError) || error.status !== 409 || error.code !== "lesson_time_conflict" || !error.context) return [];
     const value = error.context.conflicts;
     return Array.isArray(value) ? value.filter((item): item is LessonConflict => Boolean(item) && typeof item === "object" && "title" in item) : [];
   }
 
   function seriesConflictItems(error: unknown): string[] {
-    if (!(error instanceof ApiError) || !error.context) return [];
+    if (!(error instanceof ApiError) || error.status !== 409 || error.code !== "lesson_time_conflict" || !error.context) return [];
     return describeSeriesConflicts(seriesConflictCandidates(error.context.conflicts), timezone);
   }
 
@@ -259,8 +260,14 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         await queryClient.invalidateQueries({ queryKey: ["lessons"] });
       }
     } catch (error) {
+      const studentConflict = studentScheduleConflictMessage(error, timezone);
       const conflicts = conflictItems(error);
-      if (conflicts.length && !confirm_conflict) {
+      if (studentConflict) {
+        setConflictPayload(null);
+        setConflicts([]);
+        setSeriesConflict(null);
+        setCreateTimeError(studentConflict);
+      } else if (conflicts.length && !confirm_conflict) {
         setConflictPayload({ ...formPayload });
         setConflicts(conflicts);
       } else if (error instanceof ApiError && error.code === "lesson_start_in_past") {
@@ -308,7 +315,11 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
           void queryClient.invalidateQueries({ queryKey: ["lessons"] });
         }
         const conflicts = rescheduleConflicts(error);
-        if (conflicts !== null && !confirmConflict) {
+        const studentConflict = studentScheduleConflictMessage(error, timezone);
+        if (studentConflict) {
+          setRescheduleConflict(null);
+          setRescheduleError(studentConflict);
+        } else if (conflicts !== null && !confirmConflict) {
           setRescheduleConflict({ startsAt: newStartsAt, conflicts });
         } else {
           setRescheduleConflict(null);
