@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AttendanceNotAvailableError,
+    ConnectionNotFoundError,
     ForbiddenError,
     LessonNotCancellableError,
     LessonNotFoundError,
@@ -38,6 +39,7 @@ from app.schemas.lessons import (
     LessonRescheduleRequest,
     LessonSearchRequest,
     LessonSeriesCreate,
+    PersonScheduleRequest,
 )
 from app.services.lesson_series import (
     LessonSeriesTimeError,
@@ -383,6 +385,28 @@ class LessonService:
             self._access_scope(user),
             date_from=filters.date_from,
             date_to=filters.date_to,
+        )
+
+    async def person_schedule(
+        self, user: User, person_id: UUID, filters: PersonScheduleRequest,
+    ) -> tuple[list[LessonRecord], list[tuple[datetime, datetime]]]:
+        if user.role == RoleCode.TEACHER:
+            if await self._relations.get_student(user.id, person_id) is None:
+                raise ConnectionNotFoundError()
+            teacher_id, student_id, selected_is_teacher = user.id, person_id, False
+        elif user.role == RoleCode.STUDENT:
+            if await self._relations.get_teacher(user.id, person_id) is None:
+                raise ConnectionNotFoundError()
+            teacher_id, student_id, selected_is_teacher = person_id, user.id, True
+        else:
+            raise ForbiddenError()
+        return await self._lessons.person_schedule(
+            teacher_id,
+            student_id,
+            date_from=filters.date_from,
+            date_to=filters.date_to,
+            now=utc_now(),
+            selected_is_teacher=selected_is_teacher,
         )
 
     async def get_by_id(self, user: User, lesson_id: UUID) -> LessonRecord:

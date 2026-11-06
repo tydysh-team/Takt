@@ -816,6 +816,7 @@ a { color: var(--brand); }
 .lesson-card--overlap { border-left-color: #d97706; background: #fff8eb; }
 .lesson-card--cancelled { opacity: .62; border-left-color: #b9c2ba; background: #f4f6f4; }
 .lesson-card--cancelled strong { color: var(--muted); text-decoration: line-through; }
+.lesson-card--busy { border-left-color: #9aa79f; background: #f1f4f2; cursor: default; }
 .lesson-overlap-badge { justify-self: start; padding: .2rem .45rem; border-radius: 999px; background: #ffedc2; color: #784500; font-size: .68rem; font-weight: 700; }
 .lesson-cancelled-badge { justify-self: start; padding: .2rem .45rem; border-radius: 999px; background: #f6e3e1; color: #a33b32; font-size: .68rem; font-weight: 700; }
 .schedule-event strong, .schedule-event span, .schedule-event small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -831,6 +832,7 @@ a { color: var(--brand); }
 .schedule-event--indigo { border-left-color: #4f46e5; background: #e9e9ff; }
 .schedule-event--cyan { border-left-color: #0891b2; background: #dcf5fb; }
 .schedule-event--lime { border-left-color: #65a30d; background: #eef8d9; }
+.schedule-event--busy { border-left-color: #9aa79f; background: #f1f4f2; cursor: default; }
 /* Lesson card stays compact; the chevron opens the details panel below the calendar. */
 .schedule-event .schedule-event__title { display: flex; align-items: start; justify-content: space-between; gap: .3rem; min-width: 0; color: var(--ink); }
 .schedule-event__title strong { flex: 1 1 auto; min-width: 0; }
@@ -906,6 +908,7 @@ a { color: var(--brand); }
 .schedule-stack__item--indigo::before { background: #4f46e5; }
 .schedule-stack__item--cyan::before { background: #0891b2; }
 .schedule-stack__item--lime::before { background: #65a30d; }
+.schedule-stack__item--busy::before { background: #9aa79f; }
 .schedule-stack__more { padding-left: .88rem; color: #9a5b0b; font-size: .72rem; font-weight: 850; line-height: 1; letter-spacing: .08em; }
 .schedule-stack__hint { align-self: end; justify-self: start; color: #9a5b0b; font-size: .56rem; font-weight: 850; }
 .schedule-stack--compact { gap: .1rem; padding: .28rem .38rem; }
@@ -968,6 +971,7 @@ a { color: var(--brand); }
 .conflict-drawer__lesson--indigo { border-left-color: #4f46e5; }
 .conflict-drawer__lesson--cyan { border-left-color: #0891b2; }
 .conflict-drawer__lesson--lime { border-left-color: #65a30d; }
+.conflict-drawer__lesson--busy { border-left-color: #9aa79f; background: #f1f4f2; cursor: default; }
 .conflict-drawer__lesson--cancelled { opacity: .62; border-left-color: #c2c9c2; background: #f5f7f5; }
 .conflict-drawer__lesson--cancelled .conflict-drawer__body strong { color: var(--muted); text-decoration: line-through; }
 @keyframes drawer-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }

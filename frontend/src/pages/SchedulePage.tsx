@@ -17,6 +17,7 @@ import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seri
 import { lessonStatus, lessonAttendanceLabel } from "../features/lessons/lesson-status";
 import { subjectTone } from "../features/lessons/lesson-tone";
 import { rescheduleConflicts } from "../features/lessons/reschedule-response";
+import { scheduleCalendarItems, scheduleItemStatus, scheduleItemTitle, type ScheduleCalendarItem } from "../features/lessons/schedule-items";
 import { studentScheduleConflictMessage } from "../features/lessons/student-conflict";
 import { filterLessonsForSchedule, schedulePresentation, type SchedulePersonContext, type ScheduleViewContext } from "../features/lessons/schedule-context";
 import { classifyStack, groupLessonStacks, stackDurationMinutes, type StackConflictKind } from "../features/lessons/schedule-groups";
@@ -61,7 +62,7 @@ function lessonGridPosition(time: string, durationMinutes: number, calendarStart
   };
 }
 
-function stackTimeRange(lessons: LessonReadDTO[], timezone: string) {
+function stackTimeRange(lessons: ScheduleCalendarItem[], timezone: string) {
   const start = Math.min(...lessons.map((lesson) => Date.parse(lesson.starts_at)));
   const end = Math.max(...lessons.map((lesson) => Date.parse(lesson.starts_at) + safeDuration(lesson.duration_minutes) * 60_000));
   const duration = Math.max(1, Math.round((end - start) / 60_000));
@@ -74,6 +75,14 @@ function lessonCountLabel(count: number) {
   if (last === 1 && lastTwo !== 11) return `${String(count)} урок`;
   if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${String(count)} урока`;
   return `${String(count)} уроков`;
+}
+
+function intervalCountLabel(count: number) {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (last === 1 && lastTwo !== 11) return `${String(count)} занятый интервал`;
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${String(count)} занятых интервала`;
+  return `${String(count)} занятых интервалов`;
 }
 
 const statusLabels = {
@@ -115,7 +124,7 @@ interface SeriesConflictState {
 }
 
 interface ConflictDrawerState {
-  lessons: LessonReadDTO[];
+  lessons: ScheduleCalendarItem[];
   dateLabel: string;
   kind: StackConflictKind;
 }
@@ -133,6 +142,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     ...(viewedTeacher ? { teacher: viewedTeacher } : {}),
     ...(viewedStudent ? { student: viewedStudent } : {}),
   }), [viewedTeacher, viewedStudent]);
+  const selectedPerson = viewedTeacher ?? viewedStudent;
   const presentation = schedulePresentation(user?.role, viewContext);
   const [selectedDay, setSelectedDay] = useState(0);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -187,8 +197,12 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   }, [days, timezone]);
 
   const lessons = useQuery({
-    queryKey: queryKeys.lessons(lessonFilters.date_from, lessonFilters.date_to),
-    queryFn: () => api.searchLessons(lessonFilters),
+    queryKey: selectedPerson
+      ? queryKeys.personSchedule(user?.role ?? "unknown", selectedPerson.id, lessonFilters.date_from, lessonFilters.date_to)
+      : queryKeys.lessons(lessonFilters.date_from, lessonFilters.date_to),
+    queryFn: () => selectedPerson
+      ? api.personSchedule(selectedPerson.id, lessonFilters)
+      : api.searchLessons(lessonFilters),
     enabled: Boolean(user && profile.data),
     retry: false,
     staleTime: 30_000,
@@ -198,7 +212,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const nextLessonQuery = useQuery({
     queryKey: queryKeys.nextLesson,
     queryFn: () => api.searchLessons(),
-    enabled: Boolean(user && profile.data),
+    enabled: Boolean(user && profile.data && !selectedPerson),
     retry: false,
     staleTime: 30_000,
     refetchInterval: 30_000,
@@ -375,36 +389,40 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
 
   const selectedDate = days[selectedDay]?.iso ?? days[0]?.iso ?? "";
   const visibleItems = useMemo(
-    () => filterLessonsForSchedule(lessons.data ?? [], user?.role, viewContext, user?.id),
-    [lessons.data, user?.role, user?.id, viewContext],
+    () => selectedPerson
+      ? scheduleCalendarItems(lessons.data ?? [], lessonFilters.date_from)
+      : scheduleCalendarItems(filterLessonsForSchedule((lessons.data ?? []) as LessonReadDTO[], user?.role, viewContext, user?.id)),
+    [lessons.data, user?.role, user?.id, viewContext, selectedPerson, lessonFilters.date_from],
   );
   const displayedItems = useMemo(
     () => showCancelled
       ? visibleItems
-      : visibleItems.filter((lesson) => lessonStatus(lesson) !== "cancelled"),
+      : visibleItems.filter((lesson) => scheduleItemStatus(lesson) !== "cancelled"),
     [visibleItems, showCancelled],
   );
   // Cancelled lessons never count as scheduled work, even when they stay visible.
   const scheduledLessonCount = useMemo(
-    () => visibleItems.filter((lesson) => lessonStatus(lesson) !== "cancelled").length,
+    () => visibleItems.filter((lesson) => scheduleItemStatus(lesson) !== "cancelled").length,
     [visibleItems],
   );
 
   const visibleLessons = useMemo(() => displayedItems
     .filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate)
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.id.localeCompare(b.id)), [displayedItems, selectedDate, timezone]);
-  const selectedCalendarLesson = displayedItems.find((lesson) => lesson.id === selectedCalendarLessonId) ?? null;
+  const selectedCalendarLesson = displayedItems.find((lesson): lesson is LessonReadDTO & { type: "lesson" } => lesson.type === "lesson" && lesson.id === selectedCalendarLessonId) ?? null;
   const selectedLessonHasConflict = selectedCalendarLesson && lessonStatus(selectedCalendarLesson) !== "cancelled"
-    ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, displayedItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone) && lessonStatus(lesson) !== "cancelled").map((lesson) => ({ id: lesson.id, title: lesson.title, startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0
+    ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, displayedItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone) && scheduleItemStatus(lesson) !== "cancelled").map((lesson) => ({ id: lesson.id, title: scheduleItemTitle(lesson), startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0
     : false;
   const overlappingLessonIds = useMemo(() => {
-    const active = visibleLessons.filter((lesson) => lessonStatus(lesson) !== "cancelled");
-    return new Set(active.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, active.map((item) => ({ id: item.id, title: item.title, startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id));
+    const active = visibleLessons.filter((lesson) => scheduleItemStatus(lesson) !== "cancelled");
+    return new Set(active.filter((lesson) => findLessonConflicts({ startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes }, active.map((item) => ({ id: item.id, title: scheduleItemTitle(item), startsAt: item.starts_at, durationMinutes: item.duration_minutes })), lesson.id).length > 0).map((lesson) => lesson.id));
   }, [visibleLessons]);
 
-  const nextLesson = useMemo(() => filterLessonsForSchedule(nextLessonQuery.data ?? [], user?.role, viewContext, user?.id)
-    .filter((lesson) => lessonStatus(lesson) === "planned")
-    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null, [nextLessonQuery.data, user?.role, user?.id, viewContext]);
+  const nextLesson = useMemo(() => (selectedPerson
+    ? visibleItems
+    : scheduleCalendarItems(filterLessonsForSchedule(nextLessonQuery.data ?? [], user?.role, viewContext, user?.id)))
+    .filter((lesson) => scheduleItemStatus(lesson) === "planned")
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] ?? null, [nextLessonQuery.data, user?.role, user?.id, viewContext, selectedPerson, visibleItems]);
   const calendarBounds = useMemo(() => {
     const starts = displayedItems.map((lesson) => {
       const local = Temporal.Instant.from(lesson.starts_at).toZonedDateTimeISO(timezone);
@@ -442,8 +460,8 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     <div className="schedule-page-heading">
       <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <div className="schedule-summary-grid">
-        <Card className="summary-card"><span>Занятий на неделе</span><strong>{scheduledLessonCount}</strong><small>{isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
-        <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
+        <Card className="summary-card"><span>Занятий на неделе</span><strong>{scheduledLessonCount}</strong><small>{selectedPerson ? "в расписании выбранного человека" : isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
+        <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? nextLesson.type === "busy" ? "Занят" : `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
       </div>
     </div>
     {createSuccess ? <Alert>Занятие успешно создано.</Alert> : null}
@@ -468,6 +486,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       setConflictDrawer({ lessons: stack.lessons, dateLabel: `${dayNames[dayIndex] ?? ""}, ${day.date}`, kind: info.kind });
     };
     const toggleLesson = () => {
+      if (first.type === "busy") return;
       const next = selected ? null : first.id;
       setSelectedCalendarLessonId(next);
     };
@@ -516,9 +535,9 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
           {shownLessons.map((lesson) => {
             const cancelled = cancelledIds.has(lesson.id);
             return (
-              <span className={`schedule-stack__item schedule-stack__item--${cancelled ? "cancelled" : subjectTone(lesson.title)} schedule-stack__item--status-${lessonStatus(lesson)}${!cancelled && lesson.id === primaryId ? " schedule-stack__item--primary" : ""}`} key={lesson.id} aria-label={`Статус: ${statusLabels[lessonStatus(lesson)]}`}>
-                <strong>{lesson.title}</strong>
-                {!cancelled ? <small className="schedule-status-label">{statusLabels[lessonStatus(lesson)]}</small> : null}
+              <span className={`schedule-stack__item schedule-stack__item--${lesson.type === "busy" ? "busy" : cancelled ? "cancelled" : subjectTone(lesson.title)} schedule-stack__item--status-${scheduleItemStatus(lesson)}${!cancelled && lesson.id === primaryId ? " schedule-stack__item--primary" : ""}`} key={lesson.id} aria-label={lesson.type === "busy" ? "Занят" : `Статус: ${statusLabels[lessonStatus(lesson)]}`}>
+                <strong>{scheduleItemTitle(lesson)}</strong>
+                {lesson.type === "busy" ? <small>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</small> : !cancelled ? <small className="schedule-status-label">{statusLabels[lessonStatus(lesson)]}</small> : null}
                 {cancelled ? <em className="schedule-stack__cancelled-tag">Отменено</em> : null}
               </span>
             );
@@ -529,6 +548,16 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         <span className="schedule-card-help" aria-hidden="true">?</span>
       </article>;
     }
+
+    if (first.type === "busy") return <article
+      key={first.id}
+      className={`schedule-event schedule-event--busy${shortLesson ? " schedule-event--short" : ""}`}
+      style={{ ...positionStyle, marginLeft: ".3rem", width: "calc(100% - .6rem)", zIndex: 3 }}
+      aria-label={`Занят. ${range}`}
+    >
+      <span className="schedule-event__title"><strong>Занят</strong></span>
+      <span className="schedule-event__foot"><small>{range}</small></span>
+    </article>;
 
     const cancelled = lessonStatus(first) === "cancelled";
     return <article
@@ -554,6 +583,10 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     </article>;
   });
 })}</div></Card> : <Card className="schedule-list-view"><div className="schedule-list-days" role="tablist" aria-label="Дни недели">{days.map((day, index) => <button key={`list-${day.iso}`} type="button" role="tab" aria-selected={selectedDay === index} className={selectedDay === index ? "schedule-day schedule-day--active" : "schedule-day"} onClick={() => { setSelectedDay(index); }}><span>{day.short}</span><strong>{day.date.split(" ")[0]}</strong><small>{day.date.split(" ")[1]}</small></button>)}</div><div className="schedule-list"><div className="schedule-list-day-heading"><strong>{dayNames[selectedDay]}</strong><span>{days[selectedDay]?.date}</span></div>{visibleLessons.length ? visibleLessons.map((lesson) => {
+  if (lesson.type === "busy") return <article className="lesson-card lesson-card--busy" key={lesson.id} aria-label={`Занят. ${formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}`}>
+    <time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time>
+    <div><strong>Занят</strong></div>
+  </article>;
   const cancelled = lessonStatus(lesson) === "cancelled";
   const overlapping = overlappingLessonIds.has(lesson.id);
   return <article role="button" tabIndex={0} title="Нажмите, чтобы открыть описание занятия" aria-label={`${lesson.title}. Статус: ${statusLabels[lessonStatus(lesson)]}. Показать детали`} className={`lesson-card lesson-card--${subjectTone(lesson.title)} lesson-card--status-${lessonStatus(lesson)}${overlapping ? " lesson-card--overlap" : ""}${cancelled ? " lesson-card--cancelled" : ""}`} key={lesson.id} onClick={() => { setSelectedCalendarLessonId(lesson.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCalendarLessonId(lesson.id); } }}>
@@ -562,7 +595,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     {cancelled ? <small className="lesson-cancelled-badge">Отменено</small> : overlapping ? <small className="lesson-overlap-badge">Пересечение</small> : <small className="schedule-status-label">{statusLabels[lessonStatus(lesson)]}</small>}
     <span className="schedule-card-help" aria-hidden="true">?</span>
   </article>;
-}) : <div className="schedule-empty">На этот день занятий нет</div>}</div></Card>}
+}) : <div className="schedule-empty">{selectedPerson ? "В Takt нет занятий на этот день" : "На этот день занятий нет"}</div>}</div></Card>}
 
     {/* ── Lesson details ─────────────────────────────────────────────── */}
     <Dialog open={Boolean(selectedCalendarLesson)} title={selectedCalendarLesson?.title ?? "Детали занятия"} description="Подробная информация о занятии" onClose={() => { setSelectedCalendarLessonId(null); }}>
@@ -628,16 +661,26 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     <Drawer
       open={Boolean(conflictDrawer)}
       eyebrow={conflictDrawer?.kind === "warning" ? "Конфликт расписания" : "Занятия"}
-      title={conflictDrawer ? (conflictDrawer.kind === "warning" ? `${lessonCountLabel(conflictDrawer.lessons.filter((lesson) => lessonStatus(lesson) !== "cancelled").length)} в одно время` : `${lessonCountLabel(conflictDrawer.lessons.length)} рядом`) : "Наложение занятий"}
+      title={conflictDrawer ? conflictDrawer.lessons.some((item) => item.type === "busy")
+        ? intervalCountLabel(conflictDrawer.lessons.length)
+        : conflictDrawer.kind === "warning" ? `${lessonCountLabel(conflictDrawer.lessons.filter((lesson) => scheduleItemStatus(lesson) !== "cancelled").length)} в одно время` : `${lessonCountLabel(conflictDrawer.lessons.length)} рядом` : "Наложение занятий"}
       description={conflictDrawer ? `${conflictDrawer.dateLabel} · ${stackTimeRange(conflictDrawer.lessons, timezone)}` : undefined}
       onClose={() => { setConflictDrawer(null); }}
     >
       {conflictDrawer?.kind === "warning" ? <div className="conflict-drawer__notice">
         <WarningIcon />
-        <p>Эти занятия пересекаются по времени. Откройте нужное, чтобы проверить детали, перенести или отменить его.</p>
+        <p>{conflictDrawer?.lessons.some((item) => item.type === "busy")
+          ? "Эти интервалы пересекаются по времени. Чужая занятость доступна только для просмотра."
+          : "Эти занятия пересекаются по времени. Откройте нужное, чтобы проверить детали, перенести или отменить его."}</p>
       </div> : null}
       <ul className="conflict-drawer__list">
         {conflictDrawer?.lessons.map((lesson) => {
+          if (lesson.type === "busy") return <li key={lesson.id}>
+            <div className="conflict-drawer__lesson conflict-drawer__lesson--busy">
+              <span className="conflict-drawer__time">{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</span>
+              <span className="conflict-drawer__body"><strong>Занят</strong></span>
+            </div>
+          </li>;
           const status = lessonStatus(lesson);
           const cancelled = status === "cancelled";
           return <li key={lesson.id}>
