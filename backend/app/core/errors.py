@@ -35,6 +35,7 @@ from app.core.exceptions import (
     ProfileNotFoundError,
     RateLimitExceededError,
     StudentNotAvailableError,
+    StudentScheduleConflictError,
 )
 from app.schemas.error import ErrorDetail, ErrorResponse
 
@@ -145,6 +146,7 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
             AlreadyConnectedError,
             InvitationNotActiveError,
             LessonTimeConflictError,
+            StudentScheduleConflictError,
             LessonNotReschedulableError,
             LessonScheduleUnchangedError,
             LessonNotCancellableError,

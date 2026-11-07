@@ -1,10 +1,16 @@
 import type { LessonReadDTO } from "../../api/types";
-import { lessonStatus } from "./lesson-status";
+import { isLessonStatus } from "./lesson-status";
 
-export interface LessonStack {
+export interface StackItem {
+  id: string;
+  starts_at: string;
+  duration_minutes: number;
+}
+
+export interface LessonStack<T extends StackItem = LessonReadDTO> {
   /** Id of the first lesson in the stack; unique inside one day. */
   id: string;
-  lessons: LessonReadDTO[];
+  lessons: T[];
   /** Epoch milliseconds of the earliest lesson start. */
   start: number;
   /** Epoch milliseconds of the latest lesson end. */
@@ -13,19 +19,19 @@ export interface LessonStack {
 
 export type StackConflictKind = "warning" | "neutral" | "none";
 
-export interface StackConflictInfo {
+export interface StackConflictInfo<T extends StackItem = LessonReadDTO> {
   kind: StackConflictKind;
   /** Non-cancelled lessons (planned / in_progress / completed / unknown). */
-  countedLessons: LessonReadDTO[];
+  countedLessons: T[];
   /** Lessons that are still actionable: planned / in_progress / unknown. */
-  liveLessons: LessonReadDTO[];
-  cancelledLessons: LessonReadDTO[];
+  liveLessons: T[];
+  cancelledLessons: T[];
   /** Number of non-cancelled lessons — drives the conflict badge. */
   counted: number;
   liveCount: number;
 }
 
-function durationMs(lesson: LessonReadDTO): number {
+function durationMs(lesson: StackItem): number {
   const minutes = Number.isFinite(lesson.duration_minutes) && lesson.duration_minutes > 0
     ? lesson.duration_minutes
     : 60;
@@ -36,13 +42,13 @@ function durationMs(lesson: LessonReadDTO): number {
  * Groups lessons that overlap in time into vertical stacks.
  * Lessons that only touch (one ends exactly when the next starts) stay separate.
  */
-export function groupLessonStacks(lessons: LessonReadDTO[]): LessonStack[] {
+export function groupLessonStacks<T extends StackItem>(lessons: T[]): LessonStack<T>[] {
   const sorted = [...lessons].sort((a, b) => {
     const difference = Date.parse(a.starts_at) - Date.parse(b.starts_at);
     return difference !== 0 ? difference : a.id.localeCompare(b.id);
   });
 
-  const stacks: LessonStack[] = [];
+  const stacks: LessonStack<T>[] = [];
 
   for (const lesson of sorted) {
     const start = Date.parse(lesson.starts_at);
@@ -60,7 +66,7 @@ export function groupLessonStacks(lessons: LessonReadDTO[]): LessonStack[] {
   return stacks;
 }
 
-export function stackDurationMinutes(stack: LessonStack): number {
+export function stackDurationMinutes<T extends StackItem>(stack: LessonStack<T>): number {
   return Math.max(1, Math.round((stack.end - stack.start) / 60_000));
 }
 
@@ -72,13 +78,15 @@ export function stackDurationMinutes(stack: LessonStack): number {
  * instead of a warning. A real scheduling conflict (warning) needs at least two
  * lessons that are still actionable (planned / in_progress).
  */
-export function classifyStack(stack: LessonStack): StackConflictInfo {
-  const countedLessons: LessonReadDTO[] = [];
-  const liveLessons: LessonReadDTO[] = [];
-  const cancelledLessons: LessonReadDTO[] = [];
+export function classifyStack<T extends StackItem>(stack: LessonStack<T>): StackConflictInfo<T> {
+  const countedLessons: T[] = [];
+  const liveLessons: T[] = [];
+  const cancelledLessons: T[] = [];
 
   for (const lesson of stack.lessons) {
-    const status = lessonStatus(lesson);
+    const status = "type" in lesson && lesson.type === "busy"
+      ? "planned"
+      : "status" in lesson && isLessonStatus(lesson.status) ? lesson.status : "unknown";
     if (status === "cancelled") {
       cancelledLessons.push(lesson);
       continue;

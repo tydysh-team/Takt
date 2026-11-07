@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -122,3 +122,26 @@ class LessonReadDTO(BaseModel):
     cancellation_reason: str | None
     teacher: StudentRefDTO
     student: StudentRefDTO
+
+
+class PersonScheduleLessonDTO(LessonReadDTO):
+    type: Literal["lesson"] = "lesson"
+
+
+class BusyIntervalDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["busy"] = "busy"
+    starts_at: datetime
+    ends_at: datetime
+
+
+class PersonScheduleRequest(BaseModel):
+    date_from: AwareDatetime
+    date_to: AwareDatetime
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "PersonScheduleRequest":
+        if self.date_from >= self.date_to or self.date_to - self.date_from > timedelta(days=8):
+            raise ValueError("Schedule range must be positive and at most eight days")
+        return self

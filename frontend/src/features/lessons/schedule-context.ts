@@ -21,7 +21,7 @@ export function schedulePresentation(role: RoleCode | undefined, context: Schedu
     if (context.teacher) {
       return {
         title: "Расписание преподавателя",
-        description: `${context.teacher.name} · Только ваши занятия с этим преподавателем.`,
+        description: `${context.teacher.name} · Занятия и занятые интервалы на текущую неделю.`,
         showPersonalScheduleLink: true,
       };
     }
@@ -35,7 +35,7 @@ export function schedulePresentation(role: RoleCode | undefined, context: Schedu
   if (context.student) {
     return {
       title: "Расписание ученика",
-      description: `${context.student.name} · Занятия выбранного ученика на текущую неделю.`,
+      description: `${context.student.name} · Занятия и занятые интервалы на текущую неделю.`,
       showPersonalScheduleLink: false,
     };
   }

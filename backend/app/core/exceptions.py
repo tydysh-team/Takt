@@ -142,6 +142,11 @@ class LessonTimeConflictError(DomainError):
     message = "Найдено пересечение с другим занятием."
 
 
+class StudentScheduleConflictError(DomainError):
+    code = "student_schedule_conflict"
+    message = "Ученик уже занят у другого преподавателя в выбранное время. Выберите другое время."
+
+
 class LessonNotReschedulableError(DomainError):
     code = "lesson_not_reschedulable"
     message = "Перенести можно только запланированное занятие."

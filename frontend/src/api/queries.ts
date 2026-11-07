@@ -14,6 +14,7 @@ import type {
   LessonDTO,
   LessonReadDTO,
   LessonSearchFilters,
+  PersonScheduleItem,
   StudentRef,
 } from "./types";
 
@@ -28,6 +29,8 @@ export const queryKeys = {
   teacherStudents: ["teachers", "me", "students"] as const,
   lessons: (dateFrom: string, dateTo: string) => ["lessons", dateFrom, dateTo] as const,
   nextLesson: ["lessons", "next"] as const,
+  personSchedule: (role: string, id: string, dateFrom: string, dateTo: string) =>
+    ["lessons", "person", role, id, dateFrom, dateTo] as const,
 };
 
 export const api = {
@@ -36,6 +39,8 @@ export const api = {
   teacherStudents: () => apiRequest<StudentRef[]>("/teachers/me/students"),
   searchLessons: (filters: LessonSearchFilters = {}) =>
     apiRequest<LessonReadDTO[]>("/lessons/search", { method: "POST", body: filters }),
+  personSchedule: (id: string, filters: { date_from: string; date_to: string }) =>
+    apiRequest<PersonScheduleItem[]>(`/lessons/people/${id}/schedule`, { method: "POST", body: filters }),
   createLesson: (payload: LessonCreatePayload) =>
     apiRequest<LessonDTO>("/lessons", { method: "POST", body: payload }),
   createLessonSeries: (payload: LessonSeriesPayload) =>

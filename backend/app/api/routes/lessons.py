@@ -12,6 +12,7 @@ from app.core.security import utc_now
 from app.models.user import User
 from app.schemas.error import ErrorResponse
 from app.schemas.lessons import (
+    BusyIntervalDTO,
     LessonAttendanceUpdateRequest,
     LessonCancelRequest,
     LessonCreate,
@@ -20,6 +21,8 @@ from app.schemas.lessons import (
     LessonRescheduleRequest,
     LessonSearchRequest,
     LessonSeriesCreate,
+    PersonScheduleLessonDTO,
+    PersonScheduleRequest,
 )
 from app.services.lesson_views import lesson_record_to_dto, lesson_to_dto
 from app.services.lessons import LessonService
@@ -82,6 +85,32 @@ async def search_lessons(
     records = await service.search(user, filters)
     now = utc_now()
     return [lesson_record_to_dto(record, now) for record in records]
+
+
+@router.post(
+    "/people/{person_id}/schedule",
+    response_model=list[PersonScheduleLessonDTO | BusyIntervalDTO],
+    summary="View a connected person's schedule",
+    responses={
+        403: {"model": ErrorResponse, "description": "Teacher or student role required"},
+        404: {"model": ErrorResponse, "description": "Active connection not found"},
+        422: lesson_errors[422],
+    },
+)
+async def person_schedule(
+    person_id: UUID,
+    filters: PersonScheduleRequest,
+    user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[LessonService, Depends(get_lesson_service)],
+) -> list[PersonScheduleLessonDTO | BusyIntervalDTO]:
+    common, busy = await service.person_schedule(user, person_id, filters)
+    now = utc_now()
+    items: list[PersonScheduleLessonDTO | BusyIntervalDTO] = [
+        PersonScheduleLessonDTO(**lesson_record_to_dto(record, now).model_dump())
+        for record in common
+    ]
+    items.extend(BusyIntervalDTO(starts_at=start, ends_at=end) for start, end in busy)
+    return sorted(items, key=lambda item: item.starts_at)
 
 
 @router.get(
