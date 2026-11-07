@@ -188,6 +188,9 @@ async def test_other_teacher_student_conflict_is_hard_and_private(
     await connect(api_context, other_teacher, student)
     start = utc_now() + timedelta(days=30)
     foreign = await store_lesson(api_context, other_teacher, student, start)
+    foreign_id = foreign.id
+    other_teacher_id = other_teacher.id
+    teacher_id = teacher.id
     proposed = payload(student, start + timedelta(minutes=30))
 
     for confirmed in (False, True):
@@ -203,13 +206,13 @@ async def test_other_teacher_student_conflict_is_hard_and_private(
             "starts_at": start.isoformat(),
             "ends_at": (start + timedelta(hours=1)).isoformat(),
         }]}
-        assert str(foreign.id) not in response.text
-        assert str(other_teacher.id) not in response.text
+        assert str(foreign_id) not in response.text
+        assert str(other_teacher_id) not in response.text
         assert "История" not in response.text
         assert "Тема" not in response.text
 
     stored = (await api_context.session.scalars(
-        select(Lesson).where(Lesson.teacher_id == teacher.id)
+        select(Lesson).where(Lesson.teacher_id == teacher_id)
     )).all()
     assert stored == []
 

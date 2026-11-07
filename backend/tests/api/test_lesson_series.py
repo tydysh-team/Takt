@@ -226,6 +226,7 @@ async def test_series_with_one_other_teacher_conflict_is_atomic(
         duration_minutes=60,
     ))
     await api_context.session.commit()
+    teacher_id = teacher.id
     proposed = series_payload(student.id, starts_at=first)
 
     for confirmed in (False, True):
@@ -240,7 +241,7 @@ async def test_series_with_one_other_teacher_conflict_is_atomic(
         assert error["context"]["conflicts"][0]["series_number"] == 3
         assert "Private lesson" not in response.text
         assert "Private notes" not in response.text
-        assert await teacher_lessons(api_context, teacher.id) == []
+        assert await teacher_lessons(api_context, teacher_id) == []
 
 
 async def test_within_series_conflicts_use_warning_flow(

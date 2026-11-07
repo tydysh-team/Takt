@@ -49,6 +49,7 @@ async def connect(
 ) -> None:
     context.session.add(TeacherStudentRelation(
         teacher_id=teacher.id, student_id=student.id, created_at=utc_now(), status=status,
+        deactivated_at=utc_now() if status == RelationStatus.INACTIVE else None,
     ))
     await context.session.commit()
 
@@ -83,6 +84,7 @@ async def test_teacher_and_student_see_shared_lessons_and_private_busy_intervals
         teacher_id=other_teacher.id, student_id=student.id, title="Private foreign title",
         description="Private foreign notes", starts_at=start + timedelta(minutes=30),
         duration_minutes=60, attendance=AttendanceValue.PRESENT,
+        attendance_updated_at=utc_now(),
     )
     foreign_teacher = Lesson(
         teacher_id=teacher.id, student_id=other_student.id, title="Other student's title",
