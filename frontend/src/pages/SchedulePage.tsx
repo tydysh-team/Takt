@@ -27,6 +27,7 @@ import type {
   LessonFormPayload,
   LessonReadDTO,
   LessonSeriesPayload,
+  PersonScheduleItem,
 } from "../api/types";
 import { dayStartUtc, formatLessonDateTime, formatLessonTime, lessonStartUtc, localDate, weekDays } from "../shared/lesson-time";
 import { DEFAULT_TIMEZONE } from "../shared/timezones";
@@ -196,7 +197,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     };
   }, [days, timezone]);
 
-  const lessons = useQuery({
+  const lessons = useQuery<LessonReadDTO[] | PersonScheduleItem[]>({
     queryKey: selectedPerson
       ? queryKeys.personSchedule(user?.role ?? "unknown", selectedPerson.id, lessonFilters.date_from, lessonFilters.date_to)
       : queryKeys.lessons(lessonFilters.date_from, lessonFilters.date_to),
@@ -669,7 +670,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     >
       {conflictDrawer?.kind === "warning" ? <div className="conflict-drawer__notice">
         <WarningIcon />
-        <p>{conflictDrawer?.lessons.some((item) => item.type === "busy")
+        <p>{conflictDrawer.lessons.some((item) => item.type === "busy")
           ? "Эти интервалы пересекаются по времени. Чужая занятость доступна только для просмотра."
           : "Эти занятия пересекаются по времени. Откройте нужное, чтобы проверить детали, перенести или отменить его."}</p>
       </div> : null}

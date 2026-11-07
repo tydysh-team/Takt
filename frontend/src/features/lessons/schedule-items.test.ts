@@ -26,15 +26,16 @@ describe("selected person's calendar items", () => {
       { type: "busy", starts_at: "2030-01-07T10:30:00Z", ends_at: "2030-01-07T11:30:00Z" },
     ];
     const calendar = scheduleCalendarItems(items);
-    expect(calendar[0]).toMatchObject({ type: "lesson", id: "shared-id", title: "Математика" });
-    expect(calendar[1]).toMatchObject({ type: "busy", duration_minutes: 60 });
-    expect(scheduleItemTitle(calendar[1]!)).toBe("Занят");
-    expect(calendar[1]).not.toHaveProperty("teacher");
-    expect(calendar[1]).not.toHaveProperty("student");
-    expect(calendar[1]).not.toHaveProperty("description");
-    const stacks = groupLessonStacks(calendar);
-    expect(stacks).toHaveLength(1);
-    expect(classifyStack(stacks[0]!).counted).toBe(2);
+    const [sharedItem, busyItem, firstStack] = [calendar[0], calendar[1], groupLessonStacks(calendar)[0]];
+    if (!sharedItem || !busyItem || !firstStack) throw new Error("expected calendar items and a stack");
+    expect(sharedItem).toMatchObject({ type: "lesson", id: "shared-id", title: "Математика" });
+    expect(busyItem).toMatchObject({ type: "busy", duration_minutes: 60 });
+    expect(scheduleItemTitle(busyItem)).toBe("Занят");
+    expect(busyItem).not.toHaveProperty("teacher");
+    expect(busyItem).not.toHaveProperty("student");
+    expect(busyItem).not.toHaveProperty("description");
+    expect(groupLessonStacks(calendar)).toHaveLength(1);
+    expect(classifyStack(firstStack).counted).toBe(2);
   });
 
   it("preserves adjacent intervals as separate cards", () => {

@@ -60,13 +60,13 @@ describe("selected person's calendar", () => {
     );
     await screen.findByText("Общий урок");
     const busy = container.querySelector(".schedule-event--busy");
-    expect(busy).not.toBeNull();
-    expect(busy?.textContent).toContain("Занят");
-    expect(busy?.getAttribute("role")).toBeNull();
-    fireEvent.click(busy!);
+    if (!busy) throw new Error("expected a busy card");
+    expect(busy.textContent).toContain("Занят");
+    expect(busy.getAttribute("role")).toBeNull();
+    fireEvent.click(busy);
     expect(screen.queryByText("Перенести…")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Следующая неделя" }));
-    await waitFor(() => expect(personSchedule).toHaveBeenCalledTimes(2));
+    await waitFor(() => { expect(personSchedule).toHaveBeenCalledTimes(2); });
     const firstRange = personSchedule.mock.calls[0]?.[1];
     const secondRange = personSchedule.mock.calls[1]?.[1];
     expect(firstRange?.date_from).not.toBe(secondRange?.date_from);
@@ -87,7 +87,7 @@ describe("selected person's calendar", () => {
       <MemoryRouter><SchedulePage viewedStudent={{ id: "student-selected", name: "Анна Петрова" }} /></MemoryRouter>
     </QueryClientProvider></AuthContext.Provider>);
     expect(screen.getByText("Загружаем расписание…")).not.toBeNull();
-    await waitFor(() => expect(rejectRequest).toBeDefined());
+    await waitFor(() => { expect(rejectRequest).toBeDefined(); });
     rejectRequest?.(new ApiError("connection_not_found", "Активная связь не найдена.", 404));
     expect(await screen.findByText("Активная связь не найдена.")).not.toBeNull();
   });
