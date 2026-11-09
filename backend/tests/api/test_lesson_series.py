@@ -166,7 +166,6 @@ async def test_existing_conflicts_are_detailed_and_confirmation_creates_all(
     api_context: ApiTestContext,
 ) -> None:
     teacher, token, student, _ = await participants(api_context)
-    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
     first = datetime(2030, 1, 7, 15, tzinfo=UTC)
     existing = Lesson(
         teacher_id=teacher.id,
@@ -183,14 +182,7 @@ async def test_existing_conflicts_are_detailed_and_confirmation_creates_all(
         duration_minutes=60,
         cancelled_at=utc_now(),
     )
-    foreign = Lesson(
-        teacher_id=other_teacher.id,
-        student_id=student.id,
-        title="Foreign",
-        starts_at=first + timedelta(days=14),
-        duration_minutes=60,
-    )
-    api_context.session.add_all([existing, cancelled, foreign])
+    api_context.session.add_all([existing, cancelled])
     await api_context.session.commit()
     teacher_id = teacher.id
     existing_id = existing.id
@@ -217,6 +209,39 @@ async def test_existing_conflicts_are_detailed_and_confirmation_creates_all(
     assert len(before_confirmation) == 2
     assert confirmed.status_code == 201
     assert len(confirmed.json()) == 4
+
+
+async def test_series_with_one_other_teacher_conflict_is_atomic(
+    api_context: ApiTestContext,
+) -> None:
+    teacher, token, student, _ = await participants(api_context)
+    other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
+    first = datetime(2030, 1, 7, 15, tzinfo=UTC)
+    api_context.session.add(Lesson(
+        teacher_id=other_teacher.id,
+        student_id=student.id,
+        title="Private lesson",
+        description="Private notes",
+        starts_at=first + timedelta(days=14, minutes=30),
+        duration_minutes=60,
+    ))
+    await api_context.session.commit()
+    teacher_id = teacher.id
+    proposed = series_payload(student.id, starts_at=first)
+
+    for confirmed in (False, True):
+        response = await api_context.client.post(
+            "/api/v1/lessons/series", headers=auth(token), json={
+                **proposed, "confirm_conflict": confirmed,
+            }
+        )
+        assert response.status_code == 409
+        error = response.json()["error"]
+        assert error["code"] == "student_schedule_conflict"
+        assert error["context"]["conflicts"][0]["series_number"] == 3
+        assert "Private lesson" not in response.text
+        assert "Private notes" not in response.text
+        assert await teacher_lessons(api_context, teacher_id) == []
 
 
 async def test_within_series_conflicts_use_warning_flow(

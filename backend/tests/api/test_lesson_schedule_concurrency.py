@@ -273,3 +273,99 @@ async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -
                 await cleanup.execute(delete(User).where(User.id.in_([teacher_id, student_id])))
                 await cleanup.commit()
         await engine.dispose()
+
+
+async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
+    database_url = get_settings().test_database_url
+    if database_url is None:
+        raise RuntimeError("TEST_DATABASE_URL must point to a migrated PostgreSQL test database")
+
+    engine = create_async_engine(database_url, pool_pre_ping=True)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    teacher_ids: list[UUID] = []
+    student_id: UUID | None = None
+    try:
+        async with sessions() as setup:
+            student = User(
+                email=f"parallel-student-{uuid4().hex}@example.com",
+                password_hash="test-only", role=RoleCode.STUDENT, is_active=True,
+            )
+            student.profile = Profile(
+                first_name="Student", last_name="Parallel", timezone="Europe/Moscow",
+            )
+            student.student_profile = StudentProfile()
+            teachers = []
+            for _ in range(2):
+                teacher = User(
+                    email=f"parallel-teacher-{uuid4().hex}@example.com",
+                    password_hash="test-only", role=RoleCode.TEACHER, is_active=True,
+                )
+                teacher.profile = Profile(
+                    first_name="Teacher", last_name="Parallel", timezone="Europe/Moscow",
+                )
+                teacher.teacher_profile = TeacherProfile()
+                teachers.append(teacher)
+            setup.add_all([student, *teachers])
+            await setup.flush()
+            student_id = student.id
+            teacher_ids = [teacher.id for teacher in teachers]
+            setup.add_all([
+                TeacherStudentRelation(
+                    teacher_id=teacher_id, student_id=student_id, created_at=utc_now(),
+                )
+                for teacher_id in teacher_ids
+            ])
+            await setup.commit()
+
+        async def override_session() -> AsyncIterator[AsyncSession]:
+            async with sessions() as session:
+                yield session
+
+        app.dependency_overrides[get_db_session] = override_session
+        try:
+            transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 12345))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver",
+            ) as client:
+                start = utc_now() + timedelta(days=30)
+                body = {
+                    "student_id": str(student_id),
+                    "title": "Parallel lesson",
+                    "starts_at": start.isoformat(),
+                    "duration_minutes": 60,
+                    "confirm_conflict": True,
+                }
+
+                async def create(teacher_id: UUID) -> httpx.Response:
+                    token = TokenService(get_settings()).create_access_token(
+                        user_id=teacher_id, role=RoleCode.TEACHER,
+                    ).value
+                    return await client.post(
+                        "/api/v1/lessons",
+                        headers={"Authorization": f"Bearer {token}"}, json=body,
+                    )
+
+                responses = await asyncio.gather(*(create(id_) for id_ in teacher_ids))
+
+            assert sorted(response.status_code for response in responses) == [201, 409]
+            rejected = next(response for response in responses if response.status_code == 409)
+            assert rejected.json()["error"]["code"] == "student_schedule_conflict"
+            async with sessions() as verify:
+                count = await verify.scalar(select(func.count()).select_from(Lesson).where(
+                    Lesson.student_id == student_id,
+                ))
+                assert count == 1
+        finally:
+            app.dependency_overrides.pop(get_db_session, None)
+    finally:
+        if student_id is not None and teacher_ids:
+            async with sessions() as cleanup:
+                await cleanup.execute(delete(Lesson).where(Lesson.student_id == student_id))
+                await cleanup.execute(delete(TeacherStudentRelation).where(
+                    TeacherStudentRelation.student_id == student_id,
+                ))
+                await cleanup.execute(delete(User).where(
+                    User.id.in_([student_id, *teacher_ids]),
+                ))
+                await cleanup.commit()
+        await engine.dispose()

@@ -37,13 +37,20 @@ describe("schedulePresentation", () => {
   it("identifies a selected teacher and offers a way back to the personal schedule", () => {
     expect(schedulePresentation("STUDENT", { teacher: { id: "teacher-selected", name: "Иван Иванов" } })).toEqual({
       title: "Расписание преподавателя",
-      description: "Иван Иванов · Только ваши занятия с этим преподавателем.",
+      description: "Иван Иванов · Занятия и занятые интервалы на текущую неделю.",
       showPersonalScheduleLink: true,
     });
   });
 
   it("keeps the teacher's general calendar heading", () => {
     expect(schedulePresentation("TEACHER", {}).title).toBe("Неделя занятий");
+  });
+
+  it("identifies the selected student without changing the calendar layout", () => {
+    expect(schedulePresentation("TEACHER", { student: { id: "student-current", name: "Анна Петрова" } })).toMatchObject({
+      title: "Расписание ученика",
+      description: "Анна Петрова · Занятия и занятые интервалы на текущую неделю.",
+    });
   });
 });
 

@@ -243,6 +243,12 @@ export interface LessonReadDTO {
   student: StudentRef;
 }
 
+export type PersonScheduleItem = (LessonReadDTO & { type: "lesson" }) | {
+  type: "busy";
+  starts_at: string;
+  ends_at: string;
+};
+
 export type LessonLifecycleStatus = LessonStatus;
 
 
