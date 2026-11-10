@@ -8,7 +8,7 @@ vi.mock("../auth/auth-context", () => ({ useAuth: () => ({ user: { role: state.r
 import { queryKeys } from "../../api/queries";
 import type { HomeworkPage } from "../../api/types";
 import { HomeworkPanel } from "./HomeworkPanel";
-import { formSchema } from "./homework-schema";
+import { formSchema, submissionSchema } from "./homework-schema";
 
 function renderList(role: "STUDENT" | "TEACHER", page: HomeworkPage): string {
   state.role = role;
@@ -63,6 +63,37 @@ describe("homework views", () => {
     expect(html).toContain("условия.pdf");
     expect(html).toContain("2 КБ");
     expect(html).toContain("Скачать");
+    expect(html).toContain("Сдать работу");
+  });
+
+  it("shows the submitted attempt without another submit action", () => {
+    state.role = "STUDENT";
+    const client = new QueryClient();
+    const item: HomeworkPage["items"][number] = {
+      id: "homework-3", teacher_id: "teacher-2", teacher_name: "Ирина Сергеева",
+      student_id: "student-2", student_name: "Олег Миронов", title: "Прочитать текст",
+      description: null, due_at: "2030-02-01T12:00:00Z", status: "submitted",
+      is_overdue: false, created_at: "2030-01-01T12:00:00Z", attachments: [],
+      latest_submission: {
+        id: "submission-1", homework_id: "homework-3", attempt_no: 1,
+        comment: "Готово", submitted_at: "2030-02-02T12:00:00Z", is_late: true,
+        attachments: [],
+      },
+    };
+    client.setQueryData(queryKeys.homework("STUDENT", undefined, 0), { items: [item], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.homeworkDetail("STUDENT", item.id), item);
+    const html = renderToStaticMarkup(<QueryClientProvider client={client}><HomeworkPanel /></QueryClientProvider>);
+    expect(html).toContain("На проверке");
+    expect(html).toContain("Отправленная работа · попытка №");
+    expect(html).toContain("Просрочено");
+    expect(html).not.toContain("Сдать работу");
+  });
+
+  it("validates the comment length and offers the teacher queue", () => {
+    expect(submissionSchema.safeParse({ comment: "x".repeat(10001) }).success).toBe(false);
+    expect(submissionSchema.safeParse({ comment: "Готово" }).success).toBe(true);
+    const html = renderList("TEACHER", { items: [], total: 0, limit: 20, offset: 0 });
+    expect(html).toContain("Ожидают проверки");
   });
 
   it("shows an empty teacher list and assignment action", () => {

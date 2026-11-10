@@ -1,4 +1,4 @@
-"""Bounded, opt-in cleanup of old assignment objects absent from PostgreSQL.
+"""Bounded, opt-in cleanup of old homework objects absent from PostgreSQL.
 
 Run inside the Backend container. Default mode only reports candidates.
 """
@@ -15,8 +15,8 @@ from app.core.config import get_settings
 from app.models.homework import HomeworkAttachment
 from app.storage.s3 import S3Storage
 
-ASSIGNMENT_KEY = re.compile(
-    r"assignments/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+HOMEWORK_KEY = re.compile(
+    r"(?:assignments|submissions)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 )
 
@@ -24,13 +24,20 @@ ASSIGNMENT_KEY = re.compile(
 async def reconcile(delete: bool) -> None:
     settings = get_settings()
     storage = S3Storage(settings)
-    objects, truncated = await storage.list_objects("assignments/", max_keys=1000)
+    assignment_objects, assignment_truncated = await storage.list_objects(
+        "assignments/", max_keys=1000
+    )
+    submission_objects, submission_truncated = await storage.list_objects(
+        "submissions/", max_keys=1000
+    )
+    objects = assignment_objects + submission_objects
+    truncated = assignment_truncated or submission_truncated
     cutoff = datetime.now(UTC) - timedelta(hours=24)
     candidates = [
-        key for key, modified in objects if ASSIGNMENT_KEY.fullmatch(key) and modified < cutoff
+        key for key, modified in objects if HOMEWORK_KEY.fullmatch(key) and modified < cutoff
     ]
     if not candidates:
-        print("No old assignment objects in the scanned page")
+        print("No old homework objects in the scanned pages")
         return
     engine = create_async_engine(settings.database_url)
     try:

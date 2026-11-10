@@ -1,19 +1,31 @@
+import asyncio
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import datetime, timedelta
+from io import BytesIO
 from typing import BinaryIO, Protocol, cast
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from sqlalchemy import func, select
+from fastapi import UploadFile
+from sqlalchemy import delete, func, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.homework import get_homework_storage
-from app.core.security import utc_now
+from app.core.config import get_settings
+from app.core.security import TokenService, utc_now
+from app.db.session import session_factory
 from app.main import app
-from app.models.enums import RelationStatus
-from app.models.homework import Homework
+from app.models.enums import RelationStatus, RoleCode
+from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus, HomeworkSubmission
+from app.models.profile import Profile
+from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
+from app.models.user import User
+from app.services.homework import HomeworkService
+from app.storage.s3 import S3Storage
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.postgresql]
 
@@ -148,6 +160,12 @@ async def test_create_replay_ownership_and_file_download(api_context: ApiTestCon
     )
     assert own.status_code == 200
     assert foreign.status_code == 404
+    foreign_submission = await api_context.client.post(
+        f"/api/v1/homework/{homework_id}/submissions",
+        headers=headers(stranger_token, str(uuid4())),
+        data={"comment": "Чужая работа"},
+    )
+    assert foreign_submission.status_code == 404
     attachment_id = first.json()["attachments"][0]["id"]
     path = f"/api/v1/homework/{homework_id}/attachments/{attachment_id}/download"
     downloaded = await api_context.client.get(path, headers=headers(student_token))
@@ -183,9 +201,7 @@ async def test_other_teacher_cannot_read_assignment(api_context: ApiTestContext)
         f"/api/v1/homework/{homework_id}/attachments/{attachment_id}/download",
         headers=headers(other_teacher_token),
     )
-    listing = await api_context.client.get(
-        "/api/v1/homework", headers=headers(other_teacher_token)
-    )
+    listing = await api_context.client.get("/api/v1/homework", headers=headers(other_teacher_token))
     assert detail.status_code == 404
     assert download.status_code == 404
     assert listing.json()["total"] == 0
@@ -252,3 +268,305 @@ async def test_connection_roles_validation_and_storage_failure(api_context: ApiT
         "/api/v1/homework", headers=headers(teacher_token, str(uuid4())), data=request
     )
     assert unavailable.status_code == 404
+
+
+async def test_submission_replay_late_queue_and_ownership(api_context: ApiTestContext) -> None:
+    storage = FakeStorage()
+    app.dependency_overrides[get_homework_storage] = lambda: storage
+    _, teacher_token = await account(api_context, "TEACHER")
+    _, other_teacher_token = await account(api_context, "TEACHER")
+    student_id, student_token = await account(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+    request = payload(student_id)
+    request["due_at"] = (utc_now() - timedelta(seconds=1)).isoformat()
+    assignment = await api_context.client.post(
+        "/api/v1/homework", headers=headers(teacher_token, str(uuid4())), data=request
+    )
+    assert assignment.status_code == 201, assignment.text
+    homework_id = assignment.json()["id"]
+    path = f"/api/v1/homework/{homework_id}/submissions"
+    key = str(uuid4())
+    wrong_role = await api_context.client.post(
+        path, headers=headers(teacher_token, key), data={"comment": "Ответ"}
+    )
+    empty = await api_context.client.post(
+        path, headers=headers(student_token, key), data={"comment": "  "}
+    )
+    assert wrong_role.status_code == 403
+    assert empty.status_code == 422
+    first = await api_context.client.post(
+        path, headers=headers(student_token, key), data={"comment": "Решение готово"}
+    )
+    assert first.status_code == 201, first.text
+    body = first.json()
+    assert body["submission"]["attempt_no"] == 1
+    assert body["submission"]["is_late"] is True
+    assert body["submission"]["attachments"] == []
+    assert body["homework"]["status"] == "submitted"
+    submitted_at = datetime.fromisoformat(body["submission"]["submitted_at"].replace("Z", "+00:00"))
+    assert submitted_at > datetime.fromisoformat(request["due_at"])
+    replay = await api_context.client.post(
+        path, headers=headers(student_token, key), data={"comment": "Решение готово"}
+    )
+    changed = await api_context.client.post(
+        path, headers=headers(student_token, key), data={"comment": "Другое решение"}
+    )
+    duplicate = await api_context.client.post(
+        path, headers=headers(student_token, str(uuid4())), data={"comment": "Другое решение"}
+    )
+    assert (
+        replay.status_code == 201 and replay.json()["submission"]["id"] == body["submission"]["id"]
+    )
+    assert changed.status_code == 409 and duplicate.status_code == 409
+    own = await api_context.client.get(
+        f"/api/v1/students/me/homework/{homework_id}", headers=headers(student_token)
+    )
+    assert own.json()["latest_submission"]["id"] == body["submission"]["id"]
+    second_homework = await api_context.client.post(
+        "/api/v1/homework",
+        headers=headers(teacher_token, str(uuid4())),
+        data={**payload(student_id), "title": "Второе задание"},
+    )
+    assert second_homework.status_code == 201
+    second_submission = await api_context.client.post(
+        f"/api/v1/homework/{second_homework.json()['id']}/submissions",
+        headers=headers(student_token, str(uuid4())),
+        data={"comment": "Второй ответ"},
+    )
+    assert second_submission.status_code == 201
+    queue_path = "/api/v1/teachers/me/homework/submissions/pending?limit=1&offset=0"
+    queue = await api_context.client.get(queue_path, headers=headers(teacher_token))
+    next_page = await api_context.client.get(
+        "/api/v1/teachers/me/homework/submissions/pending?limit=1&offset=1",
+        headers=headers(teacher_token),
+    )
+    foreign_queue = await api_context.client.get(queue_path, headers=headers(other_teacher_token))
+    student_queue = await api_context.client.get(queue_path, headers=headers(student_token))
+    assert queue.status_code == 200 and queue.json()["total"] == 2
+    assert queue.json()["items"][0]["id"] == second_submission.json()["submission"]["id"]
+    assert next_page.json()["items"][0]["id"] == body["submission"]["id"]
+    assert foreign_queue.json()["total"] == 0
+    assert student_queue.status_code == 403
+    detail_path = f"/api/v1/teachers/me/homework/submissions/{body['submission']['id']}"
+    assert (
+        await api_context.client.get(detail_path, headers=headers(teacher_token))
+    ).status_code == 200
+    assert (
+        await api_context.client.get(detail_path, headers=headers(other_teacher_token))
+    ).status_code == 404
+    assert (
+        await api_context.client.get(detail_path, headers=headers(student_token))
+    ).status_code == 403
+    assert (
+        int(
+            await api_context.session.scalar(select(func.count()).select_from(HomeworkSubmission))
+            or 0
+        )
+        == 2
+    )
+    homework = await api_context.session.get(Homework, UUID(homework_id))
+    assert homework is not None
+    homework.status = HomeworkStatus.REVIEWED
+    await api_context.session.commit()
+    checked = await api_context.client.get(queue_path, headers=headers(teacher_token))
+    assert checked.json()["total"] == 1
+
+
+async def test_submission_file_storage_and_failed_upload(api_context: ApiTestContext) -> None:
+    storage = FakeStorage()
+    app.dependency_overrides[get_homework_storage] = lambda: storage
+    _, teacher_token = await account(api_context, "TEACHER")
+    _, other_teacher_token = await account(api_context, "TEACHER")
+    student_id, student_token = await account(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+    assignment = await api_context.client.post(
+        "/api/v1/homework", headers=headers(teacher_token, str(uuid4())), data=payload(student_id)
+    )
+    assert assignment.status_code == 201
+    homework_id = assignment.json()["id"]
+    path = f"/api/v1/homework/{homework_id}/submissions"
+    key = str(uuid4())
+    storage.fail_after_write = True
+    failed = await api_context.client.post(
+        path,
+        headers=headers(student_token, key),
+        files=[("files", ("answer.txt", b"Answer", "text/plain"))],
+    )
+    assert failed.status_code == 503 and not storage.objects
+    assert (
+        int(
+            await api_context.session.scalar(select(func.count()).select_from(HomeworkSubmission))
+            or 0
+        )
+        == 0
+    )
+    homework = await api_context.session.get(Homework, UUID(homework_id))
+    assert homework is not None and homework.status == HomeworkStatus.ASSIGNED
+    storage.fail_after_write = False
+    storage.fail_upload = True
+    unavailable = await api_context.client.post(
+        path,
+        headers=headers(student_token, key),
+        files=[("files", ("answer.txt", b"Answer", "text/plain"))],
+    )
+    assert unavailable.status_code == 503 and not storage.objects
+    storage.fail_upload = False
+    success = await api_context.client.post(
+        path,
+        headers=headers(student_token, key),
+        files=[("files", ("answer.txt", b"Answer", "text/plain"))],
+    )
+    assert success.status_code == 201, success.text
+    assert success.json()["submission"]["is_late"] is False
+    attachment_id = success.json()["submission"]["attachments"][0]["id"]
+    submission_id = success.json()["submission"]["id"]
+    assert list(storage.objects.values()) == [b"Answer"]
+    assert next(iter(storage.objects)).startswith(f"submissions/{submission_id}/")
+    attachment = await api_context.session.get(HomeworkAttachment, UUID(attachment_id))
+    assert attachment is not None and attachment.sha256
+    download_path = (
+        f"/api/v1/teachers/me/homework/submissions/{submission_id}"
+        f"/attachments/{attachment_id}/download"
+    )
+    downloaded = await api_context.client.get(download_path, headers=headers(teacher_token))
+    denied = await api_context.client.get(download_path, headers=headers(other_teacher_token))
+    assert downloaded.status_code == 200 and downloaded.content == b"Answer"
+    assert denied.status_code == 404
+    replay = await api_context.client.post(
+        path,
+        headers=headers(student_token, key),
+        files=[("files", ("answer.txt", b"Answer", "text/plain"))],
+    )
+    assert replay.status_code == 201 and replay.json()["submission"]["id"] == submission_id
+    assert len(storage.objects) == 1
+    assert (
+        int(
+            await api_context.session.scalar(select(func.count()).select_from(HomeworkAttachment))
+            or 0
+        )
+        == 1
+    )
+
+
+async def test_submission_commit_failure_removes_uploaded_object(
+    api_context: ApiTestContext,
+) -> None:
+    storage = FakeStorage()
+    app.dependency_overrides[get_homework_storage] = lambda: storage
+    _, teacher_token = await account(api_context, "TEACHER")
+    student_id, student_token = await account(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+    assignment = await api_context.client.post(
+        "/api/v1/homework", headers=headers(teacher_token, str(uuid4())), data=payload(student_id)
+    )
+    assert assignment.status_code == 201
+    homework_id = UUID(assignment.json()["id"])
+    student = await api_context.session.get(User, UUID(student_id))
+    assert student is not None
+    upload = UploadFile(file=BytesIO(b"Answer"), filename="answer.txt")
+    with (
+        patch.object(
+            api_context.session, "commit", new=AsyncMock(side_effect=RuntimeError("DB failure"))
+        ),
+        pytest.raises(RuntimeError, match="DB failure"),
+    ):
+        await HomeworkService(api_context.session, cast(S3Storage, storage)).submit(
+            student, homework_id, None, [upload], uuid4()
+        )
+    assert not storage.objects
+    assert (
+        int(
+            await api_context.session.scalar(select(func.count()).select_from(HomeworkSubmission))
+            or 0
+        )
+        == 0
+    )
+    homework = await api_context.session.get(Homework, homework_id)
+    assert homework is not None and homework.status == HomeworkStatus.ASSIGNED
+
+
+async def test_concurrent_submission_requests_create_one_attempt() -> None:
+    settings = get_settings()
+    assert make_url(settings.database_url).database == "takt_test"
+    assert settings.test_database_url is not None
+    assert make_url(settings.test_database_url).database == "takt_test"
+    teacher_id, student_id, homework_id, key = uuid4(), uuid4(), uuid4(), uuid4()
+    teacher = User(
+        id=teacher_id,
+        email=f"submission-teacher-{teacher_id.hex}@example.com",
+        password_hash="unused",
+        role=RoleCode.TEACHER,
+        is_active=True,
+    )
+    teacher.profile = Profile(first_name="Teacher", last_name="Example")
+    teacher.teacher_profile = TeacherProfile()
+    student = User(
+        id=student_id,
+        email=f"submission-student-{student_id.hex}@example.com",
+        password_hash="unused",
+        role=RoleCode.STUDENT,
+        is_active=True,
+    )
+    student.profile = Profile(first_name="Student", last_name="Example")
+    student.student_profile = StudentProfile()
+    try:
+        async with session_factory() as session:
+            session.add_all([teacher, student])
+            await session.flush()
+            session.add(
+                Homework(
+                    id=homework_id,
+                    teacher_id=teacher_id,
+                    student_id=student_id,
+                    title="Конкурентная отправка",
+                    due_at=utc_now() + timedelta(days=1),
+                    status=HomeworkStatus.ASSIGNED,
+                    idempotency_key=uuid4(),
+                    request_fingerprint="0" * 64,
+                )
+            )
+            await session.commit()
+        token = (
+            TokenService(settings)
+            .create_access_token(user_id=student_id, role=RoleCode.STUDENT)
+            .value
+        )
+        path = f"/api/v1/homework/{homework_id}/submissions"
+        barrier = asyncio.Barrier(2)
+        async with (
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app, client=("127.0.0.1", 31001)),
+                base_url="http://testserver",
+            ) as first,
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app, client=("127.0.0.1", 31002)),
+                base_url="http://testserver",
+            ) as second,
+        ):
+
+            async def send(client: httpx.AsyncClient) -> httpx.Response:
+                await barrier.wait()
+                return await client.post(
+                    path, headers=headers(token, str(key)), data={"comment": "Ответ"}
+                )
+
+            responses = await asyncio.gather(send(first), send(second))
+            assert [response.status_code for response in responses] == [201, 201]
+            assert (
+                responses[0].json()["submission"]["id"] == responses[1].json()["submission"]["id"]
+            )
+            different = await first.post(
+                path, headers=headers(token, str(uuid4())), data={"comment": "Другой ответ"}
+            )
+            assert different.status_code == 409
+        async with session_factory() as session:
+            count = await session.scalar(
+                select(func.count())
+                .select_from(HomeworkSubmission)
+                .where(HomeworkSubmission.homework_id == homework_id)
+            )
+            assert count == 1
+    finally:
+        async with session_factory() as session:
+            await session.execute(delete(User).where(User.id.in_([teacher_id, student_id])))
+            await session.commit()

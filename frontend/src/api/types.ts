@@ -23,6 +23,37 @@ export interface Homework {
   is_overdue: boolean;
   created_at: string;
   attachments: HomeworkAttachment[];
+  latest_submission?: HomeworkSubmission | null;
+}
+
+export interface HomeworkSubmission {
+  id: string;
+  homework_id: string;
+  attempt_no: number;
+  comment: string | null;
+  submitted_at: string;
+  is_late: boolean;
+  attachments: HomeworkAttachment[];
+}
+
+export interface HomeworkSubmissionResult {
+  submission: HomeworkSubmission;
+  homework: Homework;
+}
+
+export interface PendingSubmission extends HomeworkSubmission {
+  student_id: string;
+  student_name: string;
+  title: string;
+  due_at: string;
+  homework_status: string;
+}
+
+export interface PendingSubmissionPage {
+  items: PendingSubmission[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface HomeworkPage {

@@ -8,3 +8,9 @@ export const formSchema = z.object({
 });
 
 export type FormValues = z.infer<typeof formSchema>;
+
+export const submissionSchema = z.object({
+  comment: z.string().max(10000, "Не более 10 000 символов."),
+});
+
+export type SubmissionValues = z.infer<typeof submissionSchema>;

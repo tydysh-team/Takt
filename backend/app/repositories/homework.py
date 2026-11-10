@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from app.models.homework import Homework, HomeworkAttachment
+from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus, HomeworkSubmission
 from app.models.profile import Profile
 
 
@@ -13,6 +13,13 @@ from app.models.profile import Profile
 class HomeworkRecord:
     homework: Homework
     teacher_profile: Profile
+    student_profile: Profile
+
+
+@dataclass(frozen=True, slots=True)
+class SubmissionRecord:
+    submission: HomeworkSubmission
+    homework: Homework
     student_profile: Profile
 
 
@@ -25,6 +32,24 @@ class HomeworkRepository:
 
     def add_attachment(self, attachment: HomeworkAttachment) -> None:
         self.session.add(attachment)
+
+    def add_submission(self, submission: HomeworkSubmission) -> None:
+        self.session.add(submission)
+
+    async def lock_for_submission(self, homework_id: UUID, student_id: UUID) -> Homework | None:
+        return await self.session.scalar(
+            select(Homework)
+            .where(Homework.id == homework_id, Homework.student_id == student_id)
+            .with_for_update(of=Homework)
+        )
+
+    async def submission_by_key(self, homework_id: UUID, key: UUID) -> HomeworkSubmission | None:
+        return await self.session.scalar(
+            select(HomeworkSubmission).where(
+                HomeworkSubmission.homework_id == homework_id,
+                HomeworkSubmission.idempotency_key == key,
+            )
+        )
 
     async def by_idempotency_key(self, teacher_id: UUID, key: UUID) -> Homework | None:
         return await self.session.scalar(
@@ -88,3 +113,66 @@ class HomeworkRepository:
         )
         rows = (await self.session.execute(statement)).all()
         return [HomeworkRecord(row[0], row[1], row[2]) for row in rows], total
+
+    async def pending_page(
+        self, teacher_id: UUID, limit: int, offset: int
+    ) -> tuple[list[SubmissionRecord], int]:
+        latest = (
+            select(
+                HomeworkSubmission.homework_id,
+                func.max(HomeworkSubmission.attempt_no).label("attempt_no"),
+            )
+            .group_by(HomeworkSubmission.homework_id)
+            .subquery()
+        )
+        conditions = (
+            Homework.teacher_id == teacher_id,
+            Homework.status == HomeworkStatus.SUBMITTED,
+        )
+        base = (
+            select(HomeworkSubmission)
+            .join(Homework, Homework.id == HomeworkSubmission.homework_id)
+            .join(
+                latest,
+                (latest.c.homework_id == HomeworkSubmission.homework_id)
+                & (latest.c.attempt_no == HomeworkSubmission.attempt_no),
+            )
+            .where(*conditions)
+        )
+        total = int(
+            await self.session.scalar(select(func.count()).select_from(base.subquery())) or 0
+        )
+        student_profile = aliased(Profile)
+        rows = (
+            await self.session.execute(
+                select(HomeworkSubmission, Homework, student_profile)
+                .join(Homework, Homework.id == HomeworkSubmission.homework_id)
+                .join(
+                    latest,
+                    (latest.c.homework_id == HomeworkSubmission.homework_id)
+                    & (latest.c.attempt_no == HomeworkSubmission.attempt_no),
+                )
+                .join(student_profile, student_profile.user_id == Homework.student_id)
+                .options(selectinload(HomeworkSubmission.attachments))
+                .where(*conditions)
+                .order_by(HomeworkSubmission.submitted_at.desc(), HomeworkSubmission.id.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+        return [SubmissionRecord(row[0], row[1], row[2]) for row in rows], total
+
+    async def teacher_submission(
+        self, teacher_id: UUID, submission_id: UUID
+    ) -> SubmissionRecord | None:
+        student_profile = aliased(Profile)
+        row = (
+            await self.session.execute(
+                select(HomeworkSubmission, Homework, student_profile)
+                .join(Homework, Homework.id == HomeworkSubmission.homework_id)
+                .join(student_profile, student_profile.user_id == Homework.student_id)
+                .options(selectinload(HomeworkSubmission.attachments))
+                .where(HomeworkSubmission.id == submission_id, Homework.teacher_id == teacher_id)
+            )
+        ).one_or_none()
+        return SubmissionRecord(row[0], row[1], row[2]) if row else None

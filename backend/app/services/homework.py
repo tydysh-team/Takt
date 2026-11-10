@@ -14,11 +14,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import utc_now
 from app.models.enums import RelationStatus, RoleCode
-from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus
+from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus, HomeworkSubmission
 from app.models.teacher_student_relation import TeacherStudentRelation
 from app.models.user import User
-from app.repositories.homework import HomeworkRecord, HomeworkRepository
-from app.schemas.homework import HomeworkAttachmentDTO, HomeworkCreate, HomeworkDTO, HomeworkPage
+from app.repositories.homework import HomeworkRecord, HomeworkRepository, SubmissionRecord
+from app.schemas.homework import (
+    HomeworkAttachmentDTO,
+    HomeworkCreate,
+    HomeworkDTO,
+    HomeworkPage,
+    HomeworkSubmissionDTO,
+    HomeworkSubmissionResult,
+    PendingSubmissionDTO,
+    PendingSubmissionPage,
+)
 from app.storage.s3 import S3Storage
 
 logger = logging.getLogger(__name__)
@@ -136,17 +145,46 @@ def to_dto(record: HomeworkRecord) -> HomeworkDTO:
         is_overdue=item.status in {HomeworkStatus.ASSIGNED, HomeworkStatus.NEEDS_REVISION}
         and item.due_at < utc_now(),
         created_at=item.created_at,
-        attachments=[
-            HomeworkAttachmentDTO(
-                id=a.id,
-                original_name=a.original_name,
-                mime_type=a.mime_type,
-                size_bytes=a.size_bytes,
-                sha256=a.sha256,
-                created_at=a.created_at,
-            )
-            for a in item.attachments
-        ],
+        attachments=[attachment_dto(a) for a in item.attachments],
+        latest_submission=(
+            submission_dto(max(item.submissions, key=lambda entry: entry.attempt_no))
+            if item.submissions
+            else None
+        ),
+    )
+
+
+def attachment_dto(item: HomeworkAttachment) -> HomeworkAttachmentDTO:
+    return HomeworkAttachmentDTO(
+        id=item.id,
+        original_name=item.original_name,
+        mime_type=item.mime_type,
+        size_bytes=item.size_bytes,
+        sha256=item.sha256,
+        created_at=item.created_at,
+    )
+
+
+def submission_dto(item: HomeworkSubmission) -> HomeworkSubmissionDTO:
+    return HomeworkSubmissionDTO(
+        id=item.id,
+        homework_id=item.homework_id,
+        attempt_no=item.attempt_no,
+        comment=item.comment,
+        submitted_at=item.submitted_at,
+        is_late=item.is_late,
+        attachments=[attachment_dto(attachment) for attachment in item.attachments],
+    )
+
+
+def pending_dto(record: SubmissionRecord) -> PendingSubmissionDTO:
+    return PendingSubmissionDTO(
+        **submission_dto(record.submission).model_dump(),
+        student_id=record.homework.student_id,
+        student_name=f"{record.student_profile.first_name} {record.student_profile.last_name}",
+        title=record.homework.title,
+        due_at=record.homework.due_at,
+        homework_status=record.homework.status,
     )
 
 
@@ -155,6 +193,161 @@ class HomeworkService:
         self.session = session
         self.storage = storage
         self.repo = HomeworkRepository(session)
+
+    async def submit(
+        self,
+        student: User,
+        homework_id: UUID,
+        comment: str | None,
+        files: list[UploadFile],
+        key: UUID,
+    ) -> HomeworkSubmissionResult:
+        if student.role != RoleCode.STUDENT:
+            raise HomeworkFailure("forbidden", "Операция недоступна.", 403)
+        if len(files) > 5:
+            raise HomeworkFailure(
+                "too_many_attachments", "Можно приложить не более пяти файлов.", 422
+            )
+        normalized_comment = (comment or "").strip() or None
+        if normalized_comment is not None and len(normalized_comment) > 10000:
+            raise HomeworkFailure("invalid_comment", "Комментарий слишком длинный.", 422)
+        if normalized_comment is None and not files:
+            raise HomeworkFailure("empty_submission", "Добавьте комментарий или файл.", 422)
+        metadata = [await inspect_file(upload) for upload in files]
+        fingerprint = hashlib.sha256(
+            json.dumps([normalized_comment, metadata], ensure_ascii=False).encode()
+        ).hexdigest()
+        uploaded_keys: list[str] = []
+        try:
+            homework = await self.repo.lock_for_submission(homework_id, student.id)
+            if homework is None:
+                raise HomeworkFailure("homework_not_found", "Задание не найдено.", 404)
+            previous = await self.repo.submission_by_key(homework_id, key)
+            if previous is not None:
+                if previous.request_fingerprint != fingerprint:
+                    raise HomeworkFailure(
+                        "idempotency_conflict",
+                        "Ключ повтора уже использован для другой работы.",
+                        409,
+                    )
+                record = await self.repo.get(homework_id, student_id=student.id)
+                assert record is not None
+                result = HomeworkSubmissionResult(
+                    submission=submission_dto(previous), homework=to_dto(record)
+                )
+                await self.session.rollback()
+                return result
+            if homework.status != HomeworkStatus.ASSIGNED:
+                raise HomeworkFailure("submission_conflict", "Задание сейчас нельзя сдать.", 409)
+            submission = HomeworkSubmission(
+                id=uuid4(),
+                homework_id=homework.id,
+                attempt_no=1,
+                comment=normalized_comment,
+                submitted_at=utc_now(),
+                is_late=False,
+                idempotency_key=key,
+                request_fingerprint=fingerprint,
+            )
+            self.repo.add_submission(submission)
+            await self.session.flush()
+            if files:
+                if self.storage is None:
+                    raise HomeworkFailure(
+                        "storage_unavailable", "Хранилище файлов недоступно.", 503
+                    )
+                try:
+                    await self.storage.ensure_bucket()
+                except Exception as exc:
+                    raise HomeworkFailure(
+                        "storage_unavailable", "Хранилище файлов недоступно.", 503
+                    ) from exc
+            for upload, (name, mime, size, sha256) in zip(files, metadata, strict=True):
+                attachment_id = uuid4()
+                storage_key = f"submissions/{submission.id}/{attachment_id}"
+                uploaded_keys.append(storage_key)
+                try:
+                    assert self.storage is not None
+                    await self.storage.upload_object(storage_key, upload.file, mime)
+                except Exception as exc:
+                    raise HomeworkFailure(
+                        "storage_unavailable", "Не удалось загрузить файл.", 503
+                    ) from exc
+                self.repo.add_attachment(
+                    HomeworkAttachment(
+                        id=attachment_id,
+                        submission_id=submission.id,
+                        storage_key=storage_key,
+                        original_name=name,
+                        mime_type=mime,
+                        size_bytes=size,
+                        sha256=sha256,
+                    )
+                )
+            await self.session.flush()
+            submitted_at = utc_now()
+            submission.submitted_at = submitted_at
+            submission.is_late = submitted_at > homework.due_at
+            homework.status = HomeworkStatus.SUBMITTED
+            await self.session.flush()
+            await self.session.refresh(submission, attribute_names=["attachments"])
+            self.session.expire(homework, ["submissions"])
+            record = await self.repo.get(homework.id, student_id=student.id)
+            assert record is not None
+            result = HomeworkSubmissionResult(
+                submission=submission_dto(submission),
+                homework=to_dto(record).model_copy(
+                    update={
+                        "status": HomeworkStatus.SUBMITTED,
+                        "latest_submission": submission_dto(submission),
+                    }
+                ),
+            )
+            await self.session.commit()
+            return result
+        except Exception:
+            await self.session.rollback()
+            if self.storage is not None:
+                for storage_key in uploaded_keys:
+                    try:
+                        await self.storage.delete_object(storage_key)
+                    except Exception:
+                        logger.exception(
+                            "Failed to compensate submission upload",
+                            extra={"storage_key": storage_key},
+                        )
+            raise
+
+    async def pending(self, teacher: User, limit: int, offset: int) -> PendingSubmissionPage:
+        records, total = await self.repo.pending_page(teacher.id, limit, offset)
+        return PendingSubmissionPage(
+            items=[pending_dto(record) for record in records],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def teacher_submission(self, teacher: User, submission_id: UUID) -> PendingSubmissionDTO:
+        record = await self.repo.teacher_submission(teacher.id, submission_id)
+        if record is None:
+            raise HomeworkFailure("submission_not_found", "Работа не найдена.", 404)
+        return pending_dto(record)
+
+    async def submission_attachment(
+        self,
+        teacher: User,
+        submission_id: UUID,
+        attachment_id: UUID,
+    ) -> HomeworkAttachment:
+        record = await self.repo.teacher_submission(teacher.id, submission_id)
+        if record is None:
+            raise HomeworkFailure("submission_not_found", "Файл не найден.", 404)
+        attachment = next(
+            (item for item in record.submission.attachments if item.id == attachment_id), None
+        )
+        if attachment is None:
+            raise HomeworkFailure("submission_not_found", "Файл не найден.", 404)
+        return attachment
 
     async def create(
         self, teacher: User, payload: HomeworkCreate, files: list[UploadFile], key: UUID

@@ -80,6 +80,9 @@ class Homework(Base):
     attachments: Mapped[list["HomeworkAttachment"]] = relationship(
         back_populates="homework", foreign_keys="HomeworkAttachment.homework_id", lazy="selectin"
     )
+    submissions: Mapped[list["HomeworkSubmission"]] = relationship(
+        back_populates="homework", lazy="selectin"
+    )
 
 
 class HomeworkSubmission(Base):
@@ -88,6 +91,9 @@ class HomeworkSubmission(Base):
         UniqueConstraint("homework_id", "attempt_no", name="uq_homework_attempt"),
         CheckConstraint("attempt_no > 0", name="ck_homework_attempt_positive"),
         Index("ix_homework_submissions_homework", "homework_id"),
+        UniqueConstraint(
+            "homework_id", "idempotency_key", name="uq_submission_homework_idempotency"
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -98,6 +104,14 @@ class HomeworkSubmission(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_late: Mapped[bool] = mapped_column(nullable=False)
+    idempotency_key: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    homework: Mapped[Homework] = relationship(back_populates="submissions")
+    attachments: Mapped[list["HomeworkAttachment"]] = relationship(
+        back_populates="submission",
+        foreign_keys="HomeworkAttachment.submission_id",
+        lazy="selectin",
+    )
 
 
 class HomeworkReview(Base):
@@ -148,4 +162,7 @@ class HomeworkAttachment(Base):
     )
     homework: Mapped[Homework | None] = relationship(
         back_populates="attachments", foreign_keys=[homework_id]
+    )
+    submission: Mapped[HomeworkSubmission | None] = relationship(
+        back_populates="attachments", foreign_keys=[submission_id]
     )

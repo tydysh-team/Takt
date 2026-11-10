@@ -39,6 +39,36 @@ class HomeworkAttachmentDTO(BaseModel):
     created_at: datetime
 
 
+class HomeworkSubmissionDTO(BaseModel):
+    id: UUID
+    homework_id: UUID
+    attempt_no: int
+    comment: str | None
+    submitted_at: datetime
+    is_late: bool
+    attachments: list[HomeworkAttachmentDTO]
+
+
+class HomeworkSubmissionResult(BaseModel):
+    submission: HomeworkSubmissionDTO
+    homework: "HomeworkDTO"
+
+
+class PendingSubmissionDTO(HomeworkSubmissionDTO):
+    student_id: UUID
+    student_name: str
+    title: str
+    due_at: datetime
+    homework_status: HomeworkStatus
+
+
+class PendingSubmissionPage(BaseModel):
+    items: list[PendingSubmissionDTO]
+    total: int
+    limit: int
+    offset: int
+
+
 class HomeworkDTO(BaseModel):
     id: UUID
     teacher_id: UUID
@@ -52,6 +82,7 @@ class HomeworkDTO(BaseModel):
     is_overdue: bool
     created_at: datetime
     attachments: list[HomeworkAttachmentDTO]
+    latest_submission: HomeworkSubmissionDTO | None = None
 
 
 class HomeworkPage(BaseModel):
