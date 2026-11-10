@@ -1,6 +1,39 @@
 name: takt
 
 services:
+  rustfs_permissions:
+    image: alpine:3.21
+    user: root
+    volumes:
+      - rustfs_data:/data
+    command: ["chown", "-R", "10001:10001", "/data"]
+    restart: "no"
+
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    depends_on:
+      rustfs_permissions:
+        condition: service_completed_successfully
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?Set RUSTFS_ACCESS_KEY in .env}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?Set RUSTFS_SECRET_KEY in .env}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - rustfs_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -46,10 +79,17 @@ services:
       REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-3}
       INVITATION_ACCEPT_RATE_LIMIT: ${INVITATION_ACCEPT_RATE_LIMIT:-10}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      S3_ENDPOINT_URL: http://rustfs:9000
+      S3_BUCKET: takt-homework
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?Set RUSTFS_ACCESS_KEY in .env}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:?Set RUSTFS_SECRET_KEY in .env}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      rustfs:
         condition: service_healthy
     healthcheck:
       test:
@@ -85,4 +125,5 @@ services:
 
 volumes:
   postgres_data:
+  rustfs_data:
 

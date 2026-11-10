@@ -16,6 +16,8 @@ import type {
   LessonSearchFilters,
   PersonScheduleItem,
   StudentRef,
+  Homework,
+  HomeworkPage,
 } from "./types";
 
 export const queryKeys = {
@@ -31,9 +33,21 @@ export const queryKeys = {
   nextLesson: ["lessons", "next"] as const,
   personSchedule: (role: string, id: string, dateFrom: string, dateTo: string) =>
     ["lessons", "person", role, id, dateFrom, dateTo] as const,
+  homework: (role: string, personId: string | undefined, offset: number) => ["homework", role, personId ?? "all", offset] as const,
+  homeworkDetail: (role: string, id: string) => ["homework", role, id] as const,
 };
 
 export const api = {
+  teacherHomework: (studentId?: string, offset = 0) =>
+    apiRequest<HomeworkPage>(`/homework?limit=20&offset=${offset.toString()}${studentId ? `&student_id=${encodeURIComponent(studentId)}` : ""}`),
+  studentHomework: (teacherId?: string, offset = 0) =>
+    apiRequest<HomeworkPage>(`/students/me/homework?limit=20&offset=${offset.toString()}${teacherId ? `&teacher_id=${encodeURIComponent(teacherId)}` : ""}`),
+  homeworkDetail: (id: string, role: "TEACHER" | "STUDENT") =>
+    apiRequest<Homework>(role === "TEACHER" ? `/homework/${id}` : `/students/me/homework/${id}`),
+  createHomework: (data: FormData, idempotencyKey: string) =>
+    apiRequest<Homework>("/homework", { method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey } }),
+  downloadHomeworkAttachment: (homeworkId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/homework/${homeworkId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
   dashboard: () => apiRequest<DashboardSummary>("/dashboard/summary"),
   students: () => apiRequest<StudentListItem[]>("/students"),
   teacherStudents: () => apiRequest<StudentRef[]>("/teachers/me/students"),

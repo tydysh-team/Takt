@@ -1,6 +1,37 @@
 export type RoleCode = "TEACHER" | "STUDENT" | "ADMIN";
 export type ApplicationRole = Exclude<RoleCode, "ADMIN">;
 
+export interface HomeworkAttachment {
+  id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  created_at: string;
+}
+
+export interface Homework {
+  id: string;
+  teacher_id: string;
+  teacher_name: string;
+  student_id: string;
+  student_name: string;
+  title: string;
+  description: string | null;
+  due_at: string;
+  status: string;
+  is_overdue: boolean;
+  created_at: string;
+  attachments: HomeworkAttachment[];
+}
+
+export interface HomeworkPage {
+  items: Homework[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface ApiErrorDetail {
   location: (string | number)[];
   code: string;

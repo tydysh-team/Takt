@@ -38,6 +38,7 @@ from app.core.exceptions import (
     StudentScheduleConflictError,
 )
 from app.schemas.error import ErrorDetail, ErrorResponse
+from app.services.homework import HomeworkFailure
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +196,10 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    async def homework_failure_handler(_request: Request, exc: HomeworkFailure) -> JSONResponse:
+        return error_response(status_code=exc.status, code=exc.code, message=exc.message)
+
+    app.add_exception_handler(HomeworkFailure, homework_failure_handler)  # type: ignore[arg-type]
     app.add_exception_handler(DomainError, domain_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
