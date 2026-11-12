@@ -14,7 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import utc_now
 from app.models.enums import RelationStatus, RoleCode
-from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus, HomeworkSubmission
+from app.models.homework import (
+    Homework,
+    HomeworkAttachment,
+    HomeworkReview,
+    HomeworkStatus,
+    HomeworkSubmission,
+    ReviewDecision,
+)
 from app.models.teacher_student_relation import TeacherStudentRelation
 from app.models.user import User
 from app.repositories.homework import HomeworkRecord, HomeworkRepository, SubmissionRecord
@@ -23,6 +30,9 @@ from app.schemas.homework import (
     HomeworkCreate,
     HomeworkDTO,
     HomeworkPage,
+    HomeworkReviewCreate,
+    HomeworkReviewDTO,
+    HomeworkRevisionCreate,
     HomeworkSubmissionDTO,
     HomeworkSubmissionResult,
     PendingSubmissionDTO,
@@ -174,6 +184,16 @@ def submission_dto(item: HomeworkSubmission) -> HomeworkSubmissionDTO:
         submitted_at=item.submitted_at,
         is_late=item.is_late,
         attachments=[attachment_dto(attachment) for attachment in item.attachments],
+        review=(
+            HomeworkReviewDTO(
+                id=item.review.id,
+                decision=item.review.decision,
+                grade=int(item.review.grade) if item.review.grade is not None else None,
+                comment=item.review.comment,
+                reviewed_at=item.review.reviewed_at,
+            )
+            if item.review is not None else None
+        ),
     )
 
 
@@ -237,12 +257,13 @@ class HomeworkService:
                 )
                 await self.session.rollback()
                 return result
-            if homework.status != HomeworkStatus.ASSIGNED:
+            if homework.status not in {HomeworkStatus.ASSIGNED, HomeworkStatus.NEEDS_REVISION}:
                 raise HomeworkFailure("submission_conflict", "Задание сейчас нельзя сдать.", 409)
+            previous_attempt = await self.repo.latest_submission(homework.id)
             submission = HomeworkSubmission(
                 id=uuid4(),
                 homework_id=homework.id,
-                attempt_no=1,
+                attempt_no=previous_attempt.attempt_no + 1 if previous_attempt else 1,
                 comment=normalized_comment,
                 submitted_at=utc_now(),
                 is_late=False,
@@ -326,6 +347,72 @@ class HomeworkService:
             limit=limit,
             offset=offset,
         )
+
+    async def review_submission(
+        self,
+        teacher: User,
+        submission_id: UUID,
+        *,
+        accepted: HomeworkReviewCreate | None = None,
+        revision: HomeworkRevisionCreate | None = None,
+    ) -> HomeworkSubmissionDTO:
+        if teacher.role != RoleCode.TEACHER:
+            raise HomeworkFailure("forbidden", "Операция недоступна.", 403)
+        try:
+            homework = await self.repo.lock_for_review(submission_id, teacher.id)
+            if homework is None:
+                raise HomeworkFailure("submission_not_found", "Работа не найдена.", 404)
+            current = await self.repo.latest_submission(homework.id)
+            if (
+                homework.status != HomeworkStatus.SUBMITTED
+                or current is None
+                or current.id != submission_id
+                or current.review is not None
+            ):
+                raise HomeworkFailure(
+                    "review_conflict", "Работа уже обработана или изменилась.", 409
+                )
+            if accepted is not None:
+                decision = ReviewDecision.ACCEPTED
+                grade = accepted.grade
+                comment = (accepted.comment or "").strip() or None
+                homework.status = HomeworkStatus.REVIEWED
+            else:
+                assert revision is not None
+                decision = ReviewDecision.NEEDS_REVISION
+                grade = None
+                comment = revision.comment
+                homework.status = HomeworkStatus.NEEDS_REVISION
+            review = HomeworkReview(
+                id=uuid4(), submission_id=current.id, decision=decision,
+                grade=grade, comment=comment, reviewed_at=utc_now(),
+            )
+            current.review = review
+            self.repo.add_review(review)
+            await self.session.flush()
+            result = submission_dto(current)
+            await self.session.commit()
+            return result
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def history(self, user: User, homework_id: UUID) -> list[HomeworkSubmissionDTO]:
+        await self.accessible_record(user, homework_id)
+        return [submission_dto(item) for item in await self.repo.history(homework_id)]
+
+    async def student_submission_attachment(
+        self, student: User, homework_id: UUID, submission_id: UUID, attachment_id: UUID
+    ) -> HomeworkAttachment:
+        await self.accessible_record(student, homework_id)
+        submissions = await self.repo.history(homework_id)
+        submission = next((item for item in submissions if item.id == submission_id), None)
+        attachment = next(
+            (item for item in submission.attachments if item.id == attachment_id), None
+        ) if submission is not None else None
+        if attachment is None:
+            raise HomeworkFailure("submission_not_found", "Файл не найден.", 404)
+        return attachment
 
     async def teacher_submission(self, teacher: User, submission_id: UUID) -> PendingSubmissionDTO:
         record = await self.repo.teacher_submission(teacher.id, submission_id)

@@ -11,7 +11,7 @@ import pytest
 from fastapi import UploadFile
 from sqlalchemy import delete, func, select
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api.routes.homework import get_homework_storage
 from app.core.config import get_settings
@@ -19,12 +19,19 @@ from app.core.security import TokenService, utc_now
 from app.db.session import session_factory
 from app.main import app
 from app.models.enums import RelationStatus, RoleCode
-from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus, HomeworkSubmission
+from app.models.homework import (
+    Homework,
+    HomeworkAttachment,
+    HomeworkReview,
+    HomeworkStatus,
+    HomeworkSubmission,
+)
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
 from app.models.user import User
-from app.services.homework import HomeworkService
+from app.schemas.homework import HomeworkReviewCreate
+from app.services.homework import HomeworkFailure, HomeworkService
 from app.storage.s3 import S3Storage
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.postgresql]
@@ -485,6 +492,145 @@ async def test_submission_commit_failure_removes_uploaded_object(
     assert homework is not None and homework.status == HomeworkStatus.ASSIGNED
 
 
+async def test_review_revision_resubmit_history_and_access(api_context: ApiTestContext) -> None:
+    storage = FakeStorage()
+    app.dependency_overrides[get_homework_storage] = lambda: storage
+    _, teacher_token = await account(api_context, "TEACHER")
+    _, other_teacher_token = await account(api_context, "TEACHER")
+    student_id, student_token = await account(api_context, "STUDENT")
+    other_student_id = uuid4()
+    other_student = User(
+        id=other_student_id,
+        email=f"history-student-{other_student_id.hex}@example.com",
+        password_hash="unused",
+        role=RoleCode.STUDENT,
+        is_active=True,
+    )
+    other_student.profile = Profile(first_name="Other", last_name="Student")
+    other_student.student_profile = StudentProfile()
+    api_context.session.add(other_student)
+    await api_context.session.commit()
+    other_student_token = (
+        TokenService(get_settings())
+        .create_access_token(user_id=other_student_id, role=RoleCode.STUDENT)
+        .value
+    )
+    await connect(api_context, teacher_token, student_token)
+    assignment = await api_context.client.post(
+        "/api/v1/homework", headers=headers(teacher_token, str(uuid4())),
+        data={**payload(student_id), "due_at": (utc_now() - timedelta(days=1)).isoformat()},
+    )
+    assert assignment.status_code == 201, assignment.text
+    homework_id = assignment.json()["id"]
+    submission_path = f"/api/v1/homework/{homework_id}/submissions"
+    first = await api_context.client.post(
+        submission_path, headers=headers(student_token, str(uuid4())),
+        files=[("files", ("answer.txt", b"First answer", "text/plain"))],
+    )
+    assert first.status_code == 201, first.text
+    first_attempt = first.json()["submission"]
+    assert first_attempt["attempt_no"] == 1 and first_attempt["is_late"] is True
+    first_id = first_attempt["id"]
+    revision_path = f"/api/v1/teachers/me/homework/submissions/{first_id}/revision"
+    accept_path = f"/api/v1/teachers/me/homework/submissions/{first_id}/review"
+    assert (await api_context.client.post(
+        revision_path, headers=headers(teacher_token), json={"comment": "   "}
+    )).status_code == 422
+    assert (await api_context.client.post(
+        accept_path, headers=headers(teacher_token), json={"grade": 101}
+    )).status_code == 422
+    assert (await api_context.client.post(
+        revision_path, headers=headers(other_teacher_token), json={"comment": "Чужая"}
+    )).status_code == 404
+    assert (await api_context.client.post(
+        revision_path, headers=headers(student_token), json={"comment": "Нет"}
+    )).status_code == 403
+    revision = await api_context.client.post(
+        revision_path, headers=headers(teacher_token), json={"comment": "Исправьте пункт 2"}
+    )
+    assert revision.status_code == 200, revision.text
+    assert revision.json()["review"]["decision"] == "needs_revision"
+    assert (await api_context.client.post(
+        revision_path, headers=headers(teacher_token), json={"comment": "Повтор"}
+    )).status_code == 409
+    queue_path = "/api/v1/teachers/me/homework/submissions/pending"
+    queue = await api_context.client.get(queue_path, headers=headers(teacher_token))
+    assert queue.json()["total"] == 0
+    student_detail = await api_context.client.get(
+        f"/api/v1/students/me/homework/{homework_id}", headers=headers(student_token)
+    )
+    assert student_detail.json()["status"] == "needs_revision"
+    assert student_detail.json()["latest_submission"]["review"]["comment"] == "Исправьте пункт 2"
+
+    student_history_path = f"/api/v1/students/me/homework/{homework_id}/submissions"
+    teacher_history_path = f"/api/v1/teachers/me/homework/{homework_id}/submissions"
+    assert (await api_context.client.get(
+        student_history_path, headers=headers(other_student_token)
+    )).status_code == 404
+    assert (await api_context.client.get(
+        teacher_history_path, headers=headers(other_teacher_token)
+    )).status_code == 404
+    first_attachment = first_attempt["attachments"][0]["id"]
+    student_download = (
+        f"/api/v1/students/me/homework/{homework_id}/submissions/{first_id}"
+        f"/attachments/{first_attachment}/download"
+    )
+    assert (await api_context.client.get(
+        student_download, headers=headers(student_token)
+    )).content == b"First answer"
+    assert (await api_context.client.get(
+        student_download, headers=headers(other_student_token)
+    )).status_code == 404
+
+    resubmit_key = str(uuid4())
+    second = await api_context.client.post(
+        submission_path, headers=headers(student_token, resubmit_key),
+        data={"comment": "Исправленный ответ"},
+    )
+    assert second.status_code == 201, second.text
+    second_attempt = second.json()["submission"]
+    assert second_attempt["attempt_no"] == 2 and second_attempt["is_late"] is True
+    replay = await api_context.client.post(
+        submission_path, headers=headers(student_token, resubmit_key),
+        data={"comment": "Исправленный ответ"},
+    )
+    assert replay.status_code == 201 and replay.json()["submission"]["id"] == second_attempt["id"]
+    assert (await api_context.client.post(
+        submission_path, headers=headers(student_token, str(uuid4())),
+        data={"comment": "Третья"},
+    )).status_code == 409
+    history = await api_context.client.get(teacher_history_path, headers=headers(teacher_token))
+    assert history.status_code == 200, history.text
+    assert [item["attempt_no"] for item in history.json()] == [1, 2]
+    assert history.json()[0]["review"]["comment"] == "Исправьте пункт 2"
+    assert history.json()[0]["attachments"][0]["id"] == first_attachment
+    assert history.json()[1]["review"] is None
+    queue = await api_context.client.get(queue_path, headers=headers(teacher_token))
+    assert queue.json()["total"] == 1 and queue.json()["items"][0]["id"] == second_attempt["id"]
+    accepted = await api_context.client.post(
+        f"/api/v1/teachers/me/homework/submissions/{second_attempt['id']}/review",
+        headers=headers(teacher_token), json={"grade": 0, "comment": "Теперь верно"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["review"]["grade"] == 0
+    assert (await api_context.client.post(
+        accept_path, headers=headers(teacher_token), json={"grade": 100}
+    )).status_code == 409
+    assert (await api_context.client.post(
+        f"/api/v1/teachers/me/homework/submissions/{second_attempt['id']}/review",
+        headers=headers(teacher_token), json={"grade": 100},
+    )).status_code == 409
+    queue = await api_context.client.get(queue_path, headers=headers(teacher_token))
+    assert queue.json()["total"] == 0
+    final = await api_context.client.get(student_history_path, headers=headers(student_token))
+    assert [item["review"]["decision"] for item in final.json()] == ["needs_revision", "accepted"]
+    assert len(storage.objects) == 1
+    review_count = await api_context.session.scalar(
+        select(func.count()).select_from(HomeworkReview)
+    )
+    assert int(review_count or 0) == 2
+
+
 async def test_concurrent_submission_requests_create_one_attempt() -> None:
     settings = get_settings()
     assert make_url(settings.database_url).database == "takt_test"
@@ -570,3 +716,117 @@ async def test_concurrent_submission_requests_create_one_attempt() -> None:
         async with session_factory() as session:
             await session.execute(delete(User).where(User.id.in_([teacher_id, student_id])))
             await session.commit()
+
+
+async def test_concurrent_review_requests_apply_one_decision() -> None:
+    settings = get_settings()
+    assert settings.test_database_url is not None
+    assert make_url(settings.test_database_url).database == "takt_test"
+    review_engine = create_async_engine(settings.test_database_url, pool_pre_ping=True)
+    review_sessions = async_sessionmaker(review_engine, expire_on_commit=False, autoflush=False)
+    teacher_id, student_id, homework_id, submission_id = uuid4(), uuid4(), uuid4(), uuid4()
+    teacher = User(
+        id=teacher_id,
+        email=f"review-teacher-{teacher_id.hex}@example.com",
+        password_hash="unused",
+        role=RoleCode.TEACHER,
+        is_active=True,
+    )
+    teacher.profile = Profile(first_name="Teacher", last_name="Example")
+    teacher.teacher_profile = TeacherProfile()
+    student = User(
+        id=student_id,
+        email=f"review-student-{student_id.hex}@example.com",
+        password_hash="unused",
+        role=RoleCode.STUDENT,
+        is_active=True,
+    )
+    student.profile = Profile(first_name="Student", last_name="Example")
+    student.student_profile = StudentProfile()
+    try:
+        async with review_sessions() as session:
+            session.add_all([teacher, student])
+            await session.flush()
+            session.add(Homework(
+                id=homework_id, teacher_id=teacher_id, student_id=student_id,
+                title="Одновременная проверка", due_at=utc_now() + timedelta(days=1),
+                status=HomeworkStatus.SUBMITTED, idempotency_key=uuid4(),
+                request_fingerprint="0" * 64,
+            ))
+            await session.flush()
+            session.add(HomeworkSubmission(
+                id=submission_id, homework_id=homework_id, attempt_no=1,
+                comment="Ответ", submitted_at=utc_now(), is_late=False,
+                idempotency_key=uuid4(), request_fingerprint="1" * 64,
+            ))
+            await session.commit()
+        barrier = asyncio.Barrier(2)
+
+        async def review() -> int:
+            async with review_sessions() as session:
+                await barrier.wait()
+                try:
+                    await HomeworkService(session).review_submission(
+                        teacher, submission_id,
+                        accepted=HomeworkReviewCreate(grade=85, comment="Проверено"),
+                    )
+                except HomeworkFailure as exc:
+                    return exc.status
+                return 200
+
+        results = await asyncio.gather(review(), review())
+        assert sorted(results) == [200, 409]
+        async with review_sessions() as session:
+            homework = await session.get(Homework, homework_id)
+            assert homework is not None and homework.status == HomeworkStatus.REVIEWED
+            count = await session.scalar(
+                select(func.count()).select_from(HomeworkReview)
+                .where(HomeworkReview.submission_id == submission_id)
+            )
+            assert count == 1
+    finally:
+        async with review_sessions() as session:
+            await session.execute(delete(User).where(User.id.in_([teacher_id, student_id])))
+            await session.commit()
+        await review_engine.dispose()
+
+
+async def test_failed_review_commit_keeps_submission_pending(api_context: ApiTestContext) -> None:
+    teacher_id, teacher_token = await account(api_context, "TEACHER")
+    student_id, student_token = await account(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+    assignment = await api_context.client.post(
+        "/api/v1/homework", headers=headers(teacher_token, str(uuid4())),
+        data=payload(student_id),
+    )
+    assert assignment.status_code == 201
+    homework_id = assignment.json()["id"]
+    submission = await api_context.client.post(
+        f"/api/v1/homework/{homework_id}/submissions",
+        headers=headers(student_token, str(uuid4())), data={"comment": "Ответ"},
+    )
+    assert submission.status_code == 201
+    submission_id = UUID(submission.json()["submission"]["id"])
+    teacher = await api_context.session.get(User, UUID(teacher_id))
+    assert teacher is not None
+    with (
+        patch.object(
+            api_context.session, "commit", new=AsyncMock(side_effect=RuntimeError("DB failure"))
+        ),
+        pytest.raises(RuntimeError, match="DB failure"),
+    ):
+        await HomeworkService(api_context.session).review_submission(
+            teacher, submission_id, accepted=HomeworkReviewCreate(grade=85, comment="Верно")
+        )
+    await api_context.session.refresh(teacher)
+    homework = await api_context.session.get(Homework, UUID(homework_id))
+    assert homework is not None and homework.status == HomeworkStatus.SUBMITTED
+    count = await api_context.session.scalar(
+        select(func.count()).select_from(HomeworkReview)
+        .where(HomeworkReview.submission_id == submission_id)
+    )
+    assert count == 0
+    pending = await api_context.client.get(
+        "/api/v1/teachers/me/homework/submissions/pending", headers=headers(teacher_token)
+    )
+    assert pending.json()["total"] == 1

@@ -35,13 +35,29 @@ describe("homework views", () => {
         id: "homework-1", teacher_id: "teacher-1", teacher_name: "Иван Иванов",
         student_id: "student-1", student_name: "Анна Петрова", title: "Решить задачи",
         description: "Задачи 1–5", due_at: "2030-01-01T12:00:00Z", status: "future_status",
-        is_overdue: true, created_at: "2029-12-01T12:00:00Z", attachments: [],
+        is_overdue: false, created_at: "2029-12-01T12:00:00Z", attachments: [],
       }],
     });
     expect(html).toContain("Решить задачи");
     expect(html).toContain("Иван Иванов");
     expect(html).toContain("Неизвестный статус");
-    expect(html).toContain("Просрочено");
+    expect(html).not.toContain("Просрочено");
+  });
+
+  it("shows an overdue assigned status while keeping the submit action", () => {
+    const item: HomeworkPage["items"][number] = {
+      id: "overdue-1", teacher_id: "teacher-1", teacher_name: "Иван Иванов",
+      student_id: "student-1", student_name: "Анна Петрова", title: "Задачи",
+      description: null, due_at: "2020-01-01T12:00:00Z", status: "assigned",
+      is_overdue: false, created_at: "2019-12-01T12:00:00Z", attachments: [],
+    };
+    state.role = "STUDENT";
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.homework("STUDENT", undefined, 0), { items: [item], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.homeworkDetail("STUDENT", item.id), item);
+    const html = renderToStaticMarkup(<QueryClientProvider client={client}><HomeworkPanel /></QueryClientProvider>);
+    expect(html).toContain("Назначено · Просрочено");
+    expect(html).toContain("Сдать работу");
   });
 
   it("uses the existing assignment layout and shows a file download action", () => {
@@ -85,7 +101,7 @@ describe("homework views", () => {
     const html = renderToStaticMarkup(<QueryClientProvider client={client}><HomeworkPanel /></QueryClientProvider>);
     expect(html).toContain("На проверке");
     expect(html).toContain("Отправленная работа · попытка №");
-    expect(html).toContain("Просрочено");
+    expect(html).toContain("Сдано с опозданием");
     expect(html).not.toContain("Сдать работу");
   });
 

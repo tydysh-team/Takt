@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.homework import HomeworkStatus
+from app.models.homework import HomeworkStatus, ReviewDecision
 
 
 class HomeworkCreate(BaseModel):
@@ -47,6 +47,36 @@ class HomeworkSubmissionDTO(BaseModel):
     submitted_at: datetime
     is_late: bool
     attachments: list[HomeworkAttachmentDTO]
+    review: "HomeworkReviewDTO | None" = None
+
+
+class HomeworkReviewDTO(BaseModel):
+    id: UUID
+    decision: ReviewDecision
+    grade: int | None
+    comment: str | None
+    reviewed_at: datetime
+
+
+class HomeworkReviewCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    grade: int = Field(ge=0, le=100)
+    comment: str | None = Field(default=None, max_length=10000)
+
+
+class HomeworkRevisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    comment: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("comment")
+    @classmethod
+    def require_comment(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Comment is required")
+        return value
 
 
 class HomeworkSubmissionResult(BaseModel):

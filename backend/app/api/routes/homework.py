@@ -21,6 +21,9 @@ from app.schemas.homework import (
     HomeworkCreate,
     HomeworkDTO,
     HomeworkPage,
+    HomeworkReviewCreate,
+    HomeworkRevisionCreate,
+    HomeworkSubmissionDTO,
     HomeworkSubmissionResult,
     PendingSubmissionDTO,
     PendingSubmissionPage,
@@ -192,6 +195,79 @@ async def teacher_submission_detail(
     service: Annotated[HomeworkService, Depends(get_homework_service)],
 ) -> PendingSubmissionDTO:
     return await service.teacher_submission(teacher, submission_id)
+
+
+@router.post(
+    "/teachers/me/homework/submissions/{submission_id}/review",
+    response_model=HomeworkSubmissionDTO,
+)
+async def accept_submission(
+    submission_id: UUID,
+    payload: HomeworkReviewCreate,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[HomeworkService, Depends(get_homework_service)],
+) -> HomeworkSubmissionDTO:
+    return await service.review_submission(teacher, submission_id, accepted=payload)
+
+
+@router.post(
+    "/teachers/me/homework/submissions/{submission_id}/revision",
+    response_model=HomeworkSubmissionDTO,
+)
+async def request_revision(
+    submission_id: UUID,
+    payload: HomeworkRevisionCreate,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[HomeworkService, Depends(get_homework_service)],
+) -> HomeworkSubmissionDTO:
+    return await service.review_submission(teacher, submission_id, revision=payload)
+
+
+@router.get(
+    "/teachers/me/homework/{homework_id}/submissions", response_model=list[HomeworkSubmissionDTO]
+)
+async def teacher_submission_history(
+    homework_id: UUID,
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[HomeworkService, Depends(get_homework_service)],
+) -> list[HomeworkSubmissionDTO]:
+    return await service.history(teacher, homework_id)
+
+
+@router.get(
+    "/students/me/homework/{homework_id}/submissions", response_model=list[HomeworkSubmissionDTO]
+)
+async def student_submission_history(
+    homework_id: UUID,
+    student: Annotated[User, Depends(get_current_student)],
+    service: Annotated[HomeworkService, Depends(get_homework_service)],
+) -> list[HomeworkSubmissionDTO]:
+    return await service.history(student, homework_id)
+
+
+@router.get(
+    "/students/me/homework/{homework_id}/submissions/{submission_id}/attachments/{attachment_id}/download"
+)
+async def download_student_submission_attachment(
+    homework_id: UUID,
+    submission_id: UUID,
+    attachment_id: UUID,
+    student: Annotated[User, Depends(get_current_student)],
+    service: Annotated[HomeworkService, Depends(get_homework_service)],
+    storage: Annotated[S3Storage | None, Depends(get_homework_storage)],
+) -> StreamingResponse:
+    attachment = await service.student_submission_attachment(
+        student, homework_id, submission_id, attachment_id
+    )
+    if storage is None:
+        raise HomeworkFailure("storage_unavailable", "Хранилище файлов недоступно.", 503)
+    try:
+        stream = await storage.download_object(attachment.storage_key)
+    except Exception as exc:
+        raise HomeworkFailure("storage_unavailable", "Хранилище файлов недоступно.", 503) from exc
+    return attachment_response(
+        stream, attachment.original_name, attachment.mime_type, attachment.size_bytes
+    )
 
 
 @router.get(

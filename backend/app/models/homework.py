@@ -112,6 +112,9 @@ class HomeworkSubmission(Base):
         foreign_keys="HomeworkAttachment.submission_id",
         lazy="selectin",
     )
+    review: Mapped["HomeworkReview | None"] = relationship(
+        back_populates="submission", uselist=False, lazy="selectin"
+    )
 
 
 class HomeworkReview(Base):
@@ -128,6 +131,7 @@ class HomeworkReview(Base):
     grade: Mapped[Decimal | None] = mapped_column(Numeric)
     comment: Mapped[str | None] = mapped_column(Text)
     reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    submission: Mapped[HomeworkSubmission] = relationship(back_populates="review")
 
 
 class HomeworkAttachment(Base):

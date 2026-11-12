@@ -19,6 +19,7 @@ import type {
   Homework,
   HomeworkPage,
   HomeworkSubmissionResult,
+  HomeworkSubmission,
   PendingSubmission,
   PendingSubmissionPage,
 } from "./types";
@@ -40,6 +41,7 @@ export const queryKeys = {
   homeworkDetail: (role: string, id: string) => ["homework", role, id] as const,
   pendingSubmissions: (offset: number) => ["homework", "pending", offset] as const,
   pendingSubmission: (id: string) => ["homework", "pending", id] as const,
+  homeworkHistory: (role: string, id: string) => ["homework", "history", role, id] as const,
 };
 
 export const api = {
@@ -61,6 +63,16 @@ export const api = {
     apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?limit=20&offset=${offset.toString()}`),
   pendingSubmission: (id: string) =>
     apiRequest<PendingSubmission>(`/teachers/me/homework/submissions/${id}`),
+  acceptSubmission: (id: string, payload: { grade: number; comment: string }) =>
+    apiRequest<HomeworkSubmission>(`/teachers/me/homework/submissions/${id}/review`, { method: "POST", body: payload }),
+  returnSubmission: (id: string, payload: { comment: string }) =>
+    apiRequest<HomeworkSubmission>(`/teachers/me/homework/submissions/${id}/revision`, { method: "POST", body: payload }),
+  homeworkHistory: (id: string, role: "TEACHER" | "STUDENT") =>
+    apiRequest<HomeworkSubmission[]>(role === "TEACHER"
+      ? `/teachers/me/homework/${id}/submissions`
+      : `/students/me/homework/${id}/submissions`),
+  downloadStudentSubmissionAttachment: (homeworkId: string, submissionId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/students/me/homework/${homeworkId}/submissions/${submissionId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
   downloadSubmissionAttachment: (submissionId: string, attachmentId: string) =>
     apiRequest<Blob>(`/teachers/me/homework/submissions/${submissionId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
   dashboard: () => apiRequest<DashboardSummary>("/dashboard/summary"),

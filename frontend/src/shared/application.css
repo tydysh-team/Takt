@@ -1042,6 +1042,17 @@ a { color: var(--brand); }
 .homework-panel .homework-attachment .button { min-height: 36px; padding: .5rem .7rem; font-size: .72rem; }
 .homework-panel .homework-attachment__download { flex: 0 0 136px; width: 136px; box-sizing: border-box; white-space: nowrap; }
 .homework-panel .homework-attachment .alert { flex-basis: 100%; }
+.homework-panel .assignment-status { white-space: normal; overflow-wrap: anywhere; }
+.homework-panel .homework-review-actions { flex-wrap: wrap; margin-top: 1rem; }
+.homework-panel .homework-review-actions .button { flex: 1 1 130px; }
+.homework-panel .homework-review-form .dialog__actions .button { min-width: 140px; }
+.homework-panel .homework-history__list { border-top: 1px solid var(--line); }
+.homework-panel .homework-history__list details { padding: .7rem 0; border-bottom: 1px solid var(--line); }
+.homework-panel .homework-history__list summary { color: var(--ink); font-size: .78rem; font-weight: 750; cursor: pointer; overflow-wrap: anywhere; }
+.homework-panel .homework-history__list details > p,
+.homework-panel .homework-history__review { margin-top: .65rem; }
+.homework-panel .homework-history__list ul { margin-top: .65rem; }
+.homework-panel .homework-history__review { padding: .65rem; border: 1px solid var(--line); border-radius: .7rem; }
 .homework-panel .homework-no-results { padding: .5rem; }
 .homework-panel .homework-pagination { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .8rem .7rem .25rem; color: var(--muted); font-size: .78rem; }
 .homework-panel--embedded .homework-layout { grid-template-columns: 1fr; }

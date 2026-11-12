@@ -34,6 +34,15 @@ export interface HomeworkSubmission {
   submitted_at: string;
   is_late: boolean;
   attachments: HomeworkAttachment[];
+  review?: HomeworkReview | null;
+}
+
+export interface HomeworkReview {
+  id: string;
+  decision: "accepted" | "needs_revision";
+  grade: number | null;
+  comment: string | null;
+  reviewed_at: string;
 }
 
 export interface HomeworkSubmissionResult {

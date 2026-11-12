@@ -5,7 +5,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from app.models.homework import Homework, HomeworkAttachment, HomeworkStatus, HomeworkSubmission
+from app.models.homework import (
+    Homework,
+    HomeworkAttachment,
+    HomeworkReview,
+    HomeworkStatus,
+    HomeworkSubmission,
+)
 from app.models.profile import Profile
 
 
@@ -35,6 +41,42 @@ class HomeworkRepository:
 
     def add_submission(self, submission: HomeworkSubmission) -> None:
         self.session.add(submission)
+
+    def add_review(self, review: HomeworkReview) -> None:
+        self.session.add(review)
+
+    async def lock_for_review(self, submission_id: UUID, teacher_id: UUID) -> Homework | None:
+        homework_id = await self.session.scalar(
+            select(HomeworkSubmission.homework_id).where(HomeworkSubmission.id == submission_id)
+        )
+        if homework_id is None:
+            return None
+        return await self.session.scalar(
+            select(Homework)
+            .where(Homework.id == homework_id, Homework.teacher_id == teacher_id)
+            .with_for_update(of=Homework)
+        )
+
+    async def latest_submission(self, homework_id: UUID) -> HomeworkSubmission | None:
+        return await self.session.scalar(
+            select(HomeworkSubmission)
+            .where(HomeworkSubmission.homework_id == homework_id)
+            .order_by(HomeworkSubmission.attempt_no.desc())
+            .limit(1)
+        )
+
+    async def history(self, homework_id: UUID) -> list[HomeworkSubmission]:
+        return list(
+            (await self.session.scalars(
+                select(HomeworkSubmission)
+                .options(
+                    selectinload(HomeworkSubmission.attachments),
+                    selectinload(HomeworkSubmission.review),
+                )
+                .where(HomeworkSubmission.homework_id == homework_id)
+                .order_by(HomeworkSubmission.attempt_no.asc())
+            )).all()
+        )
 
     async def lock_for_submission(self, homework_id: UUID, student_id: UUID) -> Homework | None:
         return await self.session.scalar(
