@@ -13,6 +13,7 @@ import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { Textarea } from "../components/ui/FormField";
 import { formatDate, fullName } from "../shared/format";
 import { SchedulePage } from "./SchedulePage";
+import { HomeworkPanel } from "../features/homework/HomeworkPanel";
 
 type DetailTab = "main" | "schedule" | "homework";
 
@@ -90,7 +91,7 @@ export function StudentDetailPage() {
       ) : tab === "schedule" ? (
         <SchedulePage viewedStudent={{ id: data.id, name: fullName(data) }} />
       ) : (
-        <Card className="placeholder-panel"><span className="badge">Скоро</span><h2>Домашние задания</h2><p>Этот раздел появится на следующем этапе развития Takt.</p></Card>
+        <HomeworkPanel personId={data.id} />
       )}
     </>
   );

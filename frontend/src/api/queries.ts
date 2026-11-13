@@ -16,6 +16,12 @@ import type {
   LessonSearchFilters,
   PersonScheduleItem,
   StudentRef,
+  Homework,
+  HomeworkPage,
+  HomeworkSubmissionResult,
+  HomeworkSubmission,
+  PendingSubmission,
+  PendingSubmissionPage,
 } from "./types";
 
 export const queryKeys = {
@@ -31,9 +37,44 @@ export const queryKeys = {
   nextLesson: ["lessons", "next"] as const,
   personSchedule: (role: string, id: string, dateFrom: string, dateTo: string) =>
     ["lessons", "person", role, id, dateFrom, dateTo] as const,
+  homework: (role: string, personId: string | undefined, offset: number) => ["homework", role, personId ?? "all", offset] as const,
+  homeworkDetail: (role: string, id: string) => ["homework", role, id] as const,
+  pendingSubmissions: (offset: number) => ["homework", "pending", offset] as const,
+  pendingSubmission: (id: string) => ["homework", "pending", id] as const,
+  homeworkHistory: (role: string, id: string) => ["homework", "history", role, id] as const,
 };
 
 export const api = {
+  teacherHomework: (studentId?: string, offset = 0) =>
+    apiRequest<HomeworkPage>(`/homework?limit=20&offset=${offset.toString()}${studentId ? `&student_id=${encodeURIComponent(studentId)}` : ""}`),
+  studentHomework: (teacherId?: string, offset = 0) =>
+    apiRequest<HomeworkPage>(`/students/me/homework?limit=20&offset=${offset.toString()}${teacherId ? `&teacher_id=${encodeURIComponent(teacherId)}` : ""}`),
+  homeworkDetail: (id: string, role: "TEACHER" | "STUDENT") =>
+    apiRequest<Homework>(role === "TEACHER" ? `/homework/${id}` : `/students/me/homework/${id}`),
+  createHomework: (data: FormData, idempotencyKey: string) =>
+    apiRequest<Homework>("/homework", { method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey } }),
+  downloadHomeworkAttachment: (homeworkId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/homework/${homeworkId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
+  submitHomework: (homeworkId: string, data: FormData, idempotencyKey: string) =>
+    apiRequest<HomeworkSubmissionResult>(`/homework/${homeworkId}/submissions`, {
+      method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  pendingSubmissions: (offset = 0) =>
+    apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?limit=20&offset=${offset.toString()}`),
+  pendingSubmission: (id: string) =>
+    apiRequest<PendingSubmission>(`/teachers/me/homework/submissions/${id}`),
+  acceptSubmission: (id: string, payload: { grade: number; comment: string }) =>
+    apiRequest<HomeworkSubmission>(`/teachers/me/homework/submissions/${id}/review`, { method: "POST", body: payload }),
+  returnSubmission: (id: string, payload: { comment: string }) =>
+    apiRequest<HomeworkSubmission>(`/teachers/me/homework/submissions/${id}/revision`, { method: "POST", body: payload }),
+  homeworkHistory: (id: string, role: "TEACHER" | "STUDENT") =>
+    apiRequest<HomeworkSubmission[]>(role === "TEACHER"
+      ? `/teachers/me/homework/${id}/submissions`
+      : `/students/me/homework/${id}/submissions`),
+  downloadStudentSubmissionAttachment: (homeworkId: string, submissionId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/students/me/homework/${homeworkId}/submissions/${submissionId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
+  downloadSubmissionAttachment: (submissionId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/teachers/me/homework/submissions/${submissionId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
   dashboard: () => apiRequest<DashboardSummary>("/dashboard/summary"),
   students: () => apiRequest<StudentListItem[]>("/students"),
   teacherStudents: () => apiRequest<StudentRef[]>("/teachers/me/students"),

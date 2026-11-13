@@ -21,6 +21,11 @@ class Settings(BaseSettings):
 
     database_url: str
     test_database_url: str | None = None
+    s3_endpoint_url: str = "http://rustfs:9000"
+    s3_bucket: str = "takt-homework"
+    s3_region: str = "us-east-1"
+    s3_access_key: SecretStr | None = None
+    s3_secret_key: SecretStr | None = None
     api_v1_prefix: str = "/api/v1"
 
     cors_origins: list[AnyHttpUrl] = Field(default_factory=list)

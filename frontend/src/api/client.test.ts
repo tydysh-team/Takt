@@ -33,6 +33,25 @@ afterEach(() => {
 });
 
 describe("API client session behavior", () => {
+  it("sends multipart data with bearer auth and reads attachment blobs", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ id: "homework-1" }))
+      .mockResolvedValueOnce(new Response(new Blob(["file contents"], { type: "text/plain" })));
+    vi.stubGlobal("fetch", request);
+    setAccessToken("teacher-token");
+    const form = new FormData();
+    form.set("title", "Задачи");
+
+    await apiRequest("/homework", { method: "POST", body: form, headers: { "Idempotency-Key": "request-1" } });
+    const upload = request.mock.calls[0]?.[1];
+    expect(upload?.body).toBe(form);
+    expect(new Headers(upload?.headers).has("Content-Type")).toBe(false);
+    expect(new Headers(upload?.headers).get("Authorization")).toBe("Bearer teacher-token");
+    expect(new Headers(upload?.headers).get("Idempotency-Key")).toBe("request-1");
+
+    const blob = await apiRequest<Blob>("/homework/id/attachments/id/download", { responseType: "blob" });
+    expect(await blob.text()).toBe("file contents");
+  });
+
   it("keeps the access token in memory and sends it as Bearer authorization", async () => {
     const storageWrite = vi.fn();
     vi.stubGlobal("localStorage", { setItem: storageWrite });

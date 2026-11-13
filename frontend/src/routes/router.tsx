@@ -3,9 +3,9 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { DashboardPage } from "../pages/DashboardPage";
 import { HomePage } from "../pages/HomePage";
+import { HomeworkPage } from "../pages/HomeworkPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
-import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { SchedulePage } from "../pages/SchedulePage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { RegisterPage } from "../pages/RegisterPage";
@@ -46,7 +46,7 @@ export const router = createBrowserRouter([
               { path: "/dashboard", element: <DashboardPage /> },
               { path: "/schedule", element: <SchedulePage /> },
               { path: "/teacher-profile", element: <Navigate to="/profile" replace /> },
-              { path: "/homework", element: <PlaceholderPage /> },
+              { path: "/homework", element: <HomeworkPage /> },
               {
                 element: <RoleGate allowed={["TEACHER"]} />,
                 children: [
