@@ -169,23 +169,21 @@ class LessonRepository:
 
     async def list_student_history(
         self,
-        teacher_id: UUID,
+        teacher_id: UUID | None,
         student_id: UUID,
         *,
         date_from: datetime,
         date_to: datetime,
     ) -> list[Lesson]:
         """Return one row per lesson in the half-open start-time interval."""
-        statement = (
-            select(Lesson)
-            .where(
-                Lesson.teacher_id == teacher_id,
-                Lesson.student_id == student_id,
-                Lesson.starts_at >= date_from,
-                Lesson.starts_at < date_to,
-            )
-            .order_by(Lesson.starts_at.asc(), Lesson.id.asc())
+        statement = select(Lesson).where(
+            Lesson.student_id == student_id,
+            Lesson.starts_at >= date_from,
+            Lesson.starts_at < date_to,
         )
+        if teacher_id is not None:
+            statement = statement.where(Lesson.teacher_id == teacher_id)
+        statement = statement.order_by(Lesson.starts_at.asc(), Lesson.id.asc())
         return list((await self._session.scalars(statement)).all())
 
     async def person_schedule(

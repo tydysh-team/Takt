@@ -22,7 +22,7 @@ class HomeworkStatisticsRepository:
         self._session = session
 
     async def count_for_student(
-        self, teacher_id: UUID, student_id: UUID, date_from: datetime, date_to: datetime
+        self, teacher_id: UUID | None, student_id: UUID, date_from: datetime, date_to: datetime
     ) -> HomeworkStatisticsCounts:
         # Each EXISTS is correlated to one Homework, so retries and review history cannot
         # multiply a count. Submission/review timestamps are intentionally unrestricted.
@@ -58,22 +58,21 @@ class HomeworkStatisticsRepository:
             )
             .exists()
         )
-        row = (
-            await self._session.execute(
-                select(
-                    func.count(Homework.id),
-                    func.count(case((submitted, 1))),
-                    func.count(case((accepted, 1))),
-                    func.count(case((late, 1))),
-                    func.count(case((revision_required, 1))),
-                ).where(
-                    Homework.teacher_id == teacher_id,
-                    Homework.student_id == student_id,
-                    Homework.created_at >= date_from,
-                    Homework.created_at < date_to,
-                )
-            )
-        ).one()
+        conditions = (
+            Homework.student_id == student_id,
+            Homework.created_at >= date_from,
+            Homework.created_at < date_to,
+        )
+        statement = select(
+            func.count(Homework.id),
+            func.count(case((submitted, 1))),
+            func.count(case((accepted, 1))),
+            func.count(case((late, 1))),
+            func.count(case((revision_required, 1))),
+        ).where(*conditions)
+        if teacher_id is not None:
+            statement = statement.where(Homework.teacher_id == teacher_id)
+        row = (await self._session.execute(statement)).one()
         return HomeworkStatisticsCounts(
             assigned=int(row[0]),
             submitted=int(row[1]),

@@ -9,6 +9,7 @@ from app.api.dependencies.auth import (
     get_current_student,
     get_current_teacher,
     get_lesson_service,
+    get_progress_service,
 )
 from app.core.security import utc_now
 from app.db.session import get_db_session
@@ -18,9 +19,11 @@ from app.schemas.connections import StudentRefDTO, TeacherListItem
 from app.schemas.error import ErrorResponse
 from app.schemas.homework_statistics import HomeworkStatisticsRequest, HomeworkStatisticsResponse
 from app.schemas.lessons import LessonHistoryRequest, LessonHistoryResponse
+from app.schemas.progress import ProgressResponse
 from app.services.connections import ConnectionService
 from app.services.homework_statistics import HomeworkStatisticsService
 from app.services.lessons import LessonService
+from app.services.progress import ProgressService
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
@@ -97,6 +100,30 @@ async def get_student_homework_statistics(
     service: Annotated[HomeworkStatisticsService, Depends(get_homework_statistics_service)],
 ) -> HomeworkStatisticsResponse:
     return await service.for_student(teacher, student_id, period)
+
+
+@router.get(
+    "/me/students/{student_id}/progress",
+    response_model=ProgressResponse,
+    summary="Get a student's progress summary",
+    description=(
+        "Teacher-only progress for an actively connected student. date_from is inclusive "
+        "and date_to is exclusive. Attendance uses lesson start times; homework and reviews "
+        "use homework creation times. Grades use the latest submission's accepted review."
+    ),
+    responses={
+        403: {"model": ErrorResponse, "description": "Teacher role required"},
+        404: {"model": ErrorResponse, "description": "Active connection not found"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+    },
+)
+async def get_student_progress(
+    student_id: UUID,
+    period: Annotated[LessonHistoryRequest, Query()],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[ProgressService, Depends(get_progress_service)],
+) -> ProgressResponse:
+    return await service.for_teacher(teacher, student_id, period, now=utc_now())
 
 
 @router.get(

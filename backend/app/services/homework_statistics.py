@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConnectionNotFoundError, ForbiddenError
 from app.models.enums import RoleCode
 from app.models.user import User
-from app.repositories.homework_statistics import HomeworkStatisticsRepository
+from app.repositories.homework_statistics import (
+    HomeworkStatisticsCounts,
+    HomeworkStatisticsRepository,
+)
 from app.repositories.teacher_student_relations import TeacherStudentRelationRepository
 from app.schemas.homework_statistics import (
     HomeworkStatisticsDTO,
@@ -30,21 +33,24 @@ class HomeworkStatisticsService:
         counts = await self._statistics.count_for_student(
             teacher.id, student_id, period.date_from, period.date_to
         )
-        # A completed assignment has a saved accepted review, not merely a submission.
-        # reviewed is therefore the numerator. Round to two decimal places for the API.
-        completion_rate = (
-            round(counts.reviewed / counts.assigned * 100, 2) if counts.assigned else None
-        )
         return HomeworkStatisticsResponse(
             student_id=student_id,
             date_from=period.date_from,
             date_to=period.date_to,
-            statistics=HomeworkStatisticsDTO(
-                assigned=counts.assigned,
-                submitted=counts.submitted,
-                reviewed=counts.reviewed,
-                late=counts.late,
-                revision_required=counts.revision_required,
-                completion_rate=completion_rate,
-            ),
+            statistics=homework_statistics_dto(counts),
         )
+
+
+def homework_statistics_dto(counts: HomeworkStatisticsCounts) -> HomeworkStatisticsDTO:
+    # A completed assignment has a saved accepted review, not merely a submission.
+    completion_rate = (
+        round(counts.reviewed / counts.assigned * 100, 2) if counts.assigned else None
+    )
+    return HomeworkStatisticsDTO(
+        assigned=counts.assigned,
+        submitted=counts.submitted,
+        reviewed=counts.reviewed,
+        late=counts.late,
+        revision_required=counts.revision_required,
+        completion_rate=completion_rate,
+    )
