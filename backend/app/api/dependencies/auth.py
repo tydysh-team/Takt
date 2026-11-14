@@ -25,6 +25,7 @@ from app.services.dashboard import DashboardService
 from app.services.invitations import InvitationService
 from app.services.lessons import LessonService
 from app.services.profiles import ProfileService
+from app.services.progress import ProgressService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -87,6 +88,12 @@ def get_lesson_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LessonService:
     return LessonService(session)
+
+
+def get_progress_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ProgressService:
+    return ProgressService(session)
 
 
 def get_dashboard_service(

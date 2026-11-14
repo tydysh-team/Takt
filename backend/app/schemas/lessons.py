@@ -107,6 +107,52 @@ class LessonSearchRequest(BaseModel):
         return self
 
 
+class LessonHistoryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date_from: AwareDatetime
+    date_to: AwareDatetime
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "LessonHistoryRequest":
+        if self.date_from >= self.date_to:
+            raise ValueError("date_from must be earlier than date_to")
+        return self
+
+
+class LessonHistoryItemDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    status: LessonStatus
+    attendance: AttendanceStatus
+
+
+class LessonHistoryAggregatesDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    total_lessons: int
+    completed_lessons: int
+    attended_lessons: int
+    missed_lessons: int
+    unmarked_lessons: int
+    cancelled_lessons: int
+    attendance_rate: float | None
+
+
+class LessonHistoryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    student_id: UUID
+    date_from: datetime
+    date_to: datetime
+    history: list[LessonHistoryItemDTO]
+    aggregates: LessonHistoryAggregatesDTO
+
+
 class LessonReadDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
