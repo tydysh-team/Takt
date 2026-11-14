@@ -22,7 +22,15 @@ import type {
   HomeworkSubmission,
   PendingSubmission,
   PendingSubmissionPage,
+  ProgressPeriod,
+  ProgressResponse,
+  LessonHistoryResponse,
+  HomeworkStatisticsResponse,
 } from "./types";
+
+function periodQuery(period: ProgressPeriod): string {
+  return `date_from=${encodeURIComponent(period.date_from)}&date_to=${encodeURIComponent(period.date_to)}`;
+}
 
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
@@ -42,6 +50,12 @@ export const queryKeys = {
   pendingSubmissions: (offset: number) => ["homework", "pending", offset] as const,
   pendingSubmission: (id: string) => ["homework", "pending", id] as const,
   homeworkHistory: (role: string, id: string) => ["homework", "history", role, id] as const,
+  progress: (role: "TEACHER" | "STUDENT", studentId: string | undefined, dateFrom: string, dateTo: string) =>
+    ["progress", role, studentId ?? "me", dateFrom, dateTo] as const,
+  lessonHistory: (studentId: string, dateFrom: string, dateTo: string) =>
+    ["progress", "lesson-history", studentId, dateFrom, dateTo] as const,
+  homeworkStatistics: (studentId: string, dateFrom: string, dateTo: string) =>
+    ["progress", "homework-statistics", studentId, dateFrom, dateTo] as const,
 };
 
 export const api = {
@@ -122,4 +136,12 @@ export const api = {
   profile: () => apiRequest<Profile>("/profile"),
   updateProfile: (payload: ProfileUpdate) =>
     apiRequest<Profile>("/profile", { method: "PATCH", body: payload }),
+  myProgress: (period: ProgressPeriod) =>
+    apiRequest<ProgressResponse>(`/students/me/progress?${periodQuery(period)}`),
+  studentProgress: (studentId: string, period: ProgressPeriod) =>
+    apiRequest<ProgressResponse>(`/teachers/me/students/${encodeURIComponent(studentId)}/progress?${periodQuery(period)}`),
+  lessonHistory: (studentId: string, period: ProgressPeriod) =>
+    apiRequest<LessonHistoryResponse>(`/teachers/me/students/${encodeURIComponent(studentId)}/lesson-history?${periodQuery(period)}`),
+  homeworkStatistics: (studentId: string, period: ProgressPeriod) =>
+    apiRequest<HomeworkStatisticsResponse>(`/teachers/me/students/${encodeURIComponent(studentId)}/homework-statistics?${periodQuery(period)}`),
 };

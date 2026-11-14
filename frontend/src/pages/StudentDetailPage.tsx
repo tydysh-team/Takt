@@ -14,8 +14,18 @@ import { Textarea } from "../components/ui/FormField";
 import { formatDate, fullName } from "../shared/format";
 import { SchedulePage } from "./SchedulePage";
 import { HomeworkPanel } from "../features/homework/HomeworkPanel";
+import { StudentHistoryPanel } from "../features/progress/StudentHistoryPanel";
+import { StudentProgressPanel } from "../features/progress/StudentProgressPanel";
 
-type DetailTab = "main" | "schedule" | "homework";
+type DetailTab = "main" | "schedule" | "homework" | "history" | "progress";
+
+const DETAIL_TABS: readonly { value: DetailTab; label: string }[] = [
+  { value: "main", label: "Основное" },
+  { value: "schedule", label: "Расписание" },
+  { value: "homework", label: "Домашние задания" },
+  { value: "history", label: "История" },
+  { value: "progress", label: "Прогресс" },
+];
 
 function NoteEditor({ student }: { student: StudentDetail }) {
   const queryClient = useQueryClient();
@@ -69,9 +79,9 @@ export function StudentDetailPage() {
         <span className="badge badge--success">Активное подключение</span>
       </div>
       <div className="tabs" role="tablist" aria-label="Разделы ученика">
-        {(["main", "schedule", "homework"] as const).map((value) => (
+        {DETAIL_TABS.map(({ value, label }) => (
           <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "tab--active" : ""} onClick={() => { setTab(value); }}>
-            {value === "main" ? "Основное" : value === "schedule" ? "Расписание" : "Домашние задания"}
+            {label}
           </button>
         ))}
       </div>
@@ -90,8 +100,16 @@ export function StudentDetailPage() {
         </div>
       ) : tab === "schedule" ? (
         <SchedulePage viewedStudent={{ id: data.id, name: fullName(data) }} />
-      ) : (
+      ) : tab === "homework" ? (
         <HomeworkPanel personId={data.id} />
+      ) : tab === "history" ? (
+        <StudentHistoryPanel studentId={data.id} />
+      ) : (
+        <StudentProgressPanel
+          studentId={data.id}
+          onOpenHomework={() => { setTab("homework"); }}
+          onOpenHistory={() => { setTab("history"); }}
+        />
       )}
     </>
   );

@@ -6,6 +6,7 @@ import { hasRole } from "../features/auth/roles";
 import { fullName, roleLabel } from "../shared/format";
 import { Avatar } from "./ui/Avatar";
 import { Button } from "./ui/Button";
+import { ThemeToggle } from "./ThemeToggle";
 
 const commonItems = [
   { to: "/dashboard", label: "Главная", icon: "home" },
@@ -21,6 +22,7 @@ function NavIcon({ name }: { name: string }) {
     check: "M5 12.5 9 16l10-10M4 4h4M4 20h16",
     user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0",
     users: "M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+    chart: "M4 19V5M4 19h16M8 15l4-5 3 3 5-7",
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={paths[name] ?? paths.user} /></svg>;
 }
@@ -37,7 +39,12 @@ export function AppShell() {
     : { to: "/teachers", label: "Преподаватели", icon: "users" };
   const items = hasRole(user, "ADMIN")
     ? commonItems.slice(3)
-    : [...commonItems.slice(0, 1), roleItem, ...commonItems.slice(1)];
+    : [
+        ...commonItems.slice(0, 1),
+        roleItem,
+        ...(hasRole(user, "STUDENT") ? [{ to: "/progress", label: "Мой прогресс", icon: "chart" }] : []),
+        ...commonItems.slice(1),
+      ];
 
   const handleLogout = async () => {
     try {
@@ -99,6 +106,7 @@ export function AppShell() {
             <span className="workspace__greeting">Рабочее пространство</span>
             <strong>{fullName(user)}</strong>
           </div>
+          <ThemeToggle />
           <Avatar firstName={user.first_name} lastName={user.last_name} />
         </header>
         <div className="workspace__content">

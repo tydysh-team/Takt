@@ -13,6 +13,7 @@ import { StudentDetailPage } from "../pages/StudentDetailPage";
 import { StudentsPage } from "../pages/StudentsPage";
 import { TeacherDetailPage } from "../pages/TeacherDetailPage";
 import { TeachersPage } from "../pages/TeachersPage";
+import { StudentProgressPage } from "../features/progress/StudentProgressPage";
 import { RoleGate, SessionGate } from "./guards";
 import { LegacyTeacherProfileRedirect } from "./LegacyTeacherProfileRedirect";
 
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
                   { path: "/teachers", element: <TeachersPage /> },
                   { path: "/teachers/:id", element: <TeacherDetailPage /> },
                   { path: "/teacher-profile/:id", element: <LegacyTeacherProfileRedirect /> },
+                  { path: "/progress", element: <StudentProgressPage /> },
                 ],
               },
               { path: "*", element: <NotFoundPage /> },

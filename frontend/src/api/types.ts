@@ -322,5 +322,65 @@ export type PersonScheduleItem = (LessonReadDTO & { type: "lesson" }) | {
 
 export type LessonLifecycleStatus = LessonStatus;
 
+export interface ProgressPeriod {
+  date_from: string;
+  date_to: string;
+}
 
+export interface LessonHistoryAggregatesDTO {
+  total_lessons: number;
+  completed_lessons: number;
+  attended_lessons: number;
+  missed_lessons: number;
+  unmarked_lessons: number;
+  cancelled_lessons: number;
+  attendance_rate: number | null;
+}
+
+export interface LessonHistoryItemDTO {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  status: LessonStatus;
+  attendance: LessonAttendance;
+}
+
+export interface LessonHistoryResponse {
+  student_id: string;
+  date_from: string;
+  date_to: string;
+  history: LessonHistoryItemDTO[];
+  aggregates: LessonHistoryAggregatesDTO;
+}
+
+export interface HomeworkStatisticsDTO {
+  assigned: number;
+  submitted: number;
+  reviewed: number;
+  late: number;
+  revision_required: number;
+  completion_rate: number | null;
+}
+
+export interface HomeworkStatisticsResponse {
+  student_id: string;
+  date_from: string;
+  date_to: string;
+  statistics: HomeworkStatisticsDTO;
+}
+
+export interface ReviewStatisticsDTO {
+  graded_homework: number;
+  average_grade: number | null;
+}
+
+export interface ProgressResponse {
+  student_id: string;
+  date_from: string;
+  date_to: string;
+  attendance: LessonHistoryAggregatesDTO;
+  homework: HomeworkStatisticsDTO;
+  reviews: ReviewStatisticsDTO;
+}
 

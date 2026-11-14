@@ -503,9 +503,10 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
     : isPastDue(item, now)).length;
   const reviewedCount = pageItems.filter((item) => item.status === "reviewed").length;
   const totalCount = pageItems.length;
-  const summaryProgress = totalCount > 0 ? Math.round((reviewedCount / totalCount) * 100) : 0;
+  const processedCount = Math.max(0, totalCount - summaryItems.length);
+  const summaryProgress = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
   const summaryCard = (
-    <Card className={`summary-card homework-summary-card${role === "TEACHER" ? " homework-summary-card--teacher" : ""}`}>
+    <Card className="summary-card homework-summary-card homework-summary-card--solid">
       <div className="homework-summary-card__top">
         <span className="homework-summary-card__label">
           {role === "TEACHER" ? "На проверке" : "Нужно сделать"}
@@ -519,7 +520,14 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
         <strong>{hasPageData ? cappedCount(summaryItems.length) : "—"}</strong>
         <span>{hasPageData ? `из ${cappedCount(totalCount)}` : "заданий"}</span>
       </div>
-      <div className="homework-summary-card__bar" aria-hidden="true"><span style={{ width: `${String(hasPageData ? summaryProgress : 0)}%` }} /></div>
+      <div
+        className="homework-summary-card__bar"
+        role="progressbar"
+        aria-label={role === "TEACHER" ? "Доля обработанных работ" : "Доля выполненных работ"}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={hasPageData ? summaryProgress : 0}
+      ><span style={{ width: `${String(hasPageData ? summaryProgress : 0)}%` }} /></div>
       <div className="homework-summary-card__foot">
         <span className="homework-summary-card__overdue">просрочено: {hasPageData ? cappedCount(summaryOverdue) : "—"}</span>
         <span>проверено: {hasPageData ? cappedCount(reviewedCount) : "—"}</span>
