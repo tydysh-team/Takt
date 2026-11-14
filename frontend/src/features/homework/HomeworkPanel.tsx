@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 
 import { readableError } from "../../api/client";
 import { api, queryKeys } from "../../api/queries";
-import type { Homework, HomeworkAttachment } from "../../api/types";
+import type { Homework, HomeworkAttachment, HomeworkSubmission } from "../../api/types";
 import { PageHeader } from "../../components/PageHeader";
 import { useAuth } from "../auth/auth-context";
 import { Alert, EmptyState, ErrorState, LoadingState } from "../../components/ui/Feedback";
@@ -42,6 +42,31 @@ function lateSubmissionLabel(attemptNo: number): string {
   return attemptNo === 1 ? "Сдано с опозданием" : "После исходного срока";
 }
 
+function cappedCount(value: number): string {
+  return value > 99 ? "99+" : value.toString();
+}
+
+const TITLE_DISPLAY_LIMIT = 120;
+const DESCRIPTION_DISPLAY_LIMIT = 600;
+
+function truncateText(value: string, limit: number): string {
+  const text = value.trim();
+  return text.length > limit ? `${text.slice(0, limit).trimEnd()}…` : text;
+}
+
+function queueCountLabel(value: number): string {
+  if (value > 99) return `${cappedCount(value)} работ`;
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${value.toString()} работа`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${value.toString()} работы`;
+  return `${value.toString()} работ`;
+}
+
+function personInitials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toLocaleUpperCase("ru")).join("");
+}
+
 function statusText(item: Homework, now: number): string {
   if (item.status === "assigned" && isPastDue(item, now)) return "Просрочено";
   return statusLabel(item.status);
@@ -52,6 +77,11 @@ function statusTone(item: Homework, now: number): string {
   if (item.status === "reviewed") return "success";
   if (item.status === "submitted") return "review";
   return "pending";
+}
+
+function listStatusModifier(item: Homework, now: number): string {
+  if (item.status === "assigned" && isPastDue(item, now)) return "overdue";
+  return item.status;
 }
 
 function fileSizeLabel(size: number): string {
@@ -70,6 +100,12 @@ function dueLabel(value: string, timezone: string): string {
   return new Intl.DateTimeFormat("ru-RU", {
     dateStyle: "medium", timeStyle: "short", timeZone: timezone,
   }).format(new Date(value));
+}
+
+function listDueLabel(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: timezone,
+  }).format(new Date(value)).replace(/\./g, "");
 }
 
 function AttachmentLink({ attachment, downloadFile }: { attachment: HomeworkAttachment; downloadFile: () => Promise<Blob> }) {
@@ -123,6 +159,17 @@ function HistoryBlock({ homeworkId, role, timezone }: { homeworkId: string; role
           {attempt.attachments.length ? <ul className="invitation-list">{attempt.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => role === "TEACHER" ? api.downloadSubmissionAttachment(attempt.id, attachment.id) : api.downloadStudentSubmissionAttachment(homeworkId, attempt.id, attachment.id)} />)}</ul> : <p className="muted">Файлов нет.</p>}
           {attempt.review ? <div className="homework-history__review"><p>{attempt.review.decision === "accepted" ? "Принято" : "На доработку"}{attempt.review.grade !== null ? ` · Оценка: ${attempt.review.grade.toString()}` : ""} · {dueLabel(attempt.review.reviewed_at, timezone)}</p><p>{attempt.review.comment ?? "Без комментария преподавателя"}</p></div> : <p className="muted">Ожидает проверки.</p>}
         </details>)}</div>}
+  </div>;
+}
+
+function TeacherSubmissionBlock({ submission, status, timezone, onReview, onDetails }: { submission: HomeworkSubmission; status: string; timezone: string; onReview: (mode: "accepted" | "revision", submissionId: string) => void; onDetails: () => void }) {
+  return <div className="homework-materials homework-submission">
+    <h3>Решение ученика · попытка №{submission.attempt_no}</h3>
+    <p>Отправлено: {dueLabel(submission.submitted_at, timezone)}{submission.is_late ? ` · ${lateSubmissionLabel(submission.attempt_no)}` : ""}</p>
+    <p>{submission.comment ?? "Без комментария"}</p>
+    {submission.attachments.length ? <ul className="invitation-list">{submission.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => api.downloadSubmissionAttachment(submission.id, attachment.id)} />)}</ul> : <p className="muted">Файлов нет.</p>}
+    {submission.review ? <div className="homework-history__review"><p>{submission.review.decision === "accepted" ? "Принято" : "На доработку"}{submission.review.grade !== null ? ` · Оценка: ${submission.review.grade.toString()}` : ""} · {dueLabel(submission.review.reviewed_at, timezone)}</p><p>{submission.review.comment ?? "Без комментария преподавателя"}</p></div> : <p className="muted">Ожидает проверки.</p>}
+    {status === "submitted" ? <div className="selected-assignment__actions homework-review-actions"><Button type="button" onClick={() => { onReview("accepted", submission.id); }}>Принять работу</Button><Button type="button" variant="secondary" onClick={() => { onReview("revision", submission.id); }}>Вернуть на доработку</Button><button className="homework-details-link" type="button" onClick={onDetails}>Подробнее</button></div> : null}
   </div>;
 }
 
@@ -211,58 +258,6 @@ function SubmitHomeworkDialog({ homeworkId, revision = false, onClose }: { homew
   </Dialog>;
 }
 
-function PendingQueue({ timezone }: { timezone: string }) {
-  const [offset, setOffset] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [reviewAction, setReviewAction] = useState<{ id: string; mode: "accepted" | "revision" } | null>(null);
-  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset), queryFn: () => api.pendingSubmissions(offset), ...homeworkRefreshOptions });
-  const selected = list.data?.items.find((item) => item.id === selectedId) ?? list.data?.items[0];
-  const detail = useQuery({
-    queryKey: queryKeys.pendingSubmission(selected?.id ?? ""),
-    queryFn: () => api.pendingSubmission(selected?.id ?? ""),
-    enabled: Boolean(selected),
-    ...homeworkRefreshOptions,
-  });
-  if (list.isLoading) return <LoadingState label="Загружаем работы…" />;
-  if (list.isError && !list.data) return <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} />;
-  if (!list.data?.items.length) return <><EmptyState title="Работ на проверку нет" description="Отправленные работы появятся здесь." />
-    {reviewAction?.mode === "accepted" ? <AcceptDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
-    {reviewAction?.mode === "revision" ? <RevisionDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
-  </>;
-  return <div className="homework-layout">
-    <Card className="assignment-table">
-      <div className="assignment-table__head"><span aria-hidden="true" /><span>Задание</span><span>Ученик</span><span>Отправлено</span><span>Статус</span><span aria-hidden="true" /></div>
-      {list.data.items.map((item) => <button className={`assignment-row${selected?.id === item.id ? " assignment-row--selected" : ""}`} type="button" key={item.id} aria-label={`Просмотреть работу ${item.title} ученика ${item.student_name}`} aria-pressed={selected?.id === item.id} onClick={() => { setSelectedId(item.id); }}>
-        <span className="assignment-check" aria-hidden="true" />
-        <span className="assignment-main"><strong title={item.title}>{item.title}</strong><span className="assignment-description">Попытка №{item.attempt_no}</span></span>
-        <span className="assignment-student">{item.student_name}</span>
-        <time className="assignment-due" dateTime={item.submitted_at}>{dueLabel(item.submitted_at, timezone)}</time>
-        <span className="badge assignment-status assignment-status--review">На проверке</span>
-        <span className="homework-row-arrow" aria-hidden="true">›</span>
-      </button>)}
-      {list.data.total > list.data.limit ? <div className="homework-pagination">
-        <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - 20)); setSelectedId(null); }}>Назад</Button>
-        <span>{offset + 1}–{Math.min(offset + 20, list.data.total)} из {list.data.total}</span>
-        <Button type="button" variant="secondary" disabled={offset + 20 >= list.data.total} onClick={() => { setOffset(offset + 20); setSelectedId(null); }}>Далее</Button>
-      </div> : null}
-    </Card>
-    {selected ? <aside className="homework-sidebar"><Card className="selected-assignment">
-      {detail.isLoading ? <LoadingState label="Загружаем работу…" /> : detail.isError && !detail.data ? <ErrorState message={readableError(detail.error)} onRetry={() => void detail.refetch()} /> : detail.data ? <>
-        <div className="selected-assignment__title"><span>Отправленная работа</span><span className="badge assignment-status--review">{statusLabel(detail.data.homework_status)}</span></div>
-        {detail.data.homework_status !== "submitted" ? <Alert tone="info">Состояние задания изменилось. Обновите очередь.</Alert> : null}
-        <h2>{detail.data.title}</h2>
-        <dl><div><dt>Ученик</dt><dd>{detail.data.student_name}</dd></div><div><dt>Попытка</dt><dd>№{detail.data.attempt_no}</dd></div><div><dt>Срок сдачи</dt><dd>{dueLabel(detail.data.due_at, timezone)}</dd></div><div><dt>Отправлено</dt><dd>{dueLabel(detail.data.submitted_at, timezone)}{detail.data.is_late ? ` · ${lateSubmissionLabel(detail.data.attempt_no)}` : ""}</dd></div></dl>
-        <div className="homework-materials"><h3>Комментарий ученика</h3><p>{detail.data.comment ?? "Комментария нет."}</p></div>
-        <div className="homework-materials"><h3>Файлы решения</h3>{detail.data.attachments.length ? <ul className="invitation-list">{detail.data.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => api.downloadSubmissionAttachment(detail.data.id, attachment.id)} />)}</ul> : <p className="muted">Файлов нет.</p>}</div>
-        {detail.data.homework_status === "submitted" ? <div className="selected-assignment__actions homework-review-actions"><Button type="button" onClick={() => { setReviewAction({ id: detail.data.id, mode: "accepted" }); }}>Принять работу</Button><Button type="button" variant="secondary" onClick={() => { setReviewAction({ id: detail.data.id, mode: "revision" }); }}>Вернуть на доработку</Button></div> : null}
-        <HistoryBlock homeworkId={detail.data.homework_id} role="TEACHER" timezone={timezone} />
-      </> : null}
-    </Card></aside> : null}
-    {reviewAction?.mode === "accepted" ? <AcceptDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
-    {reviewAction?.mode === "revision" ? <RevisionDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
-  </div>;
-}
-
 function CreateHomeworkDialog({ studentId, onClose }: { studentId: string | undefined; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
@@ -323,6 +318,136 @@ function CreateHomeworkDialog({ studentId, onClose }: { studentId: string | unde
   </Dialog>;
 }
 
+function HomeworkDetailView({ homeworkId, role, timezone, now, onBack }: { homeworkId: string; role: "TEACHER" | "STUDENT"; timezone: string; now: number; onBack: () => void }) {
+  const detail = useQuery({
+    queryKey: queryKeys.homeworkDetail(role, homeworkId),
+    queryFn: () => api.homeworkDetail(homeworkId, role),
+    ...homeworkRefreshOptions,
+  });
+  useEffect(() => {
+    const page = document.querySelector(".homework-detail-page");
+    const scrollIntoView = (page as { scrollIntoView?: (options?: ScrollIntoViewOptions) => void } | null)?.scrollIntoView;
+    scrollIntoView?.call(page, { behavior: "smooth", block: "start" });
+  }, []);
+  return <section className="homework-detail-page">
+    <PageHeader eyebrow="Домашние задания" title="История сдачи задания" description="Все отправки, комментарии и решения преподавателя." />
+    <Button type="button" variant="secondary" className="homework-detail-back" onClick={onBack}>← К заданиям</Button>
+    {detail.isLoading ? <LoadingState label="Загружаем задание…" /> : detail.isError && !detail.data ? <ErrorState message={readableError(detail.error)} onRetry={() => void detail.refetch()} /> : detail.data ? <div className="homework-detail-layout">
+      <Card className="homework-detail-task">
+        <span className="homework-detail-task__label">Задание</span>
+        <h2>{truncateText(detail.data.title, TITLE_DISPLAY_LIMIT)}</h2>
+        <p className="homework-detail-task__meta">{role === "TEACHER" ? detail.data.student_name : detail.data.teacher_name} · срок {dueLabel(detail.data.due_at, timezone)}</p>
+        <dl className="homework-detail-task__meta-list">
+          <div><dt>{role === "TEACHER" ? "Ученик" : "Преподаватель"}</dt><dd>{role === "TEACHER" ? detail.data.student_name : detail.data.teacher_name}</dd></div>
+          <div><dt>Срок сдачи</dt><dd>{dueLabel(detail.data.due_at, timezone)}</dd></div>
+          <div><dt>Текущий статус</dt><dd><span className={`badge assignment-status assignment-status--${listStatusModifier(detail.data, now)}`}>{statusText(detail.data, now)}</span></dd></div>
+        </dl>
+        <div className="homework-detail-section"><h3>Описание</h3><p>{truncateText(descriptionLabel(detail.data.description), DESCRIPTION_DISPLAY_LIMIT)}</p></div>
+        <div className="homework-detail-section"><h3>Материалы</h3>{detail.data.attachments.length ? <ul className="invitation-list">{detail.data.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => api.downloadHomeworkAttachment(detail.data.id, attachment.id)} />)}</ul> : <p className="muted">Материалов нет.</p>}</div>
+      </Card>
+      <Card className="homework-detail-history">
+        <HistoryBlock homeworkId={detail.data.id} role={role} timezone={timezone} />
+      </Card>
+    </div> : null}
+  </section>;
+}
+
+function PendingQueue({ timezone }: { timezone: string }) {
+  const [offset, setOffset] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<{ id: string; mode: "accepted" | "revision" } | null>(null);
+  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset), queryFn: () => api.pendingSubmissions(offset), ...homeworkRefreshOptions });
+  const items = [...(list.data?.items ?? [])].sort((left, right) => {
+    const bySubmitted = Date.parse(right.submitted_at) - Date.parse(left.submitted_at);
+    return bySubmitted !== 0 ? bySubmitted : right.id.localeCompare(left.id);
+  });
+  const selected = items.find((item) => item.id === selectedId) ?? items[0];
+  const detail = useQuery({
+    queryKey: queryKeys.pendingSubmission(selected?.id ?? ""),
+    queryFn: () => api.pendingSubmission(selected?.id ?? ""),
+    enabled: Boolean(selected),
+    ...homeworkRefreshOptions,
+  });
+  const dialogs = <>
+    {reviewAction?.mode === "accepted" ? <AcceptDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
+    {reviewAction?.mode === "revision" ? <RevisionDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
+  </>;
+  if (list.isLoading) return <LoadingState label="Загружаем работы…" />;
+  if (list.isError && !list.data) return <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} />;
+  if (!items.length) return <>
+    <EmptyState title="Работ на проверку нет" description="Отправленные работы появятся здесь." />
+    {dialogs}
+  </>;
+  const total = list.data?.total ?? items.length;
+  const limit = list.data?.limit ?? 20;
+  return <div className="homework-queue">
+    <Card className="homework-queue__list">
+      <div className="homework-queue__head">
+        <div>
+          <p className="eyebrow">На проверке</p>
+          <h2>Очередь работ</h2>
+        </div>
+        <span className="homework-queue__count">{queueCountLabel(total)}</span>
+      </div>
+      <div className="homework-queue__columns"><span>Задание</span><span>Ученик</span><span>Отправлено</span><span>Статус</span></div>
+      <div className="homework-queue__items">
+        {items.map((item) => {
+          const active = selected?.id === item.id;
+          return <button className={`homework-queue__item${active ? " homework-queue__item--active" : ""}`} type="button" key={item.id} aria-label={`Просмотреть работу ${item.title} ученика ${item.student_name}`} aria-pressed={active} onClick={() => { setSelectedId(item.id); }}>
+            <span className="homework-queue__main">
+              <span className="homework-queue__avatar" aria-hidden="true">{personInitials(item.student_name)}</span>
+              <span className="homework-queue__copy">
+                <strong title={item.title}>{truncateText(item.title, TITLE_DISPLAY_LIMIT)}</strong>
+                <small>Попытка №{item.attempt_no}</small>
+              </span>
+            </span>
+            <span className="homework-queue__student">{item.student_name}</span>
+            <span className="homework-queue__submitted">
+              <time dateTime={item.submitted_at}>{listDueLabel(item.submitted_at, timezone)}</time>
+              {item.is_late ? <small className="homework-queue__late">Сдано с опозданием</small> : null}
+            </span>
+            <span className="homework-queue__status">На проверке</span>
+            <span className="homework-queue__arrow" aria-hidden="true">›</span>
+          </button>;
+        })}
+      </div>
+      {total > limit ? <div className="homework-queue__pagination">
+        <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - limit)); setSelectedId(null); }}>Назад</Button>
+        <span>{offset + 1}–{Math.min(offset + limit, total)} из {total}</span>
+        <Button type="button" variant="secondary" disabled={offset + limit >= total} onClick={() => { setOffset(offset + limit); setSelectedId(null); }}>Далее</Button>
+      </div> : null}
+    </Card>
+    {selected ? <aside className="homework-queue__detail"><Card className="homework-queue__detail-card">
+      {detail.isLoading ? <LoadingState label="Загружаем работу…" /> : detail.isError && !detail.data ? <ErrorState message={readableError(detail.error)} onRetry={() => void detail.refetch()} /> : detail.data ? <>
+        <div className="homework-queue__detail-head">
+          <span>Выбранная работа</span>
+          <span className="homework-queue__status">{statusLabel(detail.data.homework_status)}</span>
+        </div>
+        <h2>{truncateText(detail.data.title, TITLE_DISPLAY_LIMIT)}</h2>
+        <p className="homework-queue__detail-meta">{detail.data.student_name} · попытка №{detail.data.attempt_no}</p>
+        <dl className="homework-queue__detail-meta-list">
+          <div><dt>Срок сдачи</dt><dd>{dueLabel(detail.data.due_at, timezone)}</dd></div>
+          <div><dt>Отправлено</dt><dd>{dueLabel(detail.data.submitted_at, timezone)}{detail.data.is_late ? ` · ${lateSubmissionLabel(detail.data.attempt_no)}` : ""}</dd></div>
+        </dl>
+        <div className="homework-queue__detail-section">
+          <h3>Комментарий ученика</h3>
+          <p>{detail.data.comment ?? "Комментария нет."}</p>
+        </div>
+        <div className="homework-queue__detail-section">
+          <h3>Файлы решения</h3>
+          {detail.data.attachments.length ? <ul className="invitation-list">{detail.data.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => api.downloadSubmissionAttachment(detail.data.id, attachment.id)} />)}</ul> : <p className="muted">Файлов нет.</p>}
+        </div>
+        {detail.data.homework_status === "submitted" ? <div className="selected-assignment__actions homework-review-actions">
+          <Button type="button" onClick={() => { setReviewAction({ id: detail.data.id, mode: "accepted" }); }}>Принять работу</Button>
+          <Button type="button" variant="secondary" onClick={() => { setReviewAction({ id: detail.data.id, mode: "revision" }); }}>Вернуть на доработку</Button>
+        </div> : <Alert tone="info">Состояние задания изменилось. Обновите очередь.</Alert>}
+        <HistoryBlock homeworkId={detail.data.homework_id} role="TEACHER" timezone={timezone} />
+      </> : null}
+    </Card></aside> : null}
+    {dialogs}
+  </div>;
+}
+
 export function HomeworkPanel({ personId }: { personId?: string }) {
   const { user } = useAuth();
   const profile = useQuery({ queryKey: queryKeys.profile, queryFn: api.profile });
@@ -330,8 +455,11 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
   const role = user?.role === "TEACHER" ? "TEACHER" : "STUDENT";
   const [offset, setOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [clickedId, setClickedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [submitAction, setSubmitAction] = useState<{ id: string; revision: boolean } | null>(null);
+  const [reviewAction, setReviewAction] = useState<{ id: string; mode: "accepted" | "revision" } | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [showPending, setShowPending] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -350,7 +478,7 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
   const detail = useQuery({
     queryKey: queryKeys.homeworkDetail(role, selected?.id ?? ""),
     queryFn: () => api.homeworkDetail(selected?.id ?? "", role),
-    enabled: Boolean(selected) && !showPending,
+    enabled: Boolean(selected) && !showPending && !detailId,
     ...homeworkRefreshOptions,
   });
   const nextDeadline = [...(list.data?.items ?? []), ...(detail.data ? [detail.data] : [])]
@@ -365,63 +493,142 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
     );
     return () => { window.clearTimeout(timer); };
   }, [nextDeadline]);
-  return <section className={`homework-panel${personId ? " homework-panel--embedded" : ""}`}>
-    {personId ? (
-      <div className="section-heading"><div><p className="eyebrow">Домашние задания</p><h2>{role === "TEACHER" ? "Задания ученика" : "Задания преподавателя"}</h2></div></div>
-    ) : (
-      <PageHeader eyebrow="Домашние задания" title={role === "TEACHER" ? "Задания ученикам" : "Мои задания"} description={role === "TEACHER" ? "Назначенные задания, сроки и материалы." : "Задания от преподавателей и сроки сдачи."} />
-    )}
-    <div className="homework-toolbar homework-toolbar--filters">
-      {!showPending ? <input className="input homework-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Поиск по текущей странице…" aria-label="Поиск по текущей странице заданий" /> : null}
+  const pageItems = list.data?.items ?? [];
+  const hasPageData = Boolean(list.data);
+  const summaryItems = pageItems.filter((item) => role === "TEACHER"
+    ? item.status === "submitted"
+    : item.status === "assigned" || item.status === "needs_revision");
+  const summaryOverdue = summaryItems.filter((item) => role === "TEACHER"
+    ? Boolean(item.latest_submission?.is_late)
+    : isPastDue(item, now)).length;
+  const reviewedCount = pageItems.filter((item) => item.status === "reviewed").length;
+  const totalCount = pageItems.length;
+  const summaryProgress = totalCount > 0 ? Math.round((reviewedCount / totalCount) * 100) : 0;
+  const summaryCard = (
+    <Card className={`summary-card homework-summary-card${role === "TEACHER" ? " homework-summary-card--teacher" : ""}`}>
+      <div className="homework-summary-card__top">
+        <span className="homework-summary-card__label">
+          {role === "TEACHER" ? "На проверке" : "Нужно сделать"}
+          <small>на странице</small>
+        </span>
+        <span className="homework-summary-card__icon" aria-hidden="true">
+          {role === "TEACHER" ? <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg> : <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>}
+        </span>
+      </div>
+      <div className="homework-summary-card__value">
+        <strong>{hasPageData ? cappedCount(summaryItems.length) : "—"}</strong>
+        <span>{hasPageData ? `из ${cappedCount(totalCount)}` : "заданий"}</span>
+      </div>
+      <div className="homework-summary-card__bar" aria-hidden="true"><span style={{ width: `${String(hasPageData ? summaryProgress : 0)}%` }} /></div>
+      <div className="homework-summary-card__foot">
+        <span className="homework-summary-card__overdue">просрочено: {hasPageData ? cappedCount(summaryOverdue) : "—"}</span>
+        <span>проверено: {hasPageData ? cappedCount(reviewedCount) : "—"}</span>
+      </div>
+    </Card>
+  );
+  const listControls = (
+    <div className={`homework-toolbar homework-toolbar--filters${showPending ? " homework-toolbar--pending" : ""}`}>
+      {!showPending ? <div className="homework-search-wrap">
+        <svg className="homework-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.2-3.2" />
+        </svg>
+        <input className="input homework-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Поиск по заданиям" aria-label="Поиск по текущей странице заданий" />
+      </div> : null}
       <div className="homework-filter-row">
-        {!showPending ? <select className="input homework-filter" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); }} aria-label="Фильтр статуса на текущей странице">
-          <option value="">Все статусы</option>
-          <option value="assigned">Назначено</option>
-          <option value="submitted">На проверке</option>
-          <option value="needs_revision">Нужна доработка</option>
-          <option value="reviewed">Проверено</option>
-        </select> : null}
-        {role === "TEACHER" && !personId ? <Button type="button" variant="secondary" aria-pressed={showPending} onClick={() => { setShowPending((value) => !value); }}>{showPending ? "Все задания" : "Ожидают проверки"}</Button> : null}
+        {!showPending ? <span className="homework-filter-wrap">
+          <select className="input homework-filter" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); }} aria-label="Фильтр статуса на текущей странице">
+            <option value="">Все статусы</option>
+            <option value="assigned">Назначено</option>
+            <option value="submitted">На проверке</option>
+            <option value="needs_revision">Нужна доработка</option>
+            <option value="reviewed">Проверено</option>
+          </select>
+          <svg className="homework-filter-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+        </span> : null}
+        {role === "TEACHER" && !personId ? <Button type="button" variant="secondary" className="homework-queue-toggle" aria-pressed={showPending} onClick={() => { setShowPending((value) => !value); }}>{showPending ? "Все задания" : "Ожидают проверки"}</Button> : null}
         {role === "TEACHER" ? <Button className="homework-create-button" aria-label="Назначить ДЗ" onClick={() => { setCreateOpen(true); }}><span aria-hidden="true">+</span><span>Назначить ДЗ</span></Button> : null}
       </div>
     </div>
-    {showPending ? <PendingQueue timezone={timezone} /> : list.isLoading ? <LoadingState label="Загружаем задания…" /> : list.isError && !list.data ? <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} /> : list.data?.items.length === 0 ? <EmptyState title="Заданий пока нет" description="Назначенные задания появятся здесь." /> : <>
-      <div className="homework-layout">
-        <Card className="assignment-table" id="homework-list">
-          <div className="assignment-table__head"><span aria-hidden="true" /><span>Задание</span><span>{role === "TEACHER" ? "Ученик" : "Преподаватель"}</span><span>Срок сдачи</span><span>Статус</span><span aria-hidden="true" /></div>
-          {visibleItems.length ? visibleItems.map((item) => <button className={`assignment-row${selected?.id === item.id ? " assignment-row--selected" : ""}`} type="button" key={item.id} aria-pressed={selected?.id === item.id} onClick={() => { setSelectedId(item.id); }}>
-            <span className="assignment-check" aria-hidden="true" />
-            <span className="assignment-main"><strong title={item.title}>{item.title}</strong><span className="assignment-description">{descriptionLabel(item.description)}</span></span>
-            <span className="assignment-student">{role === "TEACHER" ? item.student_name : item.teacher_name}</span>
-            <time className={`assignment-due${isPastDue(item, now) ? " assignment-due--overdue" : ""}`} dateTime={item.due_at}>{dueLabel(item.due_at, timezone)}</time>
-            <span className={`badge assignment-status assignment-status--${statusTone(item, now)}`}>{statusText(item, now)}</span>
-            <span className="homework-row-arrow" aria-hidden="true">›</span>
-          </button>) : <div className="homework-no-results"><EmptyState title="Ничего не найдено" description="Измените поиск или статус на этой странице." /></div>}
-          {list.data && list.data.total > list.data.limit ? <div className="homework-pagination">
-            <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - 20)); }}>Назад</Button>
-            <span>{offset + 1}–{Math.min(offset + 20, list.data.total)} из {list.data.total}</span>
-            <Button type="button" variant="secondary" disabled={offset + 20 >= list.data.total} onClick={() => { setOffset(offset + 20); }}>Далее</Button>
-          </div> : null}
-        </Card>
+  );
+  const scrollToDetails = () => {
+    const sidebar = document.querySelector(".homework-panel .homework-sidebar");
+    if (!sidebar) return;
+    const scrollIntoView = (sidebar as { scrollIntoView?: (options?: ScrollIntoViewOptions) => void }).scrollIntoView;
+    scrollIntoView?.call(sidebar, { behavior: "smooth", block: "start" });
+  };
+  const activateRow = (item: Homework) => {
+    if (clickedId === item.id && selected?.id === item.id) {
+      scrollToDetails();
+      return;
+    }
+    setClickedId(item.id);
+    setSelectedId(item.id);
+  };
+  const openDetails = (item: Homework) => {
+    setDetailId(item.id);
+  };
+  if (detailId) {
+    return <section className={`homework-panel${personId ? " homework-panel--embedded" : ""}`}>
+      <HomeworkDetailView homeworkId={detailId} role={role} timezone={timezone} now={now} onBack={() => { setDetailId(null); }} />
+    </section>;
+  }
+  return <section className={`homework-panel${personId ? " homework-panel--embedded" : ""}`}>
+    {personId ? (
+      <div className="section-heading homework-section-heading"><div><p className="eyebrow">Домашние задания</p><h2>{role === "TEACHER" ? "Задания ученика" : "Задания преподавателя"}</h2><p className="homework-section-heading__description">{role === "TEACHER" ? "Назначенные задания, сроки и материалы." : "Задания от преподавателей и сроки сдачи."}</p></div>{summaryCard}</div>
+    ) : (
+      <PageHeader eyebrow="Домашние задания" title={role === "TEACHER" ? "Задания ученикам" : "Мои домашние задания"} description={role === "TEACHER" ? "Назначенные задания, сроки и материалы." : "Список назначенных работ и сроки сдачи."} action={summaryCard} />
+    )}
+    {showPending ? <>
+      {listControls}
+      <PendingQueue timezone={timezone} />
+    </> : <div className="homework-surface">
+      <div className="homework-surface__head"><h2 className="homework-surface__title">{role === "TEACHER" ? "Все задания" : "Мои задания"}</h2></div>
+      {listControls}
+      {list.isLoading ? <LoadingState label="Загружаем задания…" /> : list.isError && !list.data ? <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} /> : list.data?.items.length === 0 ? <EmptyState title="Заданий пока нет" description="Назначенные задания появятся здесь." /> : <>
+        <div className="homework-layout">
+          <Card className="assignment-table homework-list-table" id="homework-list">
+            <div className="assignment-table__head homework-list-table__head"><span aria-hidden="true" /><span>Задание</span><span>{role === "TEACHER" ? "Ученик" : "Преподаватель"}</span><span>Срок сдачи</span><span>Статус</span><span aria-hidden="true" /></div>
+            {visibleItems.length ? visibleItems.map((item) => <button className={`assignment-row homework-list-row${selected?.id === item.id ? " homework-list-row--selected" : ""}`} type="button" key={item.id} aria-pressed={selected?.id === item.id} onClick={() => { activateRow(item); }}>
+              <span className="assignment-check" aria-hidden="true" />
+              <span className="assignment-main"><strong title={item.title}>{truncateText(item.title, TITLE_DISPLAY_LIMIT)}</strong><span className="assignment-description">{truncateText(descriptionLabel(item.description), DESCRIPTION_DISPLAY_LIMIT)}</span></span>
+              <span className="assignment-student">{role === "TEACHER" ? item.student_name : item.teacher_name}</span>
+              <time className={`assignment-due${isPastDue(item, now) ? " assignment-due--overdue" : ""}`} dateTime={item.due_at}>{listDueLabel(item.due_at, timezone)}</time>
+              <span className={`badge assignment-status assignment-status--${listStatusModifier(item, now)}`}>{statusText(item, now)}</span>
+              <span className="homework-row-arrow" aria-hidden="true" title="Прокрутить к деталям задания" onClick={(event) => { event.stopPropagation(); if (selected?.id !== item.id) { setSelectedId(item.id); setClickedId(item.id); } scrollToDetails(); }}>›</span>
+            </button>) : <div className="homework-no-results"><EmptyState title="Ничего не найдено" description="Измените поиск или статус на этой странице." /></div>}
+            {visibleItems.length || (list.data && list.data.total > list.data.limit) ? <div className="homework-list-footer">
+              {list.data && list.data.total > list.data.limit ? <div className="homework-pagination">
+                <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - 20)); }}>Назад</Button>
+                <span>{offset + 1}–{Math.min(offset + 20, list.data.total)} из {list.data.total}</span>
+                <Button type="button" variant="secondary" disabled={offset + 20 >= list.data.total} onClick={() => { setOffset(offset + 20); }}>Далее</Button>
+              </div> : <span />}
+              {visibleItems.length ? <button className="homework-open-button" type="button" onClick={() => { const target = selected ?? visibleItems[0]; if (target) openDetails(target); }}>Открыть задание <span aria-hidden="true">→</span></button> : null}
+            </div> : null}
+          </Card>
         {selected ? <aside className="homework-sidebar"><Card className="selected-assignment">
           {detail.isLoading ? <LoadingState label="Загружаем условия…" /> : detail.isError && !detail.data ? <ErrorState message={readableError(detail.error)} onRetry={() => void detail.refetch()} /> : detail.data ? <>
             <div className="selected-assignment__title"><span>Выбранное задание</span><span className={`badge assignment-status--${statusTone(detail.data, now)}`}>{statusText(detail.data, now)}</span></div>
-            <h2>{detail.data.title}</h2>
-            <p className="full-assignment-description">{descriptionLabel(detail.data.description)}</p>
+            <h2>{truncateText(detail.data.title, TITLE_DISPLAY_LIMIT)}</h2>
+            <p className="full-assignment-description">{truncateText(descriptionLabel(detail.data.description), DESCRIPTION_DISPLAY_LIMIT)}</p>
             <dl>
               <div><dt>{role === "TEACHER" ? "Ученик" : "Преподаватель"}</dt><dd>{role === "TEACHER" ? detail.data.student_name : detail.data.teacher_name}</dd></div>
               <div><dt>Срок сдачи</dt><dd>{dueLabel(detail.data.due_at, timezone)}</dd></div>
-              {role === "TEACHER" && detail.data.latest_submission?.is_late ? <div><dt>Отправлено</dt><dd>{dueLabel(detail.data.latest_submission.submitted_at, timezone)} · {lateSubmissionLabel(detail.data.latest_submission.attempt_no)}</dd></div> : null}
             </dl>
             <div className="homework-materials"><h3>Материалы</h3>{detail.data.attachments.length ? <ul className="invitation-list">{detail.data.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => api.downloadHomeworkAttachment(detail.data.id, attachment.id)} />)}</ul> : <p className="muted">Материалов нет.</p>}</div>
-            {role === "STUDENT" && (detail.data.status === "assigned" || detail.data.status === "needs_revision") ? <div className="selected-assignment__actions"><Button type="button" onClick={() => { setSubmitAction({ id: detail.data.id, revision: detail.data.status === "needs_revision" }); }}>{detail.data.status === "needs_revision" ? "Отправить исправления" : "Сдать работу"}</Button></div> : null}
+            {role === "STUDENT" && (detail.data.status === "assigned" || detail.data.status === "needs_revision") ? <div className="selected-assignment__actions"><Button type="button" onClick={() => { setSubmitAction({ id: detail.data.id, revision: detail.data.status === "needs_revision" }); }}>{detail.data.status === "needs_revision" ? "Отправить исправления" : "Сдать работу"}</Button><button className="homework-details-link" type="button" onClick={() => { openDetails(detail.data); }}>Подробнее</button></div> : null}
             {role === "STUDENT" && detail.data.latest_submission ? <div className="homework-materials"><h3>Отправленная работа · попытка №{detail.data.latest_submission.attempt_no}</h3><p>Отправлено: {dueLabel(detail.data.latest_submission.submitted_at, timezone)}{detail.data.latest_submission.is_late ? ` · ${lateSubmissionLabel(detail.data.latest_submission.attempt_no)}` : ""}</p><p>{detail.data.latest_submission.comment ?? "Без комментария"}</p>{detail.data.latest_submission.attachments.length ? <ul className="invitation-list">{detail.data.latest_submission.attachments.map((attachment) => <li className="invitation-row homework-attachment" key={attachment.id}>{attachment.original_name} · {fileSizeLabel(attachment.size_bytes)}</li>)}</ul> : null}{detail.data.latest_submission.review ? <div className="homework-history__review"><p>{detail.data.latest_submission.review.decision === "accepted" ? `Оценка: ${detail.data.latest_submission.review.grade?.toString() ?? "—"}` : "Нужна доработка"}</p><p>{detail.data.latest_submission.review.comment ?? "Без комментария преподавателя"}</p></div> : null}</div> : null}
+            {role === "TEACHER" && detail.data.latest_submission ? <TeacherSubmissionBlock submission={detail.data.latest_submission} status={detail.data.status} timezone={timezone} onReview={(mode, submissionId) => { setReviewAction({ id: submissionId, mode }); }} onDetails={() => { openDetails(detail.data); }} /> : null}
+            {!((role === "STUDENT" && (detail.data.status === "assigned" || detail.data.status === "needs_revision")) || (role === "TEACHER" && detail.data.latest_submission && detail.data.status === "submitted")) ? <div className="selected-assignment__actions"><button className="homework-details-link" type="button" onClick={() => { openDetails(detail.data); }}>Подробнее</button></div> : null}
             <HistoryBlock homeworkId={detail.data.id} role={role} timezone={timezone} />
           </> : null}
         </Card></aside> : null}
-      </div>
-    </>}
+        </div>
+      </>}
+    </div>}
     {createOpen ? <CreateHomeworkDialog studentId={personId} onClose={() => { setCreateOpen(false); }} /> : null}
     {submitAction ? <SubmitHomeworkDialog homeworkId={submitAction.id} revision={submitAction.revision} onClose={() => { setSubmitAction(null); }} /> : null}
+    {reviewAction?.mode === "accepted" ? <AcceptDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
+    {reviewAction?.mode === "revision" ? <RevisionDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
   </section>;
 }

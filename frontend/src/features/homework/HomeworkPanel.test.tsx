@@ -56,7 +56,8 @@ describe("homework views", () => {
     client.setQueryData(queryKeys.homework("STUDENT", undefined, 0), { items: [item], total: 1, limit: 20, offset: 0 });
     client.setQueryData(queryKeys.homeworkDetail("STUDENT", item.id), item);
     const html = renderToStaticMarkup(<QueryClientProvider client={client}><HomeworkPanel /></QueryClientProvider>);
-    expect(html).toContain("Назначено · Просрочено");
+    expect(html).toContain("Просрочено");
+    expect(html).toMatch(/\d{2} [а-яё]+, \d{2}:\d{2}/i);
     expect(html).toContain("Сдать работу");
   });
 
