@@ -1,12 +1,18 @@
 """Pure lesson state calculation and response mapping."""
 
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 from app.models.enums import AttendanceStatus, AttendanceValue, LessonStatus
 from app.models.lesson import Lesson
 from app.repositories.lessons import LessonRecord
 from app.schemas.connections import StudentRefDTO
-from app.schemas.lessons import LessonDTO, LessonReadDTO
+from app.schemas.lessons import (
+    LessonDTO,
+    LessonHistoryAggregatesDTO,
+    LessonHistoryItemDTO,
+    LessonReadDTO,
+)
 
 
 def lesson_ends_at(lesson: Lesson) -> datetime:
@@ -51,6 +57,57 @@ def lesson_to_dto(lesson: Lesson, now: datetime) -> LessonDTO:
         is_rescheduled=lesson.rescheduled_at is not None,
         attendance=attendance_status(lesson.attendance),
         cancellation_reason=lesson.cancellation_reason,
+    )
+
+
+def lesson_to_history_item(lesson: Lesson, now: datetime) -> LessonHistoryItemDTO:
+    return LessonHistoryItemDTO(
+        id=lesson.id,
+        title=lesson.title,
+        starts_at=lesson.starts_at,
+        ends_at=lesson_ends_at(lesson),
+        status=calculate_lesson_status(lesson, now),
+        attendance=attendance_status(lesson.attendance),
+    )
+
+
+def calculate_lesson_history_aggregates(
+    history: Iterable[LessonHistoryItemDTO],
+) -> LessonHistoryAggregatesDTO:
+    items = list(history)
+    completed = 0
+    attended = 0
+    missed = 0
+    unmarked = 0
+    cancelled = 0
+
+    for item in items:
+        if item.status == LessonStatus.CANCELLED:
+            cancelled += 1
+            continue
+        if item.status != LessonStatus.COMPLETED:
+            continue
+
+        completed += 1
+        if item.attendance == AttendanceStatus.PRESENT:
+            attended += 1
+        elif item.attendance == AttendanceStatus.ABSENT:
+            missed += 1
+        else:
+            unmarked += 1
+
+    marked_completed = attended + missed
+    attendance_rate = (
+        round(attended * 100 / marked_completed, 2) if marked_completed else None
+    )
+    return LessonHistoryAggregatesDTO(
+        total_lessons=len(items),
+        completed_lessons=completed,
+        attended_lessons=attended,
+        missed_lessons=missed,
+        unmarked_lessons=unmarked,
+        cancelled_lessons=cancelled,
+        attendance_rate=attendance_rate,
     )
 
 

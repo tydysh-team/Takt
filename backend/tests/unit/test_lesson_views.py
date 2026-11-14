@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 
@@ -6,8 +7,10 @@ from app.models.enums import AttendanceStatus, AttendanceValue, LessonStatus
 from app.models.lesson import Lesson
 from app.services.lesson_views import (
     attendance_status,
+    calculate_lesson_history_aggregates,
     calculate_lesson_status,
     lesson_ends_at,
+    lesson_to_history_item,
 )
 
 START = datetime(2030, 1, 1, 12, tzinfo=UTC)
@@ -71,3 +74,68 @@ def test_status_requires_aware_time() -> None:
 
     with pytest.raises(ValueError, match="now must be timezone-aware"):
         calculate_lesson_status(lesson, START.replace(tzinfo=None))
+
+
+def test_history_aggregates_only_completed_attendance() -> None:
+    def item(
+        offset: timedelta,
+        *,
+        attendance: AttendanceValue | None = None,
+        cancelled: bool = False,
+    ) -> Lesson:
+        lesson = Lesson(
+            id=uuid4(),
+            title="History",
+            starts_at=START + offset,
+            duration_minutes=60,
+            attendance=attendance,
+        )
+        lesson.cancelled_at = START if cancelled else None
+        return lesson
+
+    lessons = [
+        item(-timedelta(hours=5), attendance=AttendanceValue.PRESENT),
+        item(-timedelta(hours=4), attendance=AttendanceValue.ABSENT),
+        item(-timedelta(hours=3)),
+        item(-timedelta(hours=2), attendance=AttendanceValue.PRESENT, cancelled=True),
+        item(-timedelta(minutes=30)),
+        item(timedelta(hours=1)),
+    ]
+    history = [lesson_to_history_item(lesson, START) for lesson in lessons]
+
+    result = calculate_lesson_history_aggregates(history)
+
+    assert result.model_dump() == {
+        "total_lessons": 6,
+        "completed_lessons": 3,
+        "attended_lessons": 1,
+        "missed_lessons": 1,
+        "unmarked_lessons": 1,
+        "cancelled_lessons": 1,
+        "attendance_rate": 50.0,
+    }
+
+
+def test_history_attendance_rate_is_null_without_marked_completed_lessons() -> None:
+    lessons = [
+        Lesson(
+            id=uuid4(),
+            title="Unmarked",
+            starts_at=START - timedelta(hours=2),
+            duration_minutes=60,
+        ),
+        Lesson(
+            id=uuid4(),
+            title="Planned",
+            starts_at=START + timedelta(hours=2),
+            duration_minutes=60,
+        ),
+    ]
+
+    result = calculate_lesson_history_aggregates(
+        lesson_to_history_item(lesson, START) for lesson in lessons
+    )
+
+    assert result.completed_lessons == 1
+    assert result.unmarked_lessons == 1
+    assert result.attendance_rate is None
