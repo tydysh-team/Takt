@@ -191,7 +191,8 @@ describe("homework submission interactions", () => {
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     expect((await screen.findAllByText("Исправьте пункт 2")).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Отправить исправления" })).toBeTruthy();
-    expect(screen.getAllByText(/Срок прошёл/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("На доработке").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\d{2} [а-яё]+, \d{2}:\d{2}/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Сдано с опозданием/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByText(/Попытка №1/));
     fireEvent.click(screen.getByRole("button", { name: "Скачать answer.txt" }));
@@ -204,7 +205,8 @@ describe("homework submission interactions", () => {
     vi.spyOn(api, "homeworkDetail").mockResolvedValue(soon);
     setup("STUDENT", soon);
     expect(screen.getAllByText("Назначено").length).toBeGreaterThan(0);
-    expect((await screen.findAllByText("Назначено · Просрочено")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Просрочено")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\d{2} [а-яё]+, \d{2}:\d{2}/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Сдать работу" })).toBeTruthy();
   });
 

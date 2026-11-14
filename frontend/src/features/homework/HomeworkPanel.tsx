@@ -54,6 +54,19 @@ function truncateText(value: string, limit: number): string {
   return text.length > limit ? `${text.slice(0, limit).trimEnd()}…` : text;
 }
 
+function queueCountLabel(value: number): string {
+  if (value > 99) return `${cappedCount(value)} работ`;
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${value.toString()} работа`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${value.toString()} работы`;
+  return `${value.toString()} работ`;
+}
+
+function personInitials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toLocaleUpperCase("ru")).join("");
+}
+
 function statusText(item: Homework, now: number): string {
   if (item.status === "assigned" && isPastDue(item, now)) return "Просрочено";
   return statusLabel(item.status);
@@ -339,6 +352,102 @@ function HomeworkDetailView({ homeworkId, role, timezone, now, onBack }: { homew
   </section>;
 }
 
+function PendingQueue({ timezone }: { timezone: string }) {
+  const [offset, setOffset] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<{ id: string; mode: "accepted" | "revision" } | null>(null);
+  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset), queryFn: () => api.pendingSubmissions(offset), ...homeworkRefreshOptions });
+  const items = [...(list.data?.items ?? [])].sort((left, right) => {
+    const bySubmitted = Date.parse(right.submitted_at) - Date.parse(left.submitted_at);
+    return bySubmitted !== 0 ? bySubmitted : right.id.localeCompare(left.id);
+  });
+  const selected = items.find((item) => item.id === selectedId) ?? items[0];
+  const detail = useQuery({
+    queryKey: queryKeys.pendingSubmission(selected?.id ?? ""),
+    queryFn: () => api.pendingSubmission(selected?.id ?? ""),
+    enabled: Boolean(selected),
+    ...homeworkRefreshOptions,
+  });
+  const dialogs = <>
+    {reviewAction?.mode === "accepted" ? <AcceptDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
+    {reviewAction?.mode === "revision" ? <RevisionDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
+  </>;
+  if (list.isLoading) return <LoadingState label="Загружаем работы…" />;
+  if (list.isError && !list.data) return <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} />;
+  if (!items.length) return <>
+    <EmptyState title="Работ на проверку нет" description="Отправленные работы появятся здесь." />
+    {dialogs}
+  </>;
+  const total = list.data?.total ?? items.length;
+  const limit = list.data?.limit ?? 20;
+  return <div className="homework-queue">
+    <Card className="homework-queue__list">
+      <div className="homework-queue__head">
+        <div>
+          <p className="eyebrow">На проверке</p>
+          <h2>Очередь работ</h2>
+        </div>
+        <span className="homework-queue__count">{queueCountLabel(total)}</span>
+      </div>
+      <div className="homework-queue__columns"><span>Задание</span><span>Ученик</span><span>Отправлено</span><span>Статус</span></div>
+      <div className="homework-queue__items">
+        {items.map((item) => {
+          const active = selected?.id === item.id;
+          return <button className={`homework-queue__item${active ? " homework-queue__item--active" : ""}`} type="button" key={item.id} aria-label={`Просмотреть работу ${item.title} ученика ${item.student_name}`} aria-pressed={active} onClick={() => { setSelectedId(item.id); }}>
+            <span className="homework-queue__main">
+              <span className="homework-queue__avatar" aria-hidden="true">{personInitials(item.student_name)}</span>
+              <span className="homework-queue__copy">
+                <strong title={item.title}>{truncateText(item.title, TITLE_DISPLAY_LIMIT)}</strong>
+                <small>Попытка №{item.attempt_no}</small>
+              </span>
+            </span>
+            <span className="homework-queue__student">{item.student_name}</span>
+            <span className="homework-queue__submitted">
+              <time dateTime={item.submitted_at}>{listDueLabel(item.submitted_at, timezone)}</time>
+              {item.is_late ? <small className="homework-queue__late">Сдано с опозданием</small> : null}
+            </span>
+            <span className="homework-queue__status">На проверке</span>
+            <span className="homework-queue__arrow" aria-hidden="true">›</span>
+          </button>;
+        })}
+      </div>
+      {total > limit ? <div className="homework-queue__pagination">
+        <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - limit)); setSelectedId(null); }}>Назад</Button>
+        <span>{offset + 1}–{Math.min(offset + limit, total)} из {total}</span>
+        <Button type="button" variant="secondary" disabled={offset + limit >= total} onClick={() => { setOffset(offset + limit); setSelectedId(null); }}>Далее</Button>
+      </div> : null}
+    </Card>
+    {selected ? <aside className="homework-queue__detail"><Card className="homework-queue__detail-card">
+      {detail.isLoading ? <LoadingState label="Загружаем работу…" /> : detail.isError && !detail.data ? <ErrorState message={readableError(detail.error)} onRetry={() => void detail.refetch()} /> : detail.data ? <>
+        <div className="homework-queue__detail-head">
+          <span>Выбранная работа</span>
+          <span className="homework-queue__status">{statusLabel(detail.data.homework_status)}</span>
+        </div>
+        <h2>{truncateText(detail.data.title, TITLE_DISPLAY_LIMIT)}</h2>
+        <p className="homework-queue__detail-meta">{detail.data.student_name} · попытка №{detail.data.attempt_no}</p>
+        <dl className="homework-queue__detail-meta-list">
+          <div><dt>Срок сдачи</dt><dd>{dueLabel(detail.data.due_at, timezone)}</dd></div>
+          <div><dt>Отправлено</dt><dd>{dueLabel(detail.data.submitted_at, timezone)}{detail.data.is_late ? ` · ${lateSubmissionLabel(detail.data.attempt_no)}` : ""}</dd></div>
+        </dl>
+        <div className="homework-queue__detail-section">
+          <h3>Комментарий ученика</h3>
+          <p>{detail.data.comment ?? "Комментария нет."}</p>
+        </div>
+        <div className="homework-queue__detail-section">
+          <h3>Файлы решения</h3>
+          {detail.data.attachments.length ? <ul className="invitation-list">{detail.data.attachments.map((attachment) => <AttachmentLink key={attachment.id} attachment={attachment} downloadFile={() => api.downloadSubmissionAttachment(detail.data.id, attachment.id)} />)}</ul> : <p className="muted">Файлов нет.</p>}
+        </div>
+        {detail.data.homework_status === "submitted" ? <div className="selected-assignment__actions homework-review-actions">
+          <Button type="button" onClick={() => { setReviewAction({ id: detail.data.id, mode: "accepted" }); }}>Принять работу</Button>
+          <Button type="button" variant="secondary" onClick={() => { setReviewAction({ id: detail.data.id, mode: "revision" }); }}>Вернуть на доработку</Button>
+        </div> : <Alert tone="info">Состояние задания изменилось. Обновите очередь.</Alert>}
+        <HistoryBlock homeworkId={detail.data.homework_id} role="TEACHER" timezone={timezone} />
+      </> : null}
+    </Card></aside> : null}
+    {dialogs}
+  </div>;
+}
+
 export function HomeworkPanel({ personId }: { personId?: string }) {
   const { user } = useAuth();
   const profile = useQuery({ queryKey: queryKeys.profile, queryFn: api.profile });
@@ -351,27 +460,14 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
   const [submitAction, setSubmitAction] = useState<{ id: string; revision: boolean } | null>(null);
   const [reviewAction, setReviewAction] = useState<{ id: string; mode: "accepted" | "revision" } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [showPending, setShowPending] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const list = useQuery({
     queryKey: queryKeys.homework(role, personId, offset),
     queryFn: () => role === "TEACHER" ? api.teacherHomework(personId, offset) : api.studentHomework(personId, offset),
-    ...homeworkRefreshOptions,
-  });
-  const counters = useQuery({
-    queryKey: ["homework", role, personId ?? "all", "counters"],
-    queryFn: async (): Promise<Homework[]> => {
-      const fetchPage = (pageOffset: number) => role === "TEACHER" ? api.teacherHomework(personId, pageOffset) : api.studentHomework(personId, pageOffset);
-      const first = await fetchPage(0);
-      const items = [...first.items];
-      for (let next = first.limit; next < first.total; next += first.limit) {
-        const page = await fetchPage(next);
-        items.push(...page.items);
-      }
-      return items;
-    },
-    enabled: !detailId,
+    enabled: !showPending,
     ...homeworkRefreshOptions,
   });
   const visibleItems = (list.data?.items ?? []).filter((item) => {
@@ -382,7 +478,7 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
   const detail = useQuery({
     queryKey: queryKeys.homeworkDetail(role, selected?.id ?? ""),
     queryFn: () => api.homeworkDetail(selected?.id ?? "", role),
-    enabled: Boolean(selected) && !detailId,
+    enabled: Boolean(selected) && !showPending && !detailId,
     ...homeworkRefreshOptions,
   });
   const nextDeadline = [...(list.data?.items ?? []), ...(detail.data ? [detail.data] : [])]
@@ -397,45 +493,50 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
     );
     return () => { window.clearTimeout(timer); };
   }, [nextDeadline]);
-  const summaryItems = (counters.data ?? []).filter((item) => role === "TEACHER"
+  const pageItems = list.data?.items ?? [];
+  const hasPageData = Boolean(list.data);
+  const summaryItems = pageItems.filter((item) => role === "TEACHER"
     ? item.status === "submitted"
     : item.status === "assigned" || item.status === "needs_revision");
   const summaryOverdue = summaryItems.filter((item) => role === "TEACHER"
     ? Boolean(item.latest_submission?.is_late)
     : isPastDue(item, now)).length;
-  const reviewedCount = (counters.data ?? []).filter((item) => item.status === "reviewed").length;
-  const totalCount = counters.data?.length ?? 0;
+  const reviewedCount = pageItems.filter((item) => item.status === "reviewed").length;
+  const totalCount = pageItems.length;
   const summaryProgress = totalCount > 0 ? Math.round((reviewedCount / totalCount) * 100) : 0;
   const summaryCard = (
     <Card className={`summary-card homework-summary-card${role === "TEACHER" ? " homework-summary-card--teacher" : ""}`}>
       <div className="homework-summary-card__top">
-        <span>{role === "TEACHER" ? "На проверке" : "Нужно сделать"}</span>
+        <span className="homework-summary-card__label">
+          {role === "TEACHER" ? "На проверке" : "Нужно сделать"}
+          <small>на странице</small>
+        </span>
         <span className="homework-summary-card__icon" aria-hidden="true">
           {role === "TEACHER" ? <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg> : <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>}
         </span>
       </div>
       <div className="homework-summary-card__value">
-        <strong>{counters.data ? cappedCount(summaryItems.length) : "—"}</strong>
-        <span>{counters.data ? `из ${cappedCount(totalCount)}` : "заданий"}</span>
+        <strong>{hasPageData ? cappedCount(summaryItems.length) : "—"}</strong>
+        <span>{hasPageData ? `из ${cappedCount(totalCount)}` : "заданий"}</span>
       </div>
-      <div className="homework-summary-card__bar" aria-hidden="true"><span style={{ width: `${String(counters.data ? summaryProgress : 0)}%` }} /></div>
+      <div className="homework-summary-card__bar" aria-hidden="true"><span style={{ width: `${String(hasPageData ? summaryProgress : 0)}%` }} /></div>
       <div className="homework-summary-card__foot">
-        <span className="homework-summary-card__overdue">просрочено: {counters.data ? cappedCount(summaryOverdue) : "—"}</span>
-        <span>проверено: {counters.data ? cappedCount(reviewedCount) : "—"}</span>
+        <span className="homework-summary-card__overdue">просрочено: {hasPageData ? cappedCount(summaryOverdue) : "—"}</span>
+        <span>проверено: {hasPageData ? cappedCount(reviewedCount) : "—"}</span>
       </div>
     </Card>
   );
   const listControls = (
-    <div className="homework-toolbar homework-toolbar--filters">
-      <div className="homework-search-wrap">
+    <div className={`homework-toolbar homework-toolbar--filters${showPending ? " homework-toolbar--pending" : ""}`}>
+      {!showPending ? <div className="homework-search-wrap">
         <svg className="homework-search-icon" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.2-3.2" />
         </svg>
         <input className="input homework-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Поиск по заданиям" aria-label="Поиск по текущей странице заданий" />
-      </div>
+      </div> : null}
       <div className="homework-filter-row">
-        <span className="homework-filter-wrap">
+        {!showPending ? <span className="homework-filter-wrap">
           <select className="input homework-filter" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); }} aria-label="Фильтр статуса на текущей странице">
             <option value="">Все статусы</option>
             <option value="assigned">Назначено</option>
@@ -444,7 +545,8 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
             <option value="reviewed">Проверено</option>
           </select>
           <svg className="homework-filter-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-        </span>
+        </span> : null}
+        {role === "TEACHER" && !personId ? <Button type="button" variant="secondary" className="homework-queue-toggle" aria-pressed={showPending} onClick={() => { setShowPending((value) => !value); }}>{showPending ? "Все задания" : "Ожидают проверки"}</Button> : null}
         {role === "TEACHER" ? <Button className="homework-create-button" aria-label="Назначить ДЗ" onClick={() => { setCreateOpen(true); }}><span aria-hidden="true">+</span><span>Назначить ДЗ</span></Button> : null}
       </div>
     </div>
@@ -477,7 +579,10 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
     ) : (
       <PageHeader eyebrow="Домашние задания" title={role === "TEACHER" ? "Задания ученикам" : "Мои домашние задания"} description={role === "TEACHER" ? "Назначенные задания, сроки и материалы." : "Список назначенных работ и сроки сдачи."} action={summaryCard} />
     )}
-    <div className="homework-surface">
+    {showPending ? <>
+      {listControls}
+      <PendingQueue timezone={timezone} />
+    </> : <div className="homework-surface">
       <div className="homework-surface__head"><h2 className="homework-surface__title">{role === "TEACHER" ? "Все задания" : "Мои задания"}</h2></div>
       {listControls}
       {list.isLoading ? <LoadingState label="Загружаем задания…" /> : list.isError && !list.data ? <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} /> : list.data?.items.length === 0 ? <EmptyState title="Заданий пока нет" description="Назначенные задания появятся здесь." /> : <>
@@ -520,7 +625,7 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
         </Card></aside> : null}
         </div>
       </>}
-    </div>
+    </div>}
     {createOpen ? <CreateHomeworkDialog studentId={personId} onClose={() => { setCreateOpen(false); }} /> : null}
     {submitAction ? <SubmitHomeworkDialog homeworkId={submitAction.id} revision={submitAction.revision} onClose={() => { setSubmitAction(null); }} /> : null}
     {reviewAction?.mode === "accepted" ? <AcceptDialog submissionId={reviewAction.id} onClose={() => { setReviewAction(null); }} /> : null}
