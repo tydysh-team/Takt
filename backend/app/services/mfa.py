@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-import pyotp
 from cryptography.fernet import Fernet, InvalidToken
+from pyotp import random_base32
+from pyotp.totp import TOTP
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -119,14 +120,14 @@ class MfaService:
             if state is not None and state.enabled_at is not None:
                 raise MfaAlreadyEnabledError()
             self._digest(b"configuration-check:", "")
-            secret = pyotp.random_base32()
+            secret = random_base32()
             now = utc_now()
             if state is None:
                 state = UserTotp(user_id=user_id)
                 self._session.add(state)
             state.pending_secret = self._fernet().encrypt(secret.encode()).decode()
             state.pending_expires_at = now + timedelta(minutes=10)
-            uri = pyotp.TOTP(secret, digits=6, interval=30).provisioning_uri(
+            uri = TOTP(secret, digits=6, interval=30).provisioning_uri(
                 name=user.email, issuer_name="Takt"
             )
             await self._session.commit()
@@ -271,7 +272,7 @@ class MfaService:
         if len(code) != 6 or not code.isascii() or not code.isdecimal():
             return False
         step = int(now.timestamp()) // 30
-        totp = pyotp.TOTP(secret, digits=6, interval=30, digest=hashlib.sha1)
+        totp = TOTP(secret, digits=6, interval=30, digest=hashlib.sha1)
         for candidate in (step, step - 1, step + 1):
             if state.last_used_step is not None and candidate <= state.last_used_step:
                 continue
