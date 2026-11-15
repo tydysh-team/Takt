@@ -455,7 +455,6 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
   const role = user?.role === "TEACHER" ? "TEACHER" : "STUDENT";
   const [offset, setOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [clickedId, setClickedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [submitAction, setSubmitAction] = useState<{ id: string; revision: boolean } | null>(null);
   const [reviewAction, setReviewAction] = useState<{ id: string; mode: "accepted" | "revision" } | null>(null);
@@ -566,11 +565,6 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
     scrollIntoView?.call(sidebar, { behavior: "smooth", block: "start" });
   };
   const activateRow = (item: Homework) => {
-    if (clickedId === item.id && selected?.id === item.id) {
-      scrollToDetails();
-      return;
-    }
-    setClickedId(item.id);
     setSelectedId(item.id);
   };
   const openDetails = (item: Homework) => {
@@ -603,7 +597,7 @@ export function HomeworkPanel({ personId }: { personId?: string }) {
               <span className="assignment-student">{role === "TEACHER" ? item.student_name : item.teacher_name}</span>
               <time className={`assignment-due${isPastDue(item, now) ? " assignment-due--overdue" : ""}`} dateTime={item.due_at}>{listDueLabel(item.due_at, timezone)}</time>
               <span className={`badge assignment-status assignment-status--${listStatusModifier(item, now)}`}>{statusText(item, now)}</span>
-              <span className="homework-row-arrow" aria-hidden="true" title="Прокрутить к деталям задания" onClick={(event) => { event.stopPropagation(); if (selected?.id !== item.id) { setSelectedId(item.id); setClickedId(item.id); } scrollToDetails(); }}>›</span>
+              <span className="homework-row-arrow" aria-hidden="true" title="Прокрутить к деталям задания" onClick={(event) => { event.stopPropagation(); if (selected?.id !== item.id) { setSelectedId(item.id); } scrollToDetails(); }}>›</span>
             </button>) : <div className="homework-no-results"><EmptyState title="Ничего не найдено" description="Измените поиск или статус на этой странице." /></div>}
             {visibleItems.length || (list.data && list.data.total > list.data.limit) ? <div className="homework-list-footer">
               {list.data && list.data.total > list.data.limit ? <div className="homework-pagination">
