@@ -28,9 +28,6 @@ export function AttendanceBlock({
         <MetricCard label="Не отмечено" value={formatCount(data.unmarked_lessons)} />
         <MetricCard label="Отменено" value={formatCount(data.cancelled_lessons)} />
       </div>
-      <p className="progress-block__note">
-        Отменённые занятия не входят в знаменатель, а неотмеченное посещение не считается пропуском.
-      </p>
       {action ? <div>{action}</div> : null}
     </section>
   );

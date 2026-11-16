@@ -27,9 +27,6 @@ export function HomeworkBlock({
         <MetricCard label="Сдано с опозданием" value={formatCount(data.late)} tone={data.late > 0 ? "danger" : "default"} />
         <MetricCard label="Возвращалось на доработку" value={formatCount(data.revision_required)} />
       </div>
-      <p className="progress-block__note">
-        Процент считается только по назначенным заданиям периода. При нулевом числе назначений показывается N/A.
-      </p>
       {action ? <div>{action}</div> : null}
     </section>
   );

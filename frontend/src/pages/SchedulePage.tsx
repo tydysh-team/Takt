@@ -443,7 +443,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const selectedActions = lessonActions(selectedStatus, isTeacher);
 
   if (profile.isLoading) return <LoadingState label="Загружаем часовой пояс…" />;
-  if (profile.isError) return <ErrorState message={readableError(profile.error)} onRetry={() => { void profile.refetch(); }} />;
+  if (profile.isError && !profile.data) return <ErrorState message={readableError(profile.error)} onRetry={() => { void profile.refetch(); }} />;
   // A failed schedule request must never fall through to the "successful empty
   // schedule" UI: hide the calendar, summary and counters until it succeeds.
   if (lessons.isLoading) {
@@ -452,7 +452,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       <LoadingState label="Загружаем расписание…" />
     </>;
   }
-  if (lessons.isError) {
+  if (lessons.isError && !lessons.data) {
     return <>
       <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <ErrorState message={readableError(lessons.error)} onRetry={() => { void lessons.refetch(); }} />
@@ -460,11 +460,12 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   }
 
   return <>
+    {profile.isError || lessons.isError ? <Alert tone="error">Не удалось обновить расписание. <button type="button" onClick={() => { if (profile.isError) void profile.refetch(); if (lessons.isError) void lessons.refetch(); }}>Повторить</button></Alert> : null}
     <div className="schedule-page-heading">
       <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <div className="schedule-summary-grid">
         <Card className="summary-card"><span>Занятий на неделе</span><strong>{scheduledLessonCount}</strong><small>{selectedPerson ? "в расписании выбранного человека" : isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
-        <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? nextLesson.type === "busy" ? "Занят" : `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
+        <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError && !nextLessonQuery.data ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? nextLesson.type === "busy" ? "Занят" : `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
       </div>
     </div>
     {createSuccess ? <Alert>Занятие успешно создано.</Alert> : null}

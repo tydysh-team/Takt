@@ -15,7 +15,7 @@ import { formatDate, fullName } from "../shared/format";
 import { SchedulePage } from "./SchedulePage";
 import { HomeworkPanel } from "../features/homework/HomeworkPanel";
 import { StudentHistoryPanel } from "../features/progress/StudentHistoryPanel";
-import { StudentProgressPanel } from "../features/progress/StudentProgressPanel";
+import { StudentProgressPanel, type TeacherProgressView } from "../features/progress/StudentProgressPanel";
 import { useProgressPeriod } from "../features/progress/period-url";
 import { useProfileTimezone } from "../features/progress/useProgress";
 
@@ -66,15 +66,17 @@ export function StudentDetailPage() {
   const timezone = useProfileTimezone();
   const { period, setPeriod, explicitPeriod } = useProgressPeriod(timezone);
   const [tab, setTab] = useState<DetailTab>("main");
+  const [progressView, setProgressView] = useState<TeacherProgressView>("summary");
   const student = useQuery({ queryKey: queryKeys.student(id), queryFn: () => api.student(id), enabled: Boolean(id) });
 
   if (student.isLoading) return <LoadingState label="Загружаем профиль ученика…" />;
-  if (student.isError) return <ErrorState message={readableError(student.error)} onRetry={() => void student.refetch()} />;
+  if (student.isError && !student.data) return <ErrorState message={readableError(student.error)} onRetry={() => void student.refetch()} />;
   if (!student.data) return null;
 
   const data = student.data;
   return (
     <>
+      {student.isError ? <Alert tone="error">Не удалось обновить профиль ученика. <Button type="button" variant="secondary" onClick={() => void student.refetch()}>Повторить</Button></Alert> : null}
       <Link className="back-link" to="/students">← К ученикам</Link>
       <PageHeader title={fullName(data)} description={data.email} />
       <div className="profile-hero">
@@ -113,6 +115,8 @@ export function StudentDetailPage() {
           studentId={data.id}
           period={period}
           onPeriodChange={setPeriod}
+          view={progressView}
+          onViewChange={setProgressView}
           onOpenHomework={() => { setPeriod(period); setTab("homework"); }}
           onOpenHistory={() => { setTab("history"); }}
         />

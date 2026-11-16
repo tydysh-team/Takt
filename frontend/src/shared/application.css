@@ -139,7 +139,7 @@ a { color: var(--brand); }
 .page-heading p:not(.eyebrow) { max-width: 650px; margin: 0; color: var(--muted); line-height: 1.55; }
 .page-heading__action { flex: 0 0 auto; }
 .metrics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-.metrics-grid--student { grid-template-columns: minmax(220px, 0.55fr) minmax(300px, 1.45fr); }
+.metrics-grid--student { grid-template-columns: minmax(0, 360px); }
 .metric-card { display: grid; gap: 0.45rem; padding: 1.35rem; }
 .metric-card span { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
 .metric-card strong { font-size: 2.4rem; letter-spacing: -0.05em; }
@@ -1110,6 +1110,7 @@ a { color: var(--brand); }
 }
 .homework-panel .homework-surface__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.15rem; }
 .homework-panel .homework-surface__title { margin: 0; color: var(--homework-ink); font-size: 1.2rem; font-weight: 750; letter-spacing: -.025em; }
+.homework-panel .homework-update-note { color: var(--homework-muted); font-size: .78rem; }
 
 .homework-panel .homework-surface .homework-toolbar { margin: 0 0 1.1rem; align-items: center; }
 .homework-panel .homework-surface .homework-search-wrap { position: relative; flex: 1 1 420px; min-width: 0; }
@@ -1674,7 +1675,7 @@ html[data-theme="dark"] {
 }
 
 /* Keep the details column height stable while switching homework selection. */
-@media (min-width: 1501px) {
+@media (min-width: 1101px) {
   .homework-panel .homework-sidebar .selected-assignment { min-height: 420px; }
 }
 @media (min-width: 1101px) {

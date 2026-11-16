@@ -18,6 +18,7 @@ function HistoryContent({ studentId, timezone, period, onPeriodChange }: {
       <ProgressQueryState
         isLoading={history.isLoading}
         isError={history.isError}
+        hasData={Boolean(history.data)}
         error={history.error}
         onRetry={() => void history.refetch()}
       >

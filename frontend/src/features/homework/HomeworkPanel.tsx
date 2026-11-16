@@ -358,7 +358,7 @@ function PendingQueue({ timezone }: { timezone: string }) {
   const [offset, setOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewAction, setReviewAction] = useState<{ id: string; studentId: string; mode: "accepted" | "revision" } | null>(null);
-  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset), queryFn: () => api.pendingSubmissions(offset), ...homeworkRefreshOptions });
+  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset), queryFn: () => api.pendingSubmissions(offset), placeholderData: (previousData) => previousData?.items.length ? previousData : undefined, ...homeworkRefreshOptions });
   const total = list.data?.total ?? 0;
   const limit = list.data?.limit ?? 20;
   const lastOffset = total > 0 ? Math.floor((total - 1) / limit) * limit : 0;
@@ -393,14 +393,14 @@ function PendingQueue({ timezone }: { timezone: string }) {
     <EmptyState title="Работ на проверку нет" description="Отправленные работы появятся здесь." />
     {dialogs}
   </>;
-  return <div className="homework-queue">
+  return <div className="homework-queue" aria-busy={list.isPlaceholderData} inert={list.isPlaceholderData}>
     <Card className="homework-queue__list">
       <div className="homework-queue__head">
         <div>
           <p className="eyebrow">На проверке</p>
           <h2>Очередь работ</h2>
         </div>
-        <span className="homework-queue__count">{queueCountLabel(total)}</span>
+        <span className="homework-queue__count" role="status">{list.isPlaceholderData ? "Обновляем…" : queueCountLabel(total)}</span>
       </div>
       <div className="homework-queue__columns"><span>Задание</span><span>Ученик</span><span>Отправлено</span><span>Статус</span></div>
       <div className="homework-queue__items">
@@ -477,6 +477,12 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<HomeworkStatus | "">("");
   const [now, setNow] = useState(() => Date.now());
+  const periodKey = [period?.date_from, period?.date_to].join("|");
+  useEffect(() => {
+    setOffset(0);
+    setSelectedId(null);
+    setDetailId(null);
+  }, [periodKey]);
   useEffect(() => {
     const timer = window.setTimeout(() => { setDebouncedSearch(search.trim()); }, 250);
     return () => { window.clearTimeout(timer); };
@@ -490,6 +496,14 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
     queryKey: queryKeys.homework(role, personId, offset, filters),
     queryFn: () => role === "TEACHER" ? api.teacherHomework(personId, offset, filters) : api.studentHomework(personId, offset, filters),
     enabled: !showPending,
+    placeholderData: (previousData, previousQuery) => {
+      const previousKey = previousQuery?.queryKey;
+      return previousKey?.[1] === role
+        && previousKey?.[2] === (personId ?? "all")
+        && previousKey?.[6] === (period?.date_from ?? "")
+        && previousKey?.[7] === (period?.date_to ?? "")
+        ? previousData : undefined;
+    },
     ...homeworkRefreshOptions,
   });
   const pendingCount = useQuery({
@@ -511,6 +525,11 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
     ...homeworkRefreshOptions,
   });
   const visibleItems = list.data?.items ?? [];
+  const listUpdating = search.trim() !== debouncedSearch || list.isPlaceholderData;
+  useEffect(() => {
+    if (list.isPlaceholderData || !list.data || !selectedId) return;
+    if (!list.data.items.some((item) => item.id === selectedId)) setSelectedId(null);
+  }, [list.data, list.isPlaceholderData, selectedId]);
   const selected = visibleItems.find((item) => item.id === selectedId) ?? visibleItems[0];
   const detail = useQuery({
     queryKey: queryKeys.homeworkDetail(role, selected?.id ?? ""),
@@ -609,11 +628,11 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
       {listControls}
       <PendingQueue timezone={timezone} />
     </> : <div className="homework-surface">
-      <div className="homework-surface__head"><h2 className="homework-surface__title">{role === "TEACHER" ? "Все задания" : "Мои задания"}</h2></div>
+      <div className="homework-surface__head"><h2 className="homework-surface__title">{role === "TEACHER" ? "Все задания" : "Мои задания"}</h2><span role="status" className="homework-update-note">{listUpdating ? "Обновляем задания…" : null}</span></div>
       {listControls}
       {period ? <p className="muted">Период назначения: {formatPeriodLabel(period, timezone)}</p> : null}
-      {list.isLoading || search.trim() !== debouncedSearch ? <LoadingState label="Загружаем задания…" /> : list.isError && !list.data ? <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} /> : list.data?.items.length === 0 ? <EmptyState title={debouncedSearch || statusFilter || period ? "Заданий не найдено" : "Заданий пока нет"} description={debouncedSearch || statusFilter || period ? "Измените поиск, статус или период." : "Назначенные задания появятся здесь."} /> : <>
-        <div className="homework-layout">
+      {list.isLoading ? <LoadingState label="Загружаем задания…" /> : list.isError && !list.data ? <ErrorState message={readableError(list.error)} onRetry={() => void list.refetch()} /> : list.data?.items.length === 0 ? <EmptyState title={debouncedSearch || statusFilter || period ? "Заданий не найдено" : "Заданий пока нет"} description={debouncedSearch || statusFilter || period ? "Измените поиск, статус или период." : "Назначенные задания появятся здесь."} /> : <>
+        <div className="homework-layout" aria-busy={listUpdating} inert={list.isPlaceholderData}>
           <Card className="assignment-table homework-list-table" id="homework-list">
             <div className="assignment-table__head homework-list-table__head"><span aria-hidden="true" /><span>Задание</span><span>{role === "TEACHER" ? "Ученик" : "Преподаватель"}</span><span>Срок сдачи</span><span>Статус</span><span aria-hidden="true" /></div>
             {visibleItems.map((item) => <button className={`assignment-row homework-list-row${selected?.id === item.id ? " homework-list-row--selected" : ""}`} type="button" key={item.id} aria-pressed={selected?.id === item.id} onClick={() => { activateRow(item); }}>
@@ -622,7 +641,7 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
               <span className="assignment-student">{role === "TEACHER" ? item.student_name : item.teacher_name}</span>
               <time className={`assignment-due${isPastDue(item, now) ? " assignment-due--overdue" : ""}`} dateTime={item.due_at}>{listDueLabel(item.due_at, timezone)}</time>
               <span className={`badge assignment-status assignment-status--${listStatusModifier(item, now)}`}>{statusText(item, now)}</span>
-              <span className="homework-row-arrow" aria-hidden="true" title="Прокрутить к деталям задания" onClick={(event) => { event.stopPropagation(); if (selected?.id !== item.id) { setSelectedId(item.id); } scrollToDetails(); }}>›</span>
+              <span className="homework-row-arrow" aria-hidden="true" title="Прокрутить к деталям задания" onClick={(event) => { event.stopPropagation(); if (selected?.id !== item.id) { setSelectedId(item.id); } window.requestAnimationFrame(scrollToDetails); }}>›</span>
             </button>)}
             {visibleItems.length || (list.data && list.data.total > list.data.limit) ? <div className="homework-list-footer">
               {list.data && list.data.total > list.data.limit ? <div className="homework-pagination">
@@ -662,6 +681,6 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
 
 export function HomeworkPanel({ personId, period }: { personId?: string; period?: ProgressPeriod | null }) {
   const { user } = useAuth();
-  const scopeKey = [user?.role, personId, period?.date_from, period?.date_to].join("|");
+  const scopeKey = [user?.role, personId].join("|");
   return <HomeworkPanelInner key={scopeKey} {...(personId ? { personId } : {})} {...(period !== undefined ? { period } : {})} />;
 }

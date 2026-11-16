@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import type { ProgressPeriod } from "../../api/types";
 import { HomeworkBlock } from "./HomeworkBlock";
 import { ProgressPeriodPicker } from "./ProgressPeriodPicker";
@@ -7,7 +5,7 @@ import { ProgressQueryState } from "./ProgressQueryState";
 import { ProgressReport } from "./ProgressReport";
 import { useHomeworkStatistics, useProfileTimezone, useStudentProgress } from "./useProgress";
 
-type TeacherProgressView = "summary" | "homework";
+export type TeacherProgressView = "summary" | "homework";
 
 interface StudentProgressPanelProps {
   studentId: string;
@@ -15,6 +13,8 @@ interface StudentProgressPanelProps {
   onPeriodChange: (period: ProgressPeriod) => void;
   onOpenHomework?: () => void;
   onOpenHistory?: () => void;
+  view: TeacherProgressView;
+  onViewChange: (view: TeacherProgressView) => void;
 }
 
 function TeacherProgressContent({
@@ -24,6 +24,8 @@ function TeacherProgressContent({
   timezone,
   onOpenHomework,
   onOpenHistory,
+  view,
+  onViewChange,
 }: {
   studentId: string;
   period: ProgressPeriod;
@@ -31,8 +33,9 @@ function TeacherProgressContent({
   timezone: string;
   onOpenHomework: (() => void) | undefined;
   onOpenHistory: (() => void) | undefined;
+  view: TeacherProgressView;
+  onViewChange: (view: TeacherProgressView) => void;
 }) {
-  const [view, setView] = useState<TeacherProgressView>("summary");
   const summary = useStudentProgress(studentId, period, view === "summary");
   const statistics = useHomeworkStatistics(studentId, period, view === "homework");
   const active = view === "summary" ? summary : statistics;
@@ -44,7 +47,7 @@ function TeacherProgressContent({
           type="button"
           role="tab"
           aria-selected={view === "summary"}
-          onClick={() => { setView("summary"); }}
+          onClick={() => { onViewChange("summary"); }}
         >
           Сводка
         </button>
@@ -52,7 +55,7 @@ function TeacherProgressContent({
           type="button"
           role="tab"
           aria-selected={view === "homework"}
-          onClick={() => { setView("homework"); }}
+          onClick={() => { onViewChange("homework"); }}
         >
           Домашние задания
         </button>
@@ -61,6 +64,7 @@ function TeacherProgressContent({
       <ProgressQueryState
         isLoading={active.isLoading}
         isError={active.isError}
+        hasData={Boolean(active.data)}
         error={active.error}
         onRetry={() => void active.refetch()}
       >
@@ -105,17 +109,20 @@ export function StudentProgressPanel({
   onPeriodChange,
   onOpenHomework,
   onOpenHistory,
+  view,
+  onViewChange,
 }: StudentProgressPanelProps) {
   const timezone = useProfileTimezone();
   return (
     <TeacherProgressContent
-      key={timezone}
       studentId={studentId}
       period={period}
       onPeriodChange={onPeriodChange}
       timezone={timezone}
       onOpenHomework={onOpenHomework}
       onOpenHistory={onOpenHistory}
+      view={view}
+      onViewChange={onViewChange}
     />
   );
 }

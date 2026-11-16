@@ -18,6 +18,7 @@ function StudentProgressContent({ timezone }: { timezone: string }) {
       <ProgressQueryState
         isLoading={progress.isLoading}
         isError={progress.isError}
+        hasData={Boolean(progress.data)}
         error={progress.error}
         onRetry={() => void progress.refetch()}
       >
@@ -43,7 +44,7 @@ export function StudentProgressPage() {
         title="Мой прогресс"
         description="Посещаемость, домашние задания и оценки за выбранный период."
       />
-      <StudentProgressContent key={timezone} timezone={timezone} />
+      <StudentProgressContent timezone={timezone} />
     </div>
   );
 }
