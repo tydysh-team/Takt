@@ -1,21 +1,20 @@
-import { useState } from "react";
-
 import type { ProgressPeriod } from "../../api/types";
 import { Card } from "../../components/ui/Card";
 import { AttendanceBlock } from "./AttendanceBlock";
 import { LessonHistoryTimeline } from "./LessonHistoryTimeline";
 import { ProgressPeriodPicker } from "./ProgressPeriodPicker";
 import { ProgressQueryState } from "./ProgressQueryState";
-import { monthPeriod } from "./progress-format";
 import { useLessonHistory, useProfileTimezone } from "./useProgress";
 
-function HistoryContent({ studentId, timezone }: { studentId: string; timezone: string }) {
-  const [period, setPeriod] = useState<ProgressPeriod>(() => monthPeriod(timezone));
+function HistoryContent({ studentId, timezone, period, onPeriodChange }: {
+  studentId: string; timezone: string; period: ProgressPeriod;
+  onPeriodChange: (period: ProgressPeriod) => void;
+}) {
   const history = useLessonHistory(studentId, period);
 
   return (
     <>
-      <ProgressPeriodPicker value={period} timezone={timezone} onChange={setPeriod} />
+      <ProgressPeriodPicker value={period} timezone={timezone} onChange={onPeriodChange} />
       <ProgressQueryState
         isLoading={history.isLoading}
         isError={history.isError}
@@ -41,7 +40,9 @@ function HistoryContent({ studentId, timezone }: { studentId: string; timezone: 
   );
 }
 
-export function StudentHistoryPanel({ studentId }: { studentId: string }) {
+export function StudentHistoryPanel({ studentId, period, onPeriodChange }: {
+  studentId: string; period: ProgressPeriod; onPeriodChange: (period: ProgressPeriod) => void;
+}) {
   const timezone = useProfileTimezone();
-  return <HistoryContent key={timezone} studentId={studentId} timezone={timezone} />;
+  return <HistoryContent studentId={studentId} timezone={timezone} period={period} onPeriodChange={onPeriodChange} />;
 }

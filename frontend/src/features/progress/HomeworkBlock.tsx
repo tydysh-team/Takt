@@ -23,9 +23,9 @@ export function HomeworkBlock({
       <div className="progress-metric-grid">
         <MetricCard label="Назначено" value={formatCount(data.assigned)} />
         <MetricCard label="Отправлено" value={formatCount(data.submitted)} />
-        <MetricCard label="Проверено" value={formatCount(data.reviewed)} />
-        <MetricCard label="Просрочено" value={formatCount(data.late)} tone={data.late > 0 ? "danger" : "default"} />
-        <MetricCard label="На доработке" value={formatCount(data.revision_required)} />
+        <MetricCard label="Принято" value={formatCount(data.reviewed)} />
+        <MetricCard label="Сдано с опозданием" value={formatCount(data.late)} tone={data.late > 0 ? "danger" : "default"} />
+        <MetricCard label="Возвращалось на доработку" value={formatCount(data.revision_required)} />
       </div>
       <p className="progress-block__note">
         Процент считается только по назначенным заданиям периода. При нулевом числе назначений показывается N/A.

@@ -16,6 +16,8 @@ import { SchedulePage } from "./SchedulePage";
 import { HomeworkPanel } from "../features/homework/HomeworkPanel";
 import { StudentHistoryPanel } from "../features/progress/StudentHistoryPanel";
 import { StudentProgressPanel } from "../features/progress/StudentProgressPanel";
+import { useProgressPeriod } from "../features/progress/period-url";
+import { useProfileTimezone } from "../features/progress/useProgress";
 
 type DetailTab = "main" | "schedule" | "homework" | "history" | "progress";
 
@@ -61,6 +63,8 @@ function NoteEditor({ student }: { student: StudentDetail }) {
 
 export function StudentDetailPage() {
   const { id = "" } = useParams();
+  const timezone = useProfileTimezone();
+  const { period, setPeriod, explicitPeriod } = useProgressPeriod(timezone);
   const [tab, setTab] = useState<DetailTab>("main");
   const student = useQuery({ queryKey: queryKeys.student(id), queryFn: () => api.student(id), enabled: Boolean(id) });
 
@@ -101,13 +105,15 @@ export function StudentDetailPage() {
       ) : tab === "schedule" ? (
         <SchedulePage viewedStudent={{ id: data.id, name: fullName(data) }} />
       ) : tab === "homework" ? (
-        <HomeworkPanel personId={data.id} />
+        <HomeworkPanel personId={data.id} period={explicitPeriod} />
       ) : tab === "history" ? (
-        <StudentHistoryPanel studentId={data.id} />
+        <StudentHistoryPanel studentId={data.id} period={period} onPeriodChange={setPeriod} />
       ) : (
         <StudentProgressPanel
           studentId={data.id}
-          onOpenHomework={() => { setTab("homework"); }}
+          period={period}
+          onPeriodChange={setPeriod}
+          onOpenHomework={() => { setPeriod(period); setTab("homework"); }}
           onOpenHistory={() => { setTab("history"); }}
         />
       )}

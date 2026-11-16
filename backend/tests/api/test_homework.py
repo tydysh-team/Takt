@@ -830,3 +830,104 @@ async def test_failed_review_commit_keeps_submission_pending(api_context: ApiTes
         "/api/v1/teachers/me/homework/submissions/pending", headers=headers(teacher_token)
     )
     assert pending.json()["total"] == 1
+
+
+async def test_list_filters_count_scope_and_action_totals(api_context: ApiTestContext) -> None:
+    teacher_id, teacher_token = await account(api_context, "TEACHER")
+    student_id, student_token = await account(api_context, "STUDENT")
+    other_student_id, other_student_token = await account(api_context, "STUDENT")
+    await connect(api_context, teacher_token, student_token)
+    await connect(api_context, teacher_token, other_student_token)
+
+    async def create(student: str, title: str) -> str:
+        response = await api_context.client.post(
+            "/api/v1/homework", headers=headers(teacher_token, str(uuid4())),
+            data={**payload(student), "title": title},
+        )
+        assert response.status_code == 201, response.text
+        return cast(str, response.json()["id"])
+
+    first = await create(student_id, "Алгебра")
+    await create(student_id, "Геометрия")
+    old = await create(student_id, "Проценты 100%")
+    foreign = await create(other_student_id, "Геометрия другого ученика")
+    old_record = await api_context.session.get(Homework, UUID(old))
+    assert old_record is not None
+    day_boundary = datetime.fromisoformat("2026-04-01T00:00:00+04:00")
+    old_record.created_at = day_boundary
+    await api_context.session.commit()
+
+    async def submit(homework_id: str, token: str) -> None:
+        result = await api_context.client.post(
+            f"/api/v1/homework/{homework_id}/submissions",
+            headers=headers(token, str(uuid4())), data={"comment": "Готово"},
+        )
+        assert result.status_code == 201, result.text
+
+    await submit(first, student_token)
+    await submit(foreign, other_student_token)
+    listing = await api_context.client.get(
+        "/api/v1/students/me/homework",
+        headers=headers(student_token), params={"limit": 1, "search": "гео"},
+    )
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 1
+    assert listing.json()["items"][0]["title"] == "Геометрия"
+    literal = await api_context.client.get(
+        "/api/v1/students/me/homework",
+        headers=headers(student_token), params={"search": "%"},
+    )
+    assert literal.json()["total"] == 1
+    assigned = await api_context.client.get(
+        "/api/v1/students/me/homework",
+        headers=headers(student_token), params={"status": "assigned", "limit": 1},
+    )
+    assert assigned.json()["total"] == 2
+    assert len(assigned.json()["items"]) == 1
+    submitted = await api_context.client.get(
+        "/api/v1/students/me/homework",
+        headers=headers(student_token), params={"status": "submitted"},
+    )
+    assert submitted.json()["total"] == 1
+    now = utc_now()
+    recent = await api_context.client.get(
+        "/api/v1/homework", headers=headers(teacher_token),
+        params={"student_id": student_id, "date_from": (now - timedelta(days=2)).isoformat(),
+                "date_to": (now + timedelta(days=2)).isoformat()},
+    )
+    assert recent.status_code == 200
+    assert recent.json()["total"] == 2
+    before_boundary = await api_context.client.get(
+        "/api/v1/homework", headers=headers(teacher_token),
+        params={
+            "student_id": student_id,
+            "date_from": (day_boundary - timedelta(days=1)).isoformat(),
+            "date_to": day_boundary.isoformat(),
+        },
+    )
+    assert before_boundary.json()["total"] == 0
+    from_boundary = await api_context.client.get(
+        "/api/v1/homework", headers=headers(teacher_token),
+        params={"student_id": student_id, "date_from": day_boundary.isoformat(),
+                "date_to": (day_boundary + timedelta(days=1)).isoformat()},
+    )
+    assert from_boundary.json()["total"] == 1
+    pending = await api_context.client.get(
+        "/api/v1/teachers/me/homework/submissions/pending",
+        headers=headers(teacher_token), params={"student_id": student_id},
+    )
+    assert pending.status_code == 200 and pending.json()["total"] == 1
+    student_queue = await api_context.client.get(
+        "/api/v1/teachers/me/homework/submissions/pending", headers=headers(student_token),
+    )
+    assert student_queue.status_code == 403
+    wrong_scope = await api_context.client.get(
+        "/api/v1/students/me/homework", headers=headers(student_token),
+        params={"teacher_id": teacher_id, "search": "другого ученика"},
+    )
+    assert wrong_scope.json()["total"] == 0
+    invalid = await api_context.client.get(
+        "/api/v1/homework", headers=headers(teacher_token),
+        params={"date_from": now.isoformat(), "date_to": (now - timedelta(days=1)).isoformat()},
+    )
+    assert invalid.status_code == 422

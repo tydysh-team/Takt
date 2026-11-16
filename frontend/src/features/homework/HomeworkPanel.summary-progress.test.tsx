@@ -29,11 +29,18 @@ function item(id: string, status: string): Homework {
   };
 }
 
-function render(role: "TEACHER" | "STUDENT", items: Homework[]): string {
+function render(role: "TEACHER" | "STUDENT", items: Homework[], assigned = 0, revision = 0, pending = 0): string {
   state.role = role;
   const client = new QueryClient();
   const page: HomeworkPage = { items, total: items.length, limit: 20, offset: 0 };
   client.setQueryData(queryKeys.homework(role, undefined, 0), page);
+  client.setQueryData(queryKeys.pendingSubmissions(0), { items: [], total: pending, limit: 20, offset: 0 });
+  client.setQueryData(queryKeys.homework("STUDENT", undefined, 0, { status: "assigned" }), {
+    items: [], total: assigned, limit: 20, offset: 0,
+  });
+  client.setQueryData(queryKeys.homework("STUDENT", undefined, 0, { status: "needs_revision" }), {
+    items: [], total: revision, limit: 20, offset: 0,
+  });
   client.setQueryData(queryKeys.profile, {
     first_name: "Иван",
     last_name: "Иванов",
@@ -48,34 +55,25 @@ function render(role: "TEACHER" | "STUDENT", items: Homework[]): string {
   );
 }
 
-describe("homework summary progress", () => {
-  it("fills the teacher bar when nothing is left to review", () => {
-    const html = render("TEACHER", [
-      item("a", "reviewed"),
-      item("b", "reviewed"),
-      item("c", "reviewed"),
-    ]);
-    expect(html).toContain('aria-valuenow="100"');
-    expect(html).toContain("width:100%");
+describe("homework action counters", () => {
+  it("shows the server's complete teacher queue total, independent of list items", () => {
+    const html = render("TEACHER", [item("a", "assigned")], 0, 0, 3);
+    expect(html).toContain("Ожидают проверки");
+    expect(html).toContain("<strong>3</strong>");
+    expect(html).not.toContain('role="progressbar"');
   });
 
-  it("shows two thirds when one of three works is left to review", () => {
-    const html = render("TEACHER", [
-      item("a", "submitted"),
-      item("b", "reviewed"),
-      item("c", "reviewed"),
-    ]);
-    expect(html).toContain('aria-valuenow="67"');
-    expect(html).toContain("width:67%");
+  it("shows zero instead of a completion percentage", () => {
+    const html = render("TEACHER", [item("a", "reviewed")]);
+    expect(html).toContain("<strong>0</strong>");
+    expect(html).not.toContain("100%");
   });
 
-  it("uses the same completed-work rule for the student card", () => {
-    const html = render("STUDENT", [
-      item("a", "assigned"),
-      item("b", "reviewed"),
-      item("c", "reviewed"),
-    ]);
-    expect(html).toContain('aria-valuenow="67"');
-    expect(html).toContain("width:67%");
+  it("adds assigned and revision totals across all student homework", () => {
+    const html = render("STUDENT", [item("a", "reviewed")], 4, 2);
+    expect(html).toContain("Требуют действия");
+    expect(html).toContain("<strong>6</strong>");
+    expect(html).toContain("Новые: 4");
+    expect(html).toContain("На доработке: 2");
   });
 });

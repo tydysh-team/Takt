@@ -18,6 +18,7 @@ import type {
   StudentRef,
   Homework,
   HomeworkPage,
+  HomeworkFilters,
   HomeworkSubmissionResult,
   HomeworkSubmission,
   PendingSubmission,
@@ -30,6 +31,16 @@ import type {
 
 function periodQuery(period: ProgressPeriod): string {
   return `date_from=${encodeURIComponent(period.date_from)}&date_to=${encodeURIComponent(period.date_to)}`;
+}
+
+function homeworkQuery(offset: number, personKey: string, personId?: string, filters: HomeworkFilters = {}): string {
+  const params = new URLSearchParams({ limit: "20", offset: offset.toString() });
+  if (personId) params.set(personKey, personId);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.date_from) params.set("date_from", filters.date_from);
+  if (filters.date_to) params.set("date_to", filters.date_to);
+  return params.toString();
 }
 
 export const queryKeys = {
@@ -45,9 +56,10 @@ export const queryKeys = {
   nextLesson: ["lessons", "next"] as const,
   personSchedule: (role: string, id: string, dateFrom: string, dateTo: string) =>
     ["lessons", "person", role, id, dateFrom, dateTo] as const,
-  homework: (role: string, personId: string | undefined, offset: number) => ["homework", role, personId ?? "all", offset] as const,
+  homework: (role: string, personId: string | undefined, offset: number, filters: HomeworkFilters = {}) =>
+    ["homework", role, personId ?? "all", offset, filters.search ?? "", filters.status ?? "", filters.date_from ?? "", filters.date_to ?? ""] as const,
   homeworkDetail: (role: string, id: string) => ["homework", role, id] as const,
-  pendingSubmissions: (offset: number) => ["homework", "pending", offset] as const,
+  pendingSubmissions: (offset: number, studentId?: string) => ["homework", "pending", offset, studentId ?? "all"] as const,
   pendingSubmission: (id: string) => ["homework", "pending", id] as const,
   homeworkHistory: (role: string, id: string) => ["homework", "history", role, id] as const,
   progress: (role: "TEACHER" | "STUDENT", studentId: string | undefined, dateFrom: string, dateTo: string) =>
@@ -59,10 +71,10 @@ export const queryKeys = {
 };
 
 export const api = {
-  teacherHomework: (studentId?: string, offset = 0) =>
-    apiRequest<HomeworkPage>(`/homework?limit=20&offset=${offset.toString()}${studentId ? `&student_id=${encodeURIComponent(studentId)}` : ""}`),
-  studentHomework: (teacherId?: string, offset = 0) =>
-    apiRequest<HomeworkPage>(`/students/me/homework?limit=20&offset=${offset.toString()}${teacherId ? `&teacher_id=${encodeURIComponent(teacherId)}` : ""}`),
+  teacherHomework: (studentId?: string, offset = 0, filters: HomeworkFilters = {}) =>
+    apiRequest<HomeworkPage>(`/homework?${homeworkQuery(offset, "student_id", studentId, filters)}`),
+  studentHomework: (teacherId?: string, offset = 0, filters: HomeworkFilters = {}) =>
+    apiRequest<HomeworkPage>(`/students/me/homework?${homeworkQuery(offset, "teacher_id", teacherId, filters)}`),
   homeworkDetail: (id: string, role: "TEACHER" | "STUDENT") =>
     apiRequest<Homework>(role === "TEACHER" ? `/homework/${id}` : `/students/me/homework/${id}`),
   createHomework: (data: FormData, idempotencyKey: string) =>
@@ -73,8 +85,8 @@ export const api = {
     apiRequest<HomeworkSubmissionResult>(`/homework/${homeworkId}/submissions`, {
       method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey },
     }),
-  pendingSubmissions: (offset = 0) =>
-    apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?limit=20&offset=${offset.toString()}`),
+  pendingSubmissions: (offset = 0, studentId?: string) =>
+    apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?${homeworkQuery(offset, "student_id", studentId)}`),
   pendingSubmission: (id: string) =>
     apiRequest<PendingSubmission>(`/teachers/me/homework/submissions/${id}`),
   acceptSubmission: (id: string, payload: { grade: number; comment: string }) =>

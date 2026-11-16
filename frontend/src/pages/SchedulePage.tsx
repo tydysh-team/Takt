@@ -4,6 +4,7 @@ import { Temporal } from "@js-temporal/polyfill";
 import { Link } from "react-router-dom";
 
 import { ApiError, readableError } from "../api/client";
+import { invalidateLessonRelated } from "../api/invalidation";
 import { api, queryKeys } from "../api/queries";
 import { PageHeader } from "../components/PageHeader";
 import { Card } from "../components/ui/Card";
@@ -261,7 +262,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
           await api.createLessonSeries(payload);
           setCreateOpen(false);
           setCreateSuccess(true);
-          await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+          await invalidateLessonRelated(queryClient, "TEACHER", formPayload.student_id);
         } catch (error) {
           const seriesConflicts = seriesConflictItems(error);
           if (seriesConflicts.length && !confirm_conflict) {
@@ -272,7 +273,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         await api.createLesson({ ...formPayload, confirm_conflict });
         setCreateOpen(false);
         setCreateSuccess(true);
-        await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        await invalidateLessonRelated(queryClient, "TEACHER", formPayload.student_id);
       }
     } catch (error) {
       const studentConflict = studentScheduleConflictMessage(error, timezone);
@@ -324,7 +325,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         setRescheduleConflict(null);
         setRescheduleState(null);
         setSelectedCalendarLessonId(null);
-        await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", lesson.student.id);
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           void queryClient.invalidateQueries({ queryKey: ["lessons"] });
@@ -354,13 +355,14 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   // US-06: cancel with confirmation
   function applyCancel() {
     if (!cancelTarget) return;
+    const target = cancelTarget;
     setCancelApplying(true);
-    void api.cancelLesson(cancelTarget.id, cancelReason.trim() || null).then(async () => {
+    void api.cancelLesson(target.id, cancelReason.trim() || null).then(async () => {
       setCancelTarget(null);
       setCancelReason("");
       setCancelError(null);
       setSelectedCalendarLessonId(null);
-      await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+      await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", target.student.id);
     }).catch((error: unknown) => {
       setCancelError(readableError(error));
       if (error instanceof ApiError && error.status === 409) {
@@ -375,7 +377,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     setAttendanceApplying(attendance);
     void api.updateLessonAttendance(lesson.id, attendance)
       .then(async () => {
-        await queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", lesson.student.id);
       })
       .catch((error: unknown) => {
         setConflictCheckError(readableError(error));

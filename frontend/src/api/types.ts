@@ -72,6 +72,15 @@ export interface HomeworkPage {
   offset: number;
 }
 
+export type HomeworkStatus = "assigned" | "submitted" | "needs_revision" | "reviewed";
+
+export interface HomeworkFilters {
+  search?: string;
+  status?: HomeworkStatus;
+  date_from?: string;
+  date_to?: string;
+}
+
 export interface ApiErrorDetail {
   location: (string | number)[];
   code: string;

@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -127,6 +128,10 @@ class HomeworkRepository:
         person_filter: UUID | None = None,
         limit: int,
         offset: int,
+        search: str | None = None,
+        status: HomeworkStatus | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> tuple[list[HomeworkRecord], int]:
         conditions = []
         if teacher_id is not None:
@@ -137,12 +142,34 @@ class HomeworkRepository:
             conditions.append(Homework.student_id == student_id)
             if person_filter is not None:
                 conditions.append(Homework.teacher_id == person_filter)
-        total = int(
-            await self.session.scalar(select(func.count()).select_from(Homework).where(*conditions))
-            or 0
-        )
         teacher_profile = aliased(Profile)
         student_profile = aliased(Profile)
+        if status is not None:
+            conditions.append(Homework.status == status)
+        if date_from is not None:
+            conditions.append(Homework.created_at >= date_from)
+        if date_to is not None:
+            conditions.append(Homework.created_at < date_to)
+        if search and search.strip():
+            escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            conditions.append(or_(
+                Homework.title.ilike(pattern, escape="\\"),
+                Homework.description.ilike(pattern, escape="\\"),
+                teacher_profile.first_name.ilike(pattern, escape="\\"),
+                teacher_profile.last_name.ilike(pattern, escape="\\"),
+                student_profile.first_name.ilike(pattern, escape="\\"),
+                student_profile.last_name.ilike(pattern, escape="\\"),
+            ))
+        joins = (
+            select(Homework.id)
+            .join(teacher_profile, teacher_profile.user_id == Homework.teacher_id)
+            .join(student_profile, student_profile.user_id == Homework.student_id)
+            .where(*conditions)
+        )
+        total = int(
+            await self.session.scalar(select(func.count()).select_from(joins.subquery())) or 0
+        )
         statement = (
             select(Homework, teacher_profile, student_profile)
             .join(teacher_profile, teacher_profile.user_id == Homework.teacher_id)
@@ -157,7 +184,7 @@ class HomeworkRepository:
         return [HomeworkRecord(row[0], row[1], row[2]) for row in rows], total
 
     async def pending_page(
-        self, teacher_id: UUID, limit: int, offset: int
+        self, teacher_id: UUID, limit: int, offset: int, student_id: UUID | None = None
     ) -> tuple[list[SubmissionRecord], int]:
         latest = (
             select(
@@ -167,10 +194,12 @@ class HomeworkRepository:
             .group_by(HomeworkSubmission.homework_id)
             .subquery()
         )
-        conditions = (
+        conditions = [
             Homework.teacher_id == teacher_id,
             Homework.status == HomeworkStatus.SUBMITTED,
-        )
+        ]
+        if student_id is not None:
+            conditions.append(Homework.student_id == student_id)
         base = (
             select(HomeworkSubmission)
             .join(Homework, Homework.id == HomeworkSubmission.homework_id)

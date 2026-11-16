@@ -37,6 +37,51 @@ function setup(role: "STUDENT" | "TEACHER" = "STUDENT", item: Homework = assigne
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("homework submission interactions", () => {
+  it("returns from the expired last queue page after 21 becomes 20", async () => {
+    const client = setup("TEACHER");
+    const makePending = (index: number): PendingSubmission => ({
+      id: `submission-${index.toString()}`, homework_id: `homework-${index.toString()}`, attempt_no: 1,
+      comment: null, submitted_at: "2030-01-01T13:00:00Z", is_late: false,
+      attachments: [], student_id: assigned.student_id, student_name: assigned.student_name,
+      title: `Задание ${index.toString()}`, due_at: assigned.due_at, homework_status: "submitted",
+    });
+    const firstPage = Array.from({ length: 20 }, (_, index) => makePending(index + 1));
+    const lastItem = makePending(21);
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: firstPage, total: 21, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(20), { items: [lastItem], total: 21, limit: 20, offset: 20 });
+    client.setQueryData(queryKeys.pendingSubmission(lastItem.id), lastItem);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ожидают проверки" }));
+    fireEvent.click(screen.getByRole("button", { name: "Далее" }));
+    expect(await screen.findByRole("button", { name: /Просмотреть работу Задание 21/ })).toBeTruthy();
+
+    client.setQueryData(queryKeys.pendingSubmissions(20), { items: [], total: 20, limit: 20, offset: 20 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: firstPage, total: 20, limit: 20, offset: 0 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Просмотреть работу Задание 1 ученика/ })).toBeTruthy();
+      expect(screen.queryByText("Работ на проверку нет")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Далее" })).toBeNull();
+    });
+  });
+
+  it("shows the empty queue when its only pending attempt is reviewed", async () => {
+    const client = setup("TEACHER");
+    const pending: PendingSubmission = {
+      id: "submission-only", homework_id: assigned.id, attempt_no: 1,
+      comment: null, submitted_at: "2030-01-01T13:00:00Z", is_late: false,
+      attachments: [], student_id: assigned.student_id, student_name: assigned.student_name,
+      title: assigned.title, due_at: assigned.due_at, homework_status: "submitted",
+    };
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmission(pending.id), pending);
+    fireEvent.click(screen.getByRole("button", { name: "Ожидают проверки" }));
+    expect(screen.getByRole("button", { name: /Просмотреть работу Решить задачи/ })).toBeTruthy();
+
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [], total: 0, limit: 20, offset: 0 });
+    expect(await screen.findByText("Работ на проверку нет")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Далее" })).toBeNull();
+  });
+
   it("validates the form, uploads a file and shows the confirmed attempt", async () => {
     const submitted: Homework = {
       ...assigned, status: "submitted",

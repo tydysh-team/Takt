@@ -112,6 +112,9 @@ describe("progress UI states", () => {
     expect(html).toContain("N/A");
     expect(html).toContain("Всего занятий");
     expect(html).toContain("Оценённых работ");
+    expect(html).toContain("Возвращалось на доработку");
+    expect(html).toContain("Сдано с опозданием");
+    expect(html).toContain("Принято");
     expect(html).not.toContain("прошлому периоду");
     expect(html).not.toContain("рейтинг");
     expect(html).not.toContain("динамика");

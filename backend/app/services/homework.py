@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import zipfile
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import PurePath
 from uuid import UUID, uuid4
 
@@ -339,8 +339,10 @@ class HomeworkService:
                         )
             raise
 
-    async def pending(self, teacher: User, limit: int, offset: int) -> PendingSubmissionPage:
-        records, total = await self.repo.pending_page(teacher.id, limit, offset)
+    async def pending(
+        self, teacher: User, limit: int, offset: int, student_id: UUID | None = None
+    ) -> PendingSubmissionPage:
+        records, total = await self.repo.pending_page(teacher.id, limit, offset, student_id)
         return PendingSubmissionPage(
             items=[pending_dto(record) for record in records],
             total=total,
@@ -554,15 +556,19 @@ class HomeworkService:
             raise
 
     async def list_page(
-        self, user: User, person_filter: UUID | None, limit: int, offset: int
+        self, user: User, person_filter: UUID | None, limit: int, offset: int,
+        *, search: str | None = None, status: HomeworkStatus | None = None,
+        date_from: datetime | None = None, date_to: datetime | None = None,
     ) -> HomeworkPage:
         if user.role == RoleCode.TEACHER:
             records, total = await self.repo.list_page(
-                teacher_id=user.id, person_filter=person_filter, limit=limit, offset=offset
+                teacher_id=user.id, person_filter=person_filter, limit=limit, offset=offset,
+                search=search, status=status, date_from=date_from, date_to=date_to,
             )
         elif user.role == RoleCode.STUDENT:
             records, total = await self.repo.list_page(
-                student_id=user.id, person_filter=person_filter, limit=limit, offset=offset
+                student_id=user.id, person_filter=person_filter, limit=limit, offset=offset,
+                search=search, status=status, date_from=date_from, date_to=date_to,
             )
         else:
             raise HomeworkFailure("forbidden", "Операция недоступна.", 403)

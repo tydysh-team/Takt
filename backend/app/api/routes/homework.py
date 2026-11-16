@@ -4,9 +4,9 @@ from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import ValidationError
+from pydantic import AwareDatetime, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import (
@@ -16,6 +16,7 @@ from app.api.dependencies.auth import (
 )
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
+from app.models.homework import HomeworkStatus
 from app.models.user import User
 from app.schemas.homework import (
     HomeworkCreate,
@@ -32,6 +33,11 @@ from app.services.homework import HomeworkFailure, HomeworkService
 from app.storage.s3 import S3Storage
 
 router = APIRouter(tags=["Homework"])
+
+
+def validate_period(date_from: datetime | None, date_to: datetime | None) -> None:
+    if date_from is not None and date_to is not None and date_from >= date_to:
+        raise HTTPException(422, "date_from must be earlier than date_to")
 
 
 def attachment_response(
@@ -92,12 +98,20 @@ async def teacher_homework(
     student_id: UUID | None = None,
     limit: int = 20,
     offset: int = 0,
+    search: str | None = Query(default=None, max_length=200),
+    status: HomeworkStatus | None = None,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
 ) -> HomeworkPage:
     if not 1 <= limit <= 100 or offset < 0:
         from fastapi import HTTPException
 
         raise HTTPException(422, "Invalid pagination")
-    return await service.list_page(teacher, student_id, limit, offset)
+    validate_period(date_from, date_to)
+    return await service.list_page(
+        teacher, student_id, limit, offset, search=search, status=status,
+        date_from=date_from, date_to=date_to,
+    )
 
 
 @router.get("/homework/{homework_id}", response_model=HomeworkDTO)
@@ -116,12 +130,20 @@ async def student_homework(
     teacher_id: UUID | None = None,
     limit: int = 20,
     offset: int = 0,
+    search: str | None = Query(default=None, max_length=200),
+    status: HomeworkStatus | None = None,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
 ) -> HomeworkPage:
     if not 1 <= limit <= 100 or offset < 0:
         from fastapi import HTTPException
 
         raise HTTPException(422, "Invalid pagination")
-    return await service.list_page(student, teacher_id, limit, offset)
+    validate_period(date_from, date_to)
+    return await service.list_page(
+        student, teacher_id, limit, offset, search=search, status=status,
+        date_from=date_from, date_to=date_to,
+    )
 
 
 @router.get("/students/me/homework/{homework_id}", response_model=HomeworkDTO)
@@ -178,12 +200,13 @@ async def pending_submissions(
     service: Annotated[HomeworkService, Depends(get_homework_service)],
     limit: int = 20,
     offset: int = 0,
+    student_id: UUID | None = None,
 ) -> PendingSubmissionPage:
     if not 1 <= limit <= 100 or offset < 0:
         from fastapi import HTTPException
 
         raise HTTPException(422, "Invalid pagination")
-    return await service.pending(teacher, limit, offset)
+    return await service.pending(teacher, limit, offset, student_id)
 
 
 @router.get(

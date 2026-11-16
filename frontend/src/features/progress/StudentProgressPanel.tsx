@@ -5,30 +5,34 @@ import { HomeworkBlock } from "./HomeworkBlock";
 import { ProgressPeriodPicker } from "./ProgressPeriodPicker";
 import { ProgressQueryState } from "./ProgressQueryState";
 import { ProgressReport } from "./ProgressReport";
-import { monthPeriod } from "./progress-format";
 import { useHomeworkStatistics, useProfileTimezone, useStudentProgress } from "./useProgress";
 
 type TeacherProgressView = "summary" | "homework";
 
 interface StudentProgressPanelProps {
   studentId: string;
+  period: ProgressPeriod;
+  onPeriodChange: (period: ProgressPeriod) => void;
   onOpenHomework?: () => void;
   onOpenHistory?: () => void;
 }
 
 function TeacherProgressContent({
   studentId,
+  period,
+  onPeriodChange,
   timezone,
   onOpenHomework,
   onOpenHistory,
 }: {
   studentId: string;
+  period: ProgressPeriod;
+  onPeriodChange: (period: ProgressPeriod) => void;
   timezone: string;
   onOpenHomework: (() => void) | undefined;
   onOpenHistory: (() => void) | undefined;
 }) {
   const [view, setView] = useState<TeacherProgressView>("summary");
-  const [period, setPeriod] = useState<ProgressPeriod>(() => monthPeriod(timezone));
   const summary = useStudentProgress(studentId, period, view === "summary");
   const statistics = useHomeworkStatistics(studentId, period, view === "homework");
   const active = view === "summary" ? summary : statistics;
@@ -53,7 +57,7 @@ function TeacherProgressContent({
           Домашние задания
         </button>
       </div>
-      <ProgressPeriodPicker value={period} timezone={timezone} onChange={setPeriod} />
+      <ProgressPeriodPicker value={period} timezone={timezone} onChange={onPeriodChange} />
       <ProgressQueryState
         isLoading={active.isLoading}
         isError={active.isError}
@@ -97,6 +101,8 @@ function TeacherProgressContent({
 
 export function StudentProgressPanel({
   studentId,
+  period,
+  onPeriodChange,
   onOpenHomework,
   onOpenHistory,
 }: StudentProgressPanelProps) {
@@ -105,6 +111,8 @@ export function StudentProgressPanel({
     <TeacherProgressContent
       key={timezone}
       studentId={studentId}
+      period={period}
+      onPeriodChange={onPeriodChange}
       timezone={timezone}
       onOpenHomework={onOpenHomework}
       onOpenHistory={onOpenHistory}
