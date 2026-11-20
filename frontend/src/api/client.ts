@@ -34,6 +34,7 @@ interface RequestOptions {
   authenticated?: boolean;
   retryAfterRefresh?: boolean;
   csrf?: boolean;
+  responseType?: "blob";
 }
 
 let accessToken: string | null = null;
@@ -109,7 +110,7 @@ async function responseError(response: Response): Promise<ApiError> {
 async function execute<T>(path: string, options: RequestOptions): Promise<T> {
   const { body, authenticated = true, csrf = false } = options;
   const headers = new Headers(options.headers);
-  if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (body !== undefined && !(body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (authenticated && accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
@@ -121,7 +122,7 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
   const requestInit: RequestInit = {
     headers,
     credentials: "include",
-    body: body === undefined ? null : JSON.stringify(body),
+    body: body === undefined ? null : body instanceof FormData ? body : JSON.stringify(body),
   };
   if (options.method) requestInit.method = options.method;
   if (options.signal) requestInit.signal = options.signal;
@@ -139,6 +140,7 @@ async function execute<T>(path: string, options: RequestOptions): Promise<T> {
 
   if (!response.ok) throw await responseError(response);
   if (response.status === 204) return undefined as T;
+  if (options.responseType === "blob") return (await response.blob()) as T;
   return (await response.json()) as T;
 }
 

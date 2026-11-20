@@ -80,15 +80,28 @@ Query:
 
 ```json
 {
-  "assigned": 10,
-  "submitted": 8,
-  "reviewed": 7,
-  "late": 2,
-  "revision_required": 3
+  "student_id": "00000000-0000-0000-0000-000000000001",
+  "date_from": "2030-01-01T00:00:00Z",
+  "date_to": "2030-02-01T00:00:00Z",
+  "statistics": {
+    "assigned": 10,
+    "submitted": 8,
+    "reviewed": 7,
+    "late": 2,
+    "revision_required": 3,
+    "completion_rate": 70.0
+  }
 }
 ```
 
-Проценты могут рассчитываться Backend либо Frontend, но формула должна быть единой и воспроизводимой.
+Период передаётся как timezone-aware ISO 8601 datetime. Базовая когорта — Homework
+с `date_from <= created_at < date_to` у данного Teacher и Student. Сдачи и проверки
+этой когорты учитываются по всей сохранённой истории, включая события после `date_to`.
+Каждый счётчик означает количество уникальных Homework: `submitted` — с любой сдачей,
+`reviewed` — с принятым (`accepted`) результатом проверки, `late` — с хотя бы одной
+фактически поздней сдачей, `revision_required` — с хотя бы одним решением
+`needs_revision`. Истёкший срок без сдачи не увеличивает `late`.
+`completion_rate = round(reviewed / assigned * 100, 2)`; при `assigned = 0` возвращается `null`.
 
 ## 8. Согласованность
 

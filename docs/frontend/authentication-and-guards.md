@@ -7,7 +7,9 @@
 3. При успехе access JWT сохраняется только в module memory, затем `/api/v1/me` загружает `CurrentUser`.
 4. При failure очищаются token, user, TanStack Query cache; status становится `unauthenticated`.
 
-Login вызывает `/auth/login`, сохраняет returned JWT в memory и загружает `/api/v1/me`. Registration session не создаёт. Logout вызывает CSRF-protected `/auth/logout`; в `finally` всегда очищает local session/cache.
+Login вызывает `/auth/login`: при обычном входе возвращается JWT и загружается `/api/v1/me`; при включённом TOTP backend возвращает `mfa_required` + `challenge`, после чего `verifyMfaLogin()` вызывает `/auth/mfa/verify` с одноразовым кодом. Registration session не создаёт. Logout вызывает CSRF-protected `/auth/logout`; в `finally` всегда очищает local session/cache.
+
+Управление вторым фактором вынесено в `features/auth/mfa-api.ts` и вкладку «Безопасность» профиля: `status`, `setup` (secret/provisioning URI), `confirm` (backup codes), `disable`, `backup-codes/regenerate`.
 
 Access token не пишется в `localStorage`, `sessionStorage`, IndexedDB или cookie. Refresh token недоступен JavaScript: backend выдаёт его как HttpOnly cookie. JavaScript читает только `takt_csrf`.
 
@@ -22,7 +24,7 @@ Access token не пишется в `localStorage`, `sessionStorage`, IndexedDB 
 - `SessionGate publicOnly`: во время bootstrap показывает loading; authenticated user не остаётся на login/register.
 - `SessionGate`: unauthenticated redirect на `/login` с `state.from` (текущий login после успеха всё равно ведёт на `/dashboard`).
 - `RoleGate`: проверяет одну `user.role` через `canAccessRole`; denied → `ForbiddenPage`.
-- Outer workspace gate разрешает только `TEACHER`/`STUDENT`; nested gates разделяют students/teachers routes.
+- Outer workspace gate разрешает только `TEACHER`/`STUDENT`; nested gates разделяют students/teachers routes. `/progress` доступен только `STUDENT`, панели прогресса/истории в карточке Student — только `TEACHER`.
 
 Текущая single-role модель:
 

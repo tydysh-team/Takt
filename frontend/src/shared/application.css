@@ -10,6 +10,10 @@
   --danger: #a33b32;
   --danger-soft: #fff0ee;
   --shadow: 0 18px 50px rgb(23 35 28 / 8%);
+  --hover-surface: #eef3ee;
+  --hover-surface-strong: #e2eae3;
+  --line-strong: #aebdb1;
+  --brand-hover: #173d28;
   color: var(--ink);
   background: var(--canvas);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -42,11 +46,11 @@ a { color: var(--brand); }
 }
 .button:disabled { cursor: not-allowed; opacity: 0.58; }
 .button--primary { color: #fff; background: var(--brand); }
-.button--primary:hover:not(:disabled) { background: var(--brand-dark); transform: translateY(-1px); }
+.button--primary:hover:not(:disabled) { background: var(--brand-hover); transform: translateY(-1px); }
 .button--secondary { color: var(--ink); border-color: var(--line); background: var(--surface); }
-.button--secondary:hover:not(:disabled) { border-color: #aebdb1; background: #f9faf8; }
+.button--secondary:hover:not(:disabled) { border-color: var(--line-strong); background: var(--hover-surface); }
 .button--ghost { color: var(--muted); background: transparent; }
-.button--ghost:hover:not(:disabled) { color: var(--ink); background: #edf1ed; }
+.button--ghost:hover:not(:disabled) { color: var(--ink); background: var(--hover-surface); }
 .button--danger { color: var(--danger); background: var(--danger-soft); }
 .button__spinner, .loader {
   width: 1rem; height: 1rem; border: 2px solid currentcolor; border-right-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite;
@@ -80,7 +84,7 @@ a { color: var(--brand); }
 .alert__action { margin-left: .35rem; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; }
 .alert__action:hover { text-decoration: none; }
 
-.avatar { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #568063, #244d34); font-weight: 800; letter-spacing: 0.03em; }
+.avatar { display: inline-grid; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #568063, #244d34); font-weight: 800; line-height: 1; letter-spacing: 0; text-align: center; }
 .avatar--small { width: 35px; height: 35px; font-size: 0.72rem; }
 .avatar--medium { width: 42px; height: 42px; font-size: 0.82rem; }
 .avatar--large { width: 72px; height: 72px; font-size: 1.22rem; }
@@ -111,9 +115,9 @@ a { color: var(--brand); }
 .brand-mark { display: block; width: 40px; height: 30px; flex: 0 0 auto; object-fit: contain; }
 .sidebar__nav { display: grid; gap: 0.32rem; }
 .nav-item { display: flex; min-height: 43px; align-items: center; gap: 0.75rem; padding: 0.65rem 0.75rem; border-radius: 0.7rem; color: #59655d; font-size: 0.9rem; font-weight: 680; text-decoration: none; }
-.nav-item:hover { color: var(--ink); background: #edf2ed; }
+.nav-item:hover { color: var(--ink); background: var(--hover-surface); }
 .nav-item--active { color: #fff; background: var(--brand); }
-.nav-item--active:hover { color: #fff; background: var(--brand-dark); }
+.nav-item--active:hover { color: #fff; background: var(--brand-hover); }
 .nav-item__mark { display: inline-flex; width: 20px; justify-content: center; font-size: 1.05rem; }
 .nav-icon { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
 .sidebar__footer { display: grid; gap: 0.8rem; margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--line); }
@@ -135,7 +139,7 @@ a { color: var(--brand); }
 .page-heading p:not(.eyebrow) { max-width: 650px; margin: 0; color: var(--muted); line-height: 1.55; }
 .page-heading__action { flex: 0 0 auto; }
 .metrics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-.metrics-grid--student { grid-template-columns: minmax(220px, 0.55fr) minmax(300px, 1.45fr); }
+.metrics-grid--student { grid-template-columns: minmax(0, 360px); }
 .metric-card { display: grid; gap: 0.45rem; padding: 1.35rem; }
 .metric-card span { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
 .metric-card strong { font-size: 2.4rem; letter-spacing: -0.05em; }
@@ -187,7 +191,7 @@ a { color: var(--brand); }
 .profile-card { padding: clamp(1rem, 3vw, 2rem); }
 .security-hub { display: grid; gap: .8rem; }
 .security-hub__item { display: flex; align-items: center; gap: 1rem; min-height: 88px; padding: 1rem; border: 1px solid #dfe8e1; border-radius: .85rem; color: var(--ink); background: #fff; text-decoration: none; }
-.security-hub__item:hover, .security-hub__item:focus-visible { border-color: #2b8053; background: #f5faf6; outline: 2px solid #2b8053; outline-offset: 2px; }
+.security-hub__item:hover, .security-hub__item:focus-visible { border-color: #2b8053; background: var(--hover-surface); outline: 2px solid #2b8053; outline-offset: 2px; }
 .security-hub__icon { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border-radius: .65rem; background: #eaf5ed; font-size: 1.3rem; }
 .security-hub__copy { display: grid; gap: .25rem; min-width: 0; }
 .security-hub__copy strong { font-size: 1rem; }
@@ -241,7 +245,7 @@ a { color: var(--brand); }
 .icon-button { min-width: 38px; min-height: 38px; padding: 0; font-size: 1.35rem; }
 .control-icon-button { display: inline-grid; width: 36px; height: 36px; min-width: 36px; min-height: 36px; flex: 0 0 36px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: .7rem; color: var(--muted); background: transparent; box-shadow: none; line-height: 1; transition: color 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
 .control-icon-button svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentcolor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.control-icon-button:hover:not(:disabled) { color: var(--ink); border-color: transparent; background: #edf1ed; transform: none; }
+.control-icon-button:hover:not(:disabled) { color: var(--ink); border-color: transparent; background: var(--hover-surface); transform: none; }
 .control-icon-button:focus-visible { outline: none; border-color: #7f9f88; background: var(--brand-soft); box-shadow: none; }
 .dialog__content { display: grid; gap: 1rem; padding: 1.25rem 1.35rem 1.35rem; }
 .dialog__actions { display: flex; justify-content: flex-end; gap: 0.65rem; }
@@ -266,7 +270,7 @@ a { color: var(--brand); }
 .lesson-create-form__date-control > input:not(.lesson-create-form__native-date), .lesson-create-form__time-control > input { width: 100%; min-width: 0; flex: 1; padding: 0; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
 .lesson-create-form__date-control > input::placeholder, .lesson-create-form__time-control > input::placeholder { color: #a5ada7; opacity: 1; }
 .lesson-create-form__date-picker, .lesson-create-form__time-picker { display: flex; align-items: center; justify-content: center; gap: 4px; flex: 0 0 auto; min-width: 24px; min-height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #65737e; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
-.lesson-create-form__date-picker:hover, .lesson-create-form__time-picker:hover { color: #176342; background: #e8f3ec; }
+.lesson-create-form__date-picker:hover, .lesson-create-form__time-picker:hover { color: #176342; background: var(--hover-surface); }
 .lesson-create-form__date-picker:focus-visible, .lesson-create-form__time-picker:focus-visible { outline: 2px solid #38845e; outline-offset: 2px; }
 .lesson-create-form__date-picker svg, .lesson-create-form__clock { width: 20px; height: 20px; }
 .lesson-create-form__chevron { width: 12px; height: 12px; transition: transform 150ms ease; }
@@ -279,7 +283,7 @@ a { color: var(--brand); }
 .lesson-create-form__time-column-label { display: block; padding: 0 8px 8px; color: #89928b; font-size: 12px; font-weight: 700; }
 .lesson-create-form__time-options { display: grid; align-content: start; gap: 2px; height: 202px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #bfcdc3 transparent; scrollbar-width: thin; }
 .lesson-create-form__time-option { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: #26312a; font: inherit; font-size: 14px; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
-.lesson-create-form__time-option:hover, .lesson-create-form__time-option:focus-visible { outline: none; color: #176342; background: #edf6ef; }
+.lesson-create-form__time-option:hover, .lesson-create-form__time-option:focus-visible { outline: none; color: #176342; background: var(--hover-surface); }
 .lesson-create-form__time-option--selected, .lesson-create-form__time-option--selected:hover, .lesson-create-form__time-option--selected:focus-visible { color: #fff; background: #176342; font-weight: 700; }
 @keyframes lesson-time-panel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .lesson-create-form__time-panel { animation: none; } .lesson-create-form__time-option, .lesson-create-form__date-picker, .lesson-create-form__time-picker, .lesson-create-form__chevron { transition: none; } }
@@ -387,7 +391,7 @@ a { color: var(--brand); }
 .schedule-day span { font-size: .72rem; font-weight: 700; }
 .schedule-day strong { color: var(--ink); font-size: 1rem; }
 .schedule-day small { font-size: .68rem; }
-.schedule-day:hover { background: #f1f5f1; }
+.schedule-day:hover { background: var(--hover-surface); }
 .schedule-day--active { border-color: #b7d1bd; color: var(--brand); background: var(--brand-soft); }
 .schedule-day--active strong { color: var(--brand-dark); }
 .schedule-list { display: grid; gap: .65rem; padding-top: 1rem; }
@@ -445,7 +449,7 @@ a { color: var(--brand); }
 .assignment-table__head { padding: .55rem .7rem .6rem; color: var(--muted); font-size: .7rem; font-weight: 800; }
 .assignment-row { position: relative; width: 100%; padding: .55rem .7rem; border: 0; border-radius: .7rem; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
 .assignment-row:focus-visible { outline: 3px solid rgb(62 133 88 / 38%); outline-offset: -2px; }
-.assignment-row:hover, .assignment-row--selected { background: #eef6f0; }
+.assignment-row:hover, .assignment-row--selected { background: var(--hover-surface); }
 .assignment-check { width: 20px; height: 20px; border: 2px solid #38505b; border-radius: 50%; }
 .assignment-main { display: grid; gap: .17rem; min-width: 0; }
 .assignment-main strong { overflow: hidden; font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -464,7 +468,7 @@ a { color: var(--brand); }
 .assignment-menu { display: inline-grid; width: 24px; height: 30px; place-items: center; padding: 0; border: 0; color: #526158; background: transparent; font-size: 1.3rem; line-height: 1; cursor: pointer; }
 .assignment-menu-popover { position: absolute; z-index: 5; top: 26px; right: 0; display: grid; width: 120px; padding: .3rem; border: 1px solid var(--line); border-radius: .55rem; background: #fff; box-shadow: var(--shadow); }
 .assignment-menu-popover button { padding: .45rem .55rem; border: 0; border-radius: .4rem; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
-.assignment-menu-popover button:hover { background: #eef3ee; }
+.assignment-menu-popover button:hover { background: var(--hover-surface); }
 .assignment-expanded { grid-column: 1 / -1; display: grid; gap: .45rem; margin: .25rem 0 .1rem 2rem; padding: .75rem .9rem; border-top: 1px solid #dce9df; border-radius: .45rem; background: #f5faf6; }
 .assignment-expanded strong { color: var(--brand-dark); font-size: .78rem; }
 .assignment-expanded p { margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.4; }
@@ -776,8 +780,8 @@ a { color: var(--brand); }
 .schedule-controls { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.6rem 0 1.2rem; }
 .schedule-week-switcher, .schedule-view-actions, .schedule-view-toggle { display: flex; align-items: center; gap: .65rem; }
 .schedule-week-switcher strong { min-width: 200px; padding: .8rem 1rem; border-radius: .7rem; background: #fff; text-align: center; font-size: .82rem; }
-.schedule-week-button { border-color: var(--line); color: #526158; background: rgb(255 255 255 / 72%); }
-.schedule-week-button:hover:not(:disabled) { border-color: #cdd7cf; background: #f7f9f7; }
+.schedule-week-button { border-color: var(--line); color: var(--ink); background: var(--surface); }
+.schedule-week-button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--hover-surface); }
 .schedule-week-button svg { width: 17px; height: 17px; }
 .schedule-view-toggle { gap: 0; padding: .25rem; border-radius: .7rem; background: #fff; }
 .schedule-cancelled-toggle { display: inline-flex; align-items: center; gap: .45rem; min-height: 38px; padding: .45rem .8rem; border: 1px solid var(--line); border-radius: .7rem; background: #fff; color: var(--muted); font-size: .8rem; font-weight: 750; white-space: nowrap; cursor: pointer; user-select: none; }
@@ -1013,3 +1017,670 @@ a { color: var(--brand); }
   .selected-lesson-details__actions .button { flex: 1 1 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .drawer, .drawer-backdrop { animation: none; } }
+/* The live Homework view uses the assignment table and detail card from the original layout. */
+.homework-panel .assignment-table__head,
+.homework-panel .assignment-row { grid-template-columns: 22px minmax(160px, 1.7fr) minmax(120px, 1fr) minmax(155px, 1.15fr) minmax(100px, .7fr) 20px; min-width: 0; }
+.homework-panel .assignment-row { min-height: 72px; }
+.homework-panel .assignment-main { grid-column: 2; min-width: 0; }
+.homework-panel .assignment-student { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.homework-panel .assignment-due { min-width: 0; white-space: normal; }
+.homework-panel .homework-row-arrow { justify-self: center; color: var(--muted); font-size: 1.35rem; }
+.homework-panel .homework-sidebar { grid-template-columns: 1fr; }
+.homework-panel .homework-filter { flex: 0 0 210px; width: 210px; max-width: 100%; box-sizing: border-box; padding-right: 2rem; }
+.homework-panel .selected-assignment { min-width: 0; }
+.homework-panel .selected-assignment h2,
+.homework-panel .selected-assignment dd { min-width: 0; overflow-wrap: anywhere; }
+.homework-panel .selected-assignment .full-assignment-description { margin: 0 0 1rem; color: var(--ink); font-size: .86rem; line-height: 1.55; }
+.homework-panel .homework-materials { padding-top: 1rem; }
+.homework-panel .homework-materials h3 { margin: 0 0 .7rem; font-size: .9rem; overflow-wrap: anywhere; }
+.homework-panel .homework-materials p { margin: 0; font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.homework-panel .homework-materials p + p { margin-top: .5rem; }
+.homework-panel .homework-materials ul { margin: 0; padding: 0; list-style: none; }
+.homework-panel .homework-materials p + ul { margin-top: .65rem; }
+.homework-panel .homework-attachment { flex-wrap: wrap; min-width: 0; overflow-wrap: anywhere; }
+.homework-panel .homework-attachment__info { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: .55rem; flex: 1 1 160px; min-width: 0; }
+.homework-panel .homework-attachment__info svg { width: 24px; height: 24px; color: var(--brand); }
+.homework-panel .homework-attachment__info span { display: grid; gap: .15rem; min-width: 0; }
+.homework-panel .homework-attachment__info strong { overflow-wrap: anywhere; }
+.homework-panel .homework-attachment__info small { color: var(--muted); font-size: .72rem; }
+.homework-panel .homework-attachment .button { min-height: 36px; padding: .5rem .7rem; font-size: .72rem; }
+.homework-panel .homework-attachment__download { flex: 0 0 136px; width: 136px; box-sizing: border-box; white-space: nowrap; }
+.homework-panel .homework-attachment .alert { flex-basis: 100%; }
+.homework-panel .assignment-status { white-space: normal; overflow-wrap: anywhere; }
+.homework-panel .homework-review-actions { flex-wrap: wrap; margin-top: 1rem; }
+.homework-panel .homework-review-actions .button { flex: 1 1 130px; }
+.homework-panel .homework-review-form .dialog__actions .button { min-width: 140px; }
+.homework-panel .homework-history__list { border-top: 1px solid var(--line); }
+.homework-panel .homework-history__list details { padding: .7rem 0; border-bottom: 1px solid var(--line); }
+.homework-panel .homework-history__list summary { color: var(--ink); font-size: .78rem; font-weight: 750; cursor: pointer; overflow-wrap: anywhere; }
+.homework-panel .homework-history__list details > p,
+.homework-panel .homework-history__review { margin-top: .65rem; }
+.homework-panel .homework-history__list ul { margin-top: .65rem; }
+.homework-panel .homework-history__review { padding: .65rem; border: 1px solid var(--line); border-radius: .7rem; }
+.homework-panel .homework-no-results { padding: .5rem; }
+.homework-panel .homework-pagination { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .8rem .7rem .25rem; color: var(--muted); font-size: .78rem; }
+.homework-panel--embedded .homework-layout { grid-template-columns: 1fr; }
+@media (max-width: 1200px) {
+  .homework-panel .homework-filter-row { display: flex; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+  .homework-panel .homework-filter { flex: 1 1 210px; width: auto; min-width: 210px; }
+  .homework-panel .assignment-table__head { display: none; }
+  .homework-panel .assignment-row,
+  .homework-panel--embedded .assignment-row { grid-template-columns: 22px minmax(0, 1fr) auto; gap: .3rem .6rem; }
+  .homework-panel .assignment-check { grid-column: 1; grid-row: 1 / span 3; }
+  .homework-panel .assignment-main { grid-column: 2; grid-row: 1; }
+  .homework-panel .assignment-student { grid-column: 2; grid-row: 2; }
+  .homework-panel .assignment-due { grid-column: 2; grid-row: 3; }
+  .homework-panel .assignment-status { grid-column: 3; grid-row: 3; }
+  .homework-panel .homework-row-arrow { grid-column: 3; grid-row: 1; }
+}
+@media (max-width: 520px) {
+  .homework-panel .homework-filter { flex-basis: 100%; width: 100%; min-width: 0; }
+  .homework-panel .homework-pagination { flex-wrap: wrap; justify-content: center; }
+  .homework-panel .homework-pagination span { order: -1; width: 100%; text-align: center; }
+  .homework-panel .homework-attachment .button { width: 100%; }
+  .homework-panel .homework-attachment__download { flex: 0 0 auto; }
+  .homework-panel .assignment-status { grid-column: 2 / -1; grid-row: 4; }
+  .homework-panel .selected-assignment__title { flex-wrap: wrap; }
+}
+
+/* Homework list frame from the designer mockup (step 1). */
+.homework-panel {
+  --homework-surface: #f0f7f1;
+  --homework-surface-strong: #eef6ef;
+  --homework-line: #dde6de;
+  --homework-ink: #11231d;
+  --homework-muted: #708075;
+  --homework-brand: #175b3a;
+  --homework-overdue-bg: #fff0eb;
+  --homework-overdue-ink: #b45e4d;
+  --homework-warning-bg: #fff1d5;
+  --homework-warning-ink: #885e19;
+}
+
+.homework-panel .homework-section-heading { align-items: flex-start; flex-wrap: wrap; margin-bottom: 1.4rem; }
+.homework-panel .homework-section-heading h2 { font-size: clamp(1.6rem, 3vw, 2.1rem); letter-spacing: -.035em; }
+.homework-panel .homework-section-heading__description { margin: .45rem 0 0; color: var(--muted); font-size: .9rem; line-height: 1.45; }
+.homework-panel > .page-heading { margin-bottom: 1.6rem; }
+
+.homework-panel .homework-surface {
+  padding: clamp(1rem, 2vw, 1.6rem) clamp(1rem, 2.4vw, 1.9rem) clamp(.9rem, 2vw, 1.4rem);
+  border: 1px solid var(--homework-line);
+  border-radius: 1.25rem;
+  background: var(--homework-surface);
+}
+.homework-panel .homework-surface__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.15rem; }
+.homework-panel .homework-surface__title { margin: 0; color: var(--homework-ink); font-size: 1.2rem; font-weight: 750; letter-spacing: -.025em; }
+.homework-panel .homework-update-note { color: var(--homework-muted); font-size: .78rem; }
+
+.homework-panel .homework-surface .homework-toolbar { margin: 0 0 1.1rem; align-items: center; }
+.homework-panel .homework-surface .homework-search-wrap { position: relative; flex: 1 1 420px; min-width: 0; }
+.homework-panel .homework-search-icon { position: absolute; top: 50%; left: .9rem; width: 16px; height: 16px; transform: translateY(-50%); color: #93a198; fill: none; stroke: currentcolor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.homework-panel .homework-surface .homework-search { width: 100%; min-width: 0; min-height: 46px; padding-left: 2.35rem; border-color: #e0e9e2; border-radius: .8rem; background: #fff; box-shadow: 0 1px 2px rgb(20 30 23 / 4%); }
+.homework-panel .homework-surface .homework-filter-wrap { position: relative; display: inline-flex; flex: 0 0 auto; }
+.homework-panel .homework-surface .homework-filter { width: 190px; min-height: 46px; padding: .6rem 2.1rem .6rem .9rem; border-color: #e0e9e2; border-radius: .8rem; background: #fff; box-shadow: 0 1px 2px rgb(20 30 23 / 4%); appearance: none; font-weight: 600; }
+.homework-panel .homework-filter-chevron { position: absolute; top: 50%; right: .8rem; width: 14px; height: 14px; transform: translateY(-50%); color: #7d8b82; fill: none; stroke: currentcolor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.homework-panel .homework-surface .homework-create-button { min-height: 46px; border-radius: .8rem; box-shadow: 0 4px 12px rgb(23 91 58 / 16%); }
+
+.homework-panel .homework-list-table { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.homework-panel .homework-list-table__head,
+.homework-panel .homework-list-row { display: grid; grid-template-columns: 22px minmax(0, 2.1fr) minmax(130px, 1fr) minmax(140px, 1fr) minmax(110px, .8fr) 20px; align-items: center; gap: .9rem; min-width: 0; }
+.homework-panel .homework-list-table__head { padding: .55rem .25rem .8rem; border-bottom: 1px solid var(--homework-line); color: var(--homework-muted); font-size: .82rem; font-weight: 600; }
+.homework-panel .homework-list-row { width: 100%; min-height: 4.9rem; padding: 1rem .25rem; border: 0; border-bottom: 1px solid var(--homework-line); border-radius: 0; color: var(--homework-ink); background: transparent; text-align: left; cursor: pointer; transition: background 140ms ease; }
+.homework-panel .homework-list-row + .homework-list-row { border-top: 0; }
+.homework-panel .homework-list-row:last-of-type { border-bottom: 0; }
+.homework-panel .homework-list-row:hover { background: var(--hover-surface); }
+.homework-panel .homework-list-row--selected { background: var(--hover-surface-strong); }
+.homework-panel .homework-list-row .assignment-check { width: 18px; height: 18px; border: 2px solid #c7d7cb; border-radius: 50%; background: transparent; }
+.homework-panel .homework-list-row--selected .assignment-check { border-color: var(--homework-brand); background: var(--homework-brand); box-shadow: inset 0 0 0 2px #fff; }
+.homework-panel .homework-list-row .assignment-main { display: grid; gap: .2rem; min-width: 0; }
+.homework-panel .homework-list-row .assignment-main strong { display: block; overflow: hidden; color: var(--homework-ink); font-size: 1rem; font-weight: 700; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.homework-panel .homework-list-row .assignment-description { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; max-width: min(100%, 28rem); color: var(--homework-muted); font-size: .82rem; line-height: 1.35; }
+.homework-panel .homework-list-row .assignment-student,
+.homework-panel .homework-list-row .assignment-due { overflow: hidden; color: var(--homework-ink); font-size: .9rem; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.homework-panel .homework-list-row .assignment-due--overdue { color: var(--homework-ink); }
+.homework-panel .homework-list-row .assignment-status { justify-self: start; padding: 0; border-radius: 0; background: transparent; font-size: .84rem; font-weight: 600; white-space: nowrap; }
+.homework-panel .homework-list-row .assignment-status--assigned,
+.homework-panel .homework-list-row .assignment-status--reviewed { color: var(--homework-brand); }
+.homework-panel .homework-list-row .assignment-status--submitted { padding: .28rem .65rem; border-radius: 999px; color: var(--homework-brand); background: var(--brand-soft); }
+.homework-panel .homework-list-row .assignment-status--needs_revision { padding: .28rem .65rem; border-radius: 999px; color: var(--homework-warning-ink); background: var(--homework-warning-bg); }
+.homework-panel .homework-list-row .assignment-status--overdue { padding: .28rem .65rem; border-radius: 999px; color: var(--homework-overdue-ink); background: var(--homework-overdue-bg); }
+.homework-panel .homework-list-row .homework-row-arrow { justify-self: center; color: #93a198; font-size: 1.25rem; line-height: 1; }
+.homework-panel .homework-list-row:hover .homework-row-arrow,
+.homework-panel .homework-list-row--selected .homework-row-arrow { color: var(--homework-brand); }
+
+.homework-panel .homework-list-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1rem; }
+.homework-panel .homework-list-footer .homework-pagination { flex: 1 1 auto; padding: 0; }
+.homework-panel .homework-list-footer .homework-pagination .button { min-height: 38px; padding: .45rem .8rem; border-radius: .65rem; font-size: .8rem; }
+.homework-panel .homework-open-button { display: inline-flex; align-items: center; gap: .5rem; min-height: 42px; padding: .55rem 1rem; border: 1px solid var(--homework-line); border-radius: .7rem; color: var(--homework-brand); background: #fff; box-shadow: 0 1px 2px rgb(20 30 23 / 4%); font-size: .85rem; font-weight: 700; cursor: pointer; transition: border-color 140ms ease, background 140ms ease; }
+.homework-panel .homework-open-button:hover { border-color: var(--line-strong); background: var(--hover-surface); }
+.homework-panel .homework-open-button span { font-size: 1rem; }
+
+.homework-panel .homework-surface .state-card { min-height: 220px; background: transparent; }
+.homework-panel .homework-surface .state-card--error { color: var(--danger); }
+.homework-panel .homework-surface .homework-no-results { padding: .25rem; }
+
+@media (max-width: 1200px) {
+  .homework-panel .homework-surface .homework-toolbar { display: grid; align-items: stretch; gap: .6rem; }
+  .homework-panel .homework-surface .homework-search-wrap { flex-basis: auto; width: 100%; }
+  .homework-panel .homework-surface .homework-filter-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .homework-panel .homework-surface .homework-filter-wrap { flex: 1 1 180px; }
+  .homework-panel .homework-surface .homework-filter { width: 100%; }
+  .homework-panel .homework-list-table__head { display: none; }
+  .homework-panel .homework-list-row { grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "check title arrow" "check student arrow" "check due status"; gap: .35rem .65rem; padding: 1rem .15rem; }
+  .homework-panel .homework-list-row .assignment-check { grid-area: check; align-self: center; }
+  .homework-panel .homework-list-row .assignment-main { grid-area: title; }
+  .homework-panel .homework-list-row .assignment-student { grid-area: student; }
+  .homework-panel .homework-list-row .assignment-due { grid-area: due; }
+  .homework-panel .homework-list-row .assignment-status { grid-area: status; justify-self: end; align-self: center; }
+  .homework-panel .homework-list-row .homework-row-arrow { grid-area: arrow; align-self: center; }
+}
+
+@media (max-width: 520px) {
+  .homework-panel .homework-surface { padding: .9rem; border-radius: 1rem; }
+  .homework-panel .homework-surface__head { margin-bottom: .9rem; }
+  .homework-panel .homework-surface .homework-filter-row { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .homework-panel .homework-surface .homework-create-button { width: 100%; }
+  .homework-panel .homework-list-footer { flex-direction: column; align-items: stretch; }
+  .homework-panel .homework-list-footer .homework-pagination { flex-wrap: wrap; justify-content: center; }
+  .homework-panel .homework-list-footer .homework-pagination span { width: 100%; order: -1; text-align: center; }
+  .homework-panel .homework-open-button { justify-content: center; width: 100%; }
+}
+
+/* Homework summary card, sidebar details link and dedicated assignment view. */
+.homework-panel .homework-summary-card {
+  display: grid;
+  align-content: space-between;
+  align-self: center;
+  gap: .7rem;
+  width: 196px;
+  min-height: 196px;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid #dbe8de;
+  border-radius: 1.15rem;
+  background: linear-gradient(150deg, #f4faf5, #e4f1e8);
+  box-shadow: 0 12px 30px rgb(30 65 42 / 7%);
+  color: var(--ink);
+}
+.homework-panel .homework-summary-card--solid {
+  border-color: #174f33;
+  background: linear-gradient(150deg, #226f48, #123d28);
+  color: #fff;
+  box-shadow: 0 14px 34px rgb(18 61 40 / 24%);
+}
+.homework-panel .homework-summary-card__top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.homework-panel .homework-summary-card__label { display: grid; gap: .1rem; color: var(--ink); font-size: .8rem; font-weight: 750; letter-spacing: .01em; }
+.homework-panel .homework-summary-card__label small { color: var(--muted); font-size: .68rem; font-weight: 500; letter-spacing: 0; }
+.homework-panel .homework-summary-card--solid .homework-summary-card__label { color: #fff; }
+.homework-panel .homework-summary-card--solid .homework-summary-card__label small { color: rgb(255 255 255 / 60%); }
+.homework-panel .homework-summary-card__icon { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 50%; color: var(--brand); background: rgb(23 91 58 / 10%); }
+.homework-panel .homework-summary-card--solid .homework-summary-card__icon { color: #d8f0e0; background: rgb(255 255 255 / 14%); }
+.homework-panel .homework-summary-card__icon svg { width: 15px; height: 15px; fill: none; stroke: currentcolor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.homework-panel .homework-summary-card__value { display: flex; align-items: baseline; gap: .4rem; }
+.homework-panel .homework-summary-card__value strong { color: var(--ink); font-size: 2.9rem; font-weight: 800; line-height: .9; letter-spacing: -.06em; }
+.homework-panel .homework-summary-card--solid .homework-summary-card__value strong { color: #fff; }
+.homework-panel .homework-summary-card__value > span { color: var(--muted); font-size: .76rem; font-weight: 600; }
+.homework-panel .homework-summary-card--solid .homework-summary-card__value > span { color: rgb(255 255 255 / 66%); }
+.homework-panel .homework-summary-card__bar { height: 6px; overflow: hidden; border-radius: 999px; background: rgb(23 91 58 / 12%); }
+.homework-panel .homework-summary-card__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width 240ms ease; }
+.homework-panel .homework-summary-card--solid .homework-summary-card__bar { background: rgb(255 255 255 / 18%); }
+.homework-panel .homework-summary-card--solid .homework-summary-card__bar > span { background: #b9e6c8; }
+.homework-panel .homework-summary-card__foot { display: grid; gap: .18rem; font-size: .72rem; line-height: 1.3; }
+.homework-panel .homework-summary-card__foot > span { color: var(--muted); }
+.homework-panel .homework-summary-card__foot > .homework-summary-card__overdue { color: var(--danger); font-weight: 700; }
+.homework-panel .homework-summary-card--solid .homework-summary-card__foot > span { color: rgb(255 255 255 / 68%); }
+.homework-panel .homework-summary-card--solid .homework-summary-card__foot > .homework-summary-card__overdue { color: #ffc9c2; }
+
+.homework-panel .homework-details-link { padding: 0; border: 0; color: var(--brand); background: transparent; font: inherit; font-size: .8rem; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; cursor: pointer; }
+.homework-panel .homework-details-link:hover { text-decoration: none; }
+.homework-panel .selected-assignment__actions { flex-wrap: wrap; margin-top: 1rem; }
+.homework-panel .page-heading__action { align-self: center; }
+
+.homework-panel .homework-detail-page { display: grid; gap: 1rem; }
+.homework-panel .homework-detail-page .page-heading { margin-bottom: 0; }
+.homework-panel .homework-detail-back { width: fit-content; }
+.homework-panel .homework-detail-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 1rem; align-items: start; }
+.homework-panel .homework-detail-task { padding: clamp(1.1rem, 2.4vw, 1.6rem); border-color: #dfe8e1; border-radius: 1rem; background: var(--brand-soft); }
+.homework-panel .homework-detail-task__label { color: var(--muted); font-size: .78rem; font-weight: 700; }
+.homework-panel .homework-detail-task h2 { margin: .35rem 0 .3rem; font-size: clamp(1.25rem, 2.4vw, 1.6rem); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.homework-panel .homework-detail-task__meta { margin: 0 0 1rem; color: var(--muted); font-size: .85rem; }
+.homework-panel .homework-detail-task__meta-list { display: grid; gap: .55rem; margin: 0; padding: .9rem 0; border-top: 1px solid rgb(23 91 58 / 12%); border-bottom: 1px solid rgb(23 91 58 / 12%); }
+.homework-panel .homework-detail-task__meta-list > div { display: flex; justify-content: space-between; gap: .75rem; }
+.homework-panel .homework-detail-task__meta-list dt { color: var(--muted); font-size: .8rem; }
+.homework-panel .homework-detail-task__meta-list dd { margin: 0; font-size: .82rem; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.homework-panel .homework-detail-section { display: grid; gap: .5rem; padding-top: 1rem; }
+.homework-panel .homework-detail-section h3 { margin: 0; font-size: .95rem; }
+.homework-panel .homework-detail-section p { margin: 0; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.homework-panel .homework-detail-history { padding: clamp(1.1rem, 2.4vw, 1.6rem); border-color: #dfe8e1; border-radius: 1rem; background: var(--surface); }
+.homework-panel .homework-detail-history .homework-materials { padding-top: 0; }
+.homework-panel .homework-detail-history .homework-history__list { border-top: 0; }
+.homework-panel .homework-detail-task .assignment-status { padding: .28rem .65rem; border-radius: 999px; font-size: .8rem; }
+.homework-panel .homework-detail-task .assignment-status--assigned,
+.homework-panel .homework-detail-task .assignment-status--reviewed,
+.homework-panel .homework-detail-task .assignment-status--submitted { color: var(--homework-brand); background: #fff; }
+.homework-panel .homework-detail-task .assignment-status--needs_revision { color: var(--homework-warning-ink); background: var(--homework-warning-bg); }
+.homework-panel .homework-detail-task .assignment-status--overdue { color: var(--homework-overdue-ink); background: var(--homework-overdue-bg); }
+
+@media (max-width: 1000px) {
+  .homework-panel .homework-detail-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 740px) {
+  .homework-panel .homework-summary-card { width: 100%; min-height: 0; }
+}
+
+/* US-13 pending queue. */
+.homework-panel .homework-toolbar--pending { margin: 0 0 1rem; justify-content: flex-end; }
+.homework-panel .homework-toolbar--pending .homework-filter-row { margin-left: auto; }
+.homework-panel .homework-queue { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(330px, .85fr); gap: 1rem; align-items: start; }
+.homework-panel .homework-queue__list { padding: 1.1rem 1.15rem; border-color: #dfe8e1; border-radius: 1rem; background: var(--surface); box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.homework-panel .homework-queue__head { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.homework-panel .homework-queue__head .eyebrow { margin-bottom: .25rem; }
+.homework-panel .homework-queue__head h2 { margin: 0; font-size: 1.15rem; letter-spacing: -.025em; }
+.homework-panel .homework-queue__count { flex: 0 0 auto; padding: .4rem .7rem; border-radius: 999px; color: var(--brand); background: var(--brand-soft); font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.homework-panel .homework-queue__columns,
+.homework-panel .homework-queue__item { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(120px, .8fr) minmax(150px, .9fr) minmax(110px, .7fr) 20px; align-items: center; gap: .75rem; }
+.homework-panel .homework-queue__columns { padding: 0 .6rem .55rem; color: var(--muted); font-size: .75rem; font-weight: 700; }
+.homework-panel .homework-queue__items { display: grid; gap: .35rem; }
+.homework-panel .homework-queue__item { width: 100%; padding: .8rem .6rem; border: 0; border-radius: .8rem; color: var(--ink); background: transparent; text-align: left; cursor: pointer; transition: background 140ms ease, box-shadow 140ms ease; }
+.homework-panel .homework-queue__item:hover { background: var(--hover-surface); }
+.homework-panel .homework-queue__item--active { background: var(--brand-soft); }
+.homework-panel .homework-queue__main { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.homework-panel .homework-queue__avatar { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #568063, #244d34); font-size: .72rem; font-weight: 800; letter-spacing: .02em; }
+.homework-panel .homework-queue__copy { display: grid; gap: .15rem; min-width: 0; }
+.homework-panel .homework-queue__copy strong { overflow: hidden; font-size: .9rem; text-overflow: ellipsis; white-space: nowrap; }
+.homework-panel .homework-queue__copy small { color: var(--muted); font-size: .72rem; }
+.homework-panel .homework-queue__student { overflow: hidden; color: var(--ink); font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.homework-panel .homework-queue__submitted { display: grid; gap: .15rem; color: var(--ink); font-size: .8rem; font-weight: 600; }
+.homework-panel .homework-queue__submitted time { white-space: nowrap; }
+.homework-panel .homework-queue__late { width: fit-content; padding: .18rem .45rem; border-radius: 999px; color: var(--homework-warning-ink); background: var(--homework-warning-bg); font-size: .62rem; font-weight: 700; }
+.homework-panel .homework-queue__status { width: fit-content; padding: .3rem .6rem; border-radius: 999px; color: var(--brand); background: var(--brand-soft); font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.homework-panel .homework-queue__arrow { color: #93a198; font-size: 1.25rem; line-height: 1; }
+.homework-panel .homework-queue__item--active .homework-queue__arrow { color: var(--brand); }
+.homework-panel .homework-queue__pagination { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .85rem .6rem .1rem; color: var(--muted); font-size: .78rem; }
+.homework-panel .homework-queue__pagination .button { min-height: 36px; padding: .4rem .75rem; border-radius: .6rem; font-size: .78rem; }
+.homework-panel .homework-queue__detail { min-width: 0; }
+.homework-panel .homework-queue__detail-card { padding: 1.2rem; border-color: #dfe8e1; border-radius: 1rem; background: linear-gradient(160deg, #f2f9f4, #e7f2ea); box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
+.homework-panel .homework-queue__detail-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--muted); font-size: .78rem; font-weight: 700; }
+.homework-panel .homework-queue__detail-card h2 { margin: .65rem 0 .25rem; font-size: 1.15rem; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.homework-panel .homework-queue__detail-meta { margin: 0 0 .9rem; color: var(--muted); font-size: .8rem; }
+.homework-panel .homework-queue__detail-meta-list { display: grid; gap: .45rem; margin: 0; padding: .8rem 0; border-top: 1px solid rgb(23 91 58 / 12%); border-bottom: 1px solid rgb(23 91 58 / 12%); }
+.homework-panel .homework-queue__detail-meta-list > div { display: flex; justify-content: space-between; gap: .75rem; }
+.homework-panel .homework-queue__detail-meta-list dt { color: var(--muted); font-size: .76rem; }
+.homework-panel .homework-queue__detail-meta-list dd { margin: 0; font-size: .78rem; font-weight: 700; text-align: right; }
+.homework-panel .homework-queue__detail-section { padding-top: .9rem; }
+.homework-panel .homework-queue__detail-section h3 { margin: 0 0 .45rem; font-size: .9rem; }
+.homework-panel .homework-queue__detail-section p { margin: 0; font-size: .82rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.homework-panel .homework-queue__detail-card .homework-materials { padding-top: 0; }
+.homework-panel .homework-queue__detail-card .homework-history { padding-top: 1rem; }
+.homework-panel .homework-queue__detail-card .homework-history__list { border-top: 0; }
+.homework-panel .homework-queue__detail-card .selected-assignment__actions { margin-top: 1rem; }
+.homework-panel .homework-queue__detail-card .homework-review-actions .button { flex: 1 1 130px; }
+@media (max-width: 1100px) {
+  .homework-panel .homework-queue { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .homework-panel .homework-queue__columns { display: none; }
+  .homework-panel .homework-queue__item { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main status" "student arrow" "submitted arrow"; gap: .25rem .6rem; }
+  .homework-panel .homework-queue__main { grid-area: main; }
+  .homework-panel .homework-queue__student { grid-area: student; }
+  .homework-panel .homework-queue__submitted { grid-area: submitted; }
+  .homework-panel .homework-queue__status { grid-area: status; justify-self: end; }
+  .homework-panel .homework-queue__arrow { grid-area: arrow; justify-self: end; }
+}
+@media (max-width: 520px) {
+  .homework-panel .homework-queue__list { padding: .85rem; }
+  .homework-panel .homework-queue__detail-card { padding: .95rem; }
+  .homework-panel .homework-queue__pagination { flex-wrap: wrap; justify-content: center; }
+  .homework-panel .homework-queue__pagination span { width: 100%; order: -1; text-align: center; }
+}
+
+/* Epic 3 progress and statistics. */
+.progress-page { display: grid; gap: 1.2rem; }
+.progress-period {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+  background: var(--surface);
+}
+.progress-period__fields { display: flex; flex-wrap: wrap; gap: .75rem; }
+.progress-period__fields .form-field { flex: 1 1 180px; min-width: 0; }
+.progress-period__presets { display: flex; flex-wrap: wrap; gap: .5rem; }
+.progress-period__label { margin: 0; color: var(--muted); font-size: .82rem; }
+.progress-period__error { margin: 0; color: var(--danger); font-size: .8rem; font-weight: 700; }
+.progress-report, .progress-history { display: grid; gap: 1rem; }
+.progress-block {
+  display: grid;
+  gap: .9rem;
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+.progress-block__head { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.progress-block__head h2 { margin: .1rem 0 0; font-size: 1.2rem; letter-spacing: -.02em; }
+.progress-block__rate { color: var(--brand); font-size: 1.6rem; letter-spacing: -.04em; white-space: nowrap; }
+.progress-block__note { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.progress-block__action {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: var(--brand);
+  background: transparent;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+.progress-block__action:hover { text-decoration: underline; text-underline-offset: 2px; }
+.progress-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .55rem; }
+.progress-metric {
+  display: grid;
+  gap: .15rem;
+  padding: .75rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: .7rem;
+  background: var(--canvas);
+}
+.progress-metric span { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.progress-metric strong { color: var(--ink); font-size: 1.45rem; letter-spacing: -.03em; line-height: 1.1; }
+.progress-metric small { color: var(--muted); font-size: .68rem; }
+.progress-metric--danger strong { color: var(--danger); }
+.progress-subtabs {
+  display: flex;
+  width: fit-content;
+  gap: .3rem;
+  padding: .25rem;
+  border: 1px solid var(--line);
+  border-radius: .7rem;
+  background: var(--surface);
+}
+.progress-subtabs button {
+  min-height: 36px;
+  padding: .45rem .85rem;
+  border: 0;
+  border-radius: .5rem;
+  color: var(--muted);
+  background: transparent;
+  font-size: .8rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.progress-subtabs button:hover { color: var(--ink); }
+.progress-subtabs button[aria-selected="true"] { color: #fff; background: var(--brand); }
+.progress-timeline { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.progress-timeline__item {
+  display: grid;
+  grid-template-columns: minmax(150px, .7fr) minmax(0, 1.3fr);
+  gap: .85rem;
+  padding: .8rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  background: var(--canvas);
+}
+.progress-timeline__time { display: grid; gap: .1rem; color: var(--muted); font-size: .78rem; }
+.progress-timeline__time time { color: var(--ink); font-weight: 700; }
+.progress-timeline__main { display: grid; gap: .35rem; min-width: 0; }
+.progress-timeline__main strong { overflow-wrap: anywhere; }
+.progress-timeline__badges { display: flex; flex-wrap: wrap; gap: .35rem; }
+.progress-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: .2rem .5rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 750;
+}
+.progress-badge--status-planned { color: #2c9a67; background: #e1f5e9; }
+.progress-badge--status-in_progress { color: #2583c7; background: #e7f2ff; }
+.progress-badge--status-completed { color: #526158; background: #edf1ed; }
+.progress-badge--status-cancelled { color: #a33b32; background: #fff0ee; }
+.progress-badge--attendance-present { color: #24603b; background: #e5f3e8; }
+.progress-badge--attendance-absent { color: #a33b32; background: #fff0ee; }
+.progress-badge--attendance-not_set { color: #66736b; background: #edf1ed; }
+@media (max-width: 700px) {
+  .progress-timeline__item { grid-template-columns: 1fr; gap: .35rem; }
+}
+@media (max-width: 520px) {
+  .progress-period { padding: .85rem; }
+  .progress-period__fields { display: grid; grid-template-columns: 1fr; }
+  .progress-block { padding: 1rem; }
+  .progress-block__head { flex-direction: column; gap: .35rem; }
+  .progress-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .progress-subtabs { width: 100%; }
+  .progress-subtabs button { flex: 1; }
+}
+
+/* Theme switch in the workspace top bar. */
+.theme-toggle {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: .7rem;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+.theme-toggle:hover { border-color: #aebdb1; background: var(--brand-soft); }
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Dark theme. Kept at the end so it overrides component colours without touching light mode. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e6efe8;
+  --muted: #9aab9f;
+  --line: #2b3a31;
+  --surface: #141d17;
+  --canvas: #0d1410;
+  --brand: #4f9a6d;
+  --brand-dark: #7bc79a;
+  --brand-soft: #1b2a21;
+  --danger: #e0837a;
+  --danger-soft: #2b1816;
+  --shadow: 0 18px 50px rgb(0 0 0 / 45%);
+  --hover-surface: #1b2a21;
+  --hover-surface-strong: #223229;
+  --line-strong: #4a6153;
+  --brand-hover: #2f7a52;
+  color: var(--ink);
+  background: var(--canvas);
+}
+[data-theme="dark"] html,
+[data-theme="dark"] body { background: var(--canvas); }
+[data-theme="dark"] .sidebar { border-color: var(--line); background: #111a14; }
+[data-theme="dark"] .nav-item { color: #a9b8ae; }
+[data-theme="dark"] .nav-item:hover { color: var(--ink); background: #1b2a21; }
+[data-theme="dark"] .nav-item--active { color: #fff; background: var(--brand); }
+[data-theme="dark"] .nav-item--active:hover { color: #fff; background: #3f7f58; }
+[data-theme="dark"] .workspace__topbar { border-color: var(--line); background: rgb(13 20 16 / 88%); }
+[data-theme="dark"] .workspace__topbar strong { color: var(--ink); }
+[data-theme="dark"] .mobile-menu { border-color: var(--line); color: var(--ink); background: var(--surface); }
+[data-theme="dark"] .card,
+[data-theme="dark"] .person-card,
+[data-theme="dark"] .list-toolbar,
+[data-theme="dark"] .invitation-row { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .future-card,
+[data-theme="dark"] .profile-hero,
+[data-theme="dark"] .placeholder-panel,
+[data-theme="dark"] .summary-card--accent { background: linear-gradient(135deg, #18241c, #101812); }
+[data-theme="dark"] .profile-hero,
+[data-theme="dark"] .profile-page .profile-hero,
+[data-theme="dark"] .profile-page .profile-card,
+[data-theme="dark"] .profile-page--self .profile-overview-card,
+[data-theme="dark"] .profile-overview-card,
+[data-theme="dark"] .teacher-profile-layout--design .teacher-profile-card,
+[data-theme="dark"] .profile-side-card { border-color: var(--line); background: var(--surface); box-shadow: none; }
+[data-theme="dark"] .details-list > div { border-color: var(--line); }
+[data-theme="dark"] .security-hub__item { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .security-hub__item:hover,
+[data-theme="dark"] .security-hub__item:focus-visible { border-color: var(--brand); background: var(--brand-soft); }
+[data-theme="dark"] .security-hub__icon { background: var(--brand-soft); }
+[data-theme="dark"] .mfa-secret { background: var(--brand-soft); }
+[data-theme="dark"] .badge { color: #b7c6bc; background: #1f2d24; }
+[data-theme="dark"] .badge--success { color: #9fe0b4; background: #17301f; }
+[data-theme="dark"] .alert { border-color: #2f5a3e; color: #b9e6c8; background: #14251a; }
+[data-theme="dark"] .alert--error { border-color: #6b3a35; color: #f0b7b2; background: #2b1816; }
+[data-theme="dark"] .alert--info { border-color: #334a5c; color: #b9d4e6; background: #15232c; }
+[data-theme="dark"] .dialog { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .dialog__header { border-color: var(--line); background: rgb(20 29 23 / 96%); }
+[data-theme="dark"] .dialog-backdrop { background: rgb(0 0 0 / 66%); }
+[data-theme="dark"] .control-icon-button:hover { background: var(--brand-soft); }
+[data-theme="dark"] .input { border-color: #34463a; color: var(--ink); background: #101812; }
+[data-theme="dark"] .input:hover:not(:disabled) { border-color: #4a6153; }
+[data-theme="dark"] .input:disabled { color: #7f8d84; background: #18211b; }
+[data-theme="dark"] .assignment-row:hover,
+[data-theme="dark"] .assignment-row--selected { background: #1b2a21; }
+[data-theme="dark"] .assignment-menu-popover { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .assignment-menu-popover button { color: var(--ink); }
+[data-theme="dark"] .assignment-menu-popover button:hover { background: var(--brand-soft); }
+[data-theme="dark"] .assignment-expanded { border-color: var(--line); background: #18241c; }
+[data-theme="dark"] .invitation-code { border-color: #3a5544; background: #14251a; }
+[data-theme="dark"] .invitation-row { border-color: var(--line); }
+[data-theme="dark"] .conflict-item { border-color: #5a3530; background: #241311; }
+[data-theme="dark"] .conflict-drawer__notice { border-color: #5a4a24; color: #e6c07a; background: #241d10; }
+[data-theme="dark"] .homework-panel {
+  --homework-surface: #121d16;
+  --homework-surface-strong: #16231a;
+  --homework-line: #2b3a31;
+  --homework-ink: #e6efe8;
+  --homework-muted: #9aab9f;
+  --homework-brand: #7bc79a;
+  --homework-overdue-bg: #2b1816;
+  --homework-overdue-ink: #f0a8a1;
+  --homework-warning-bg: #2b2412;
+  --homework-warning-ink: #e6c07a;
+}
+[data-theme="dark"] .homework-panel .homework-surface { border-color: var(--homework-line); background: var(--homework-surface); }
+[data-theme="dark"] .homework-panel .homework-surface .homework-search,
+[data-theme="dark"] .homework-panel .homework-surface .homework-filter,
+[data-theme="dark"] .homework-panel .homework-open-button,
+[data-theme="dark"] .homework-panel .homework-create-button { border-color: #34463a; color: var(--ink); background: #101812; }
+[data-theme="dark"] .homework-panel .homework-list-row:hover { background: var(--hover-surface); }
+[data-theme="dark"] .homework-panel .homework-list-row--selected { background: var(--hover-surface-strong); }
+[data-theme="dark"] .homework-panel .homework-queue__detail-card { border-color: var(--line); background: linear-gradient(160deg, #18241c, #121d16); }
+[data-theme="dark"] .homework-panel .homework-detail-task { border-color: var(--line); background: var(--brand-soft); }
+[data-theme="dark"] .homework-panel .homework-detail-history { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .schedule-week-switcher strong,
+[data-theme="dark"] .schedule-view-toggle,
+[data-theme="dark"] .schedule-cancelled-toggle,
+[data-theme="dark"] .schedule-calendar__corner,
+[data-theme="dark"] .schedule-calendar__day,
+[data-theme="dark"] .schedule-calendar__hour { border-color: var(--line); color: var(--ink); background: #121d16; }
+[data-theme="dark"] .schedule-calendar__cell { border-color: var(--line); }
+[data-theme="dark"] .schedule-day:hover { background: var(--brand-soft); }
+[data-theme="dark"] .schedule-day--active { border-color: #3f7f58; background: var(--brand-soft); }
+[data-theme="dark"] .schedule-event,
+[data-theme="dark"] .lesson-card,
+[data-theme="dark"] .schedule-stack { background: #18241c; }
+[data-theme="dark"] .schedule-event span,
+[data-theme="dark"] .schedule-event small { color: #a9b8ae; }
+[data-theme="dark"] .drawer { border-color: var(--line); background: #101812; }
+[data-theme="dark"] .drawer__header { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .conflict-drawer__lesson { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .auth-layout,
+[data-theme="dark"] .auth-form-panel { background: var(--canvas); }
+[data-theme="dark"] .auth-card .input { border-color: #34463a; background: #101812; }
+[data-theme="dark"] .auth-card__heading h2,
+[data-theme="dark"] .auth-card__switch { color: var(--ink); }
+[data-theme="dark"] .auth-card__heading p:not(.eyebrow) { color: var(--muted); }
+[data-theme="dark"] .profile-person-list b,
+[data-theme="dark"] .profile-invitation-list b { color: #9fe0b4; background: #17301f; }
+[data-theme="dark"] .profile-lesson-list time,
+[data-theme="dark"] .profile-invitation-dot { background: var(--brand-soft); }
+[data-theme="dark"] .app-header { border-color: var(--line); background: rgb(20 29 23 / 72%); }
+[data-theme="dark"] .status-grid article { border-color: var(--line); background: rgb(20 29 23 / 65%); }
+[data-theme="dark"] .lead,
+[data-theme="dark"] .status-grid span,
+[data-theme="dark"] .not-found p:not(.eyebrow) { color: var(--muted); }
+[data-theme="dark"] .progress-metric { background: #101812; }
+[data-theme="dark"] .progress-block,
+[data-theme="dark"] .progress-period,
+[data-theme="dark"] .progress-subtabs { background: var(--surface); }
+[data-theme="dark"] .progress-timeline__item { background: #101812; }
+[data-theme="dark"] .progress-badge--status-completed,
+[data-theme="dark"] .progress-badge--attendance-not_set { color: #b7c6bc; background: #1f2d24; }
+[data-theme="dark"] .progress-badge--status-planned,
+[data-theme="dark"] .progress-badge--attendance-present { color: #9fe0b4; background: #17301f; }
+[data-theme="dark"] .progress-badge--status-in_progress { color: #a9d4f5; background: #14283a; }
+[data-theme="dark"] .progress-badge--status-cancelled,
+[data-theme="dark"] .progress-badge--attendance-absent { color: #f0b7b2; background: #2b1816; }
+
+/* Dark theme contrast fixes for hovered controls and form surfaces. */
+[data-theme="dark"] .form-field label { color: var(--ink); }
+[data-theme="dark"] .lesson-create-form__header h2,
+[data-theme="dark"] .lesson-create-form .form-field label,
+[data-theme="dark"] .lesson-create-form__repeat-label { color: var(--ink); }
+[data-theme="dark"] .lesson-create-form__header p,
+[data-theme="dark"] .lesson-create-form__hint,
+[data-theme="dark"] .lesson-create-form__label-row span,
+[data-theme="dark"] .lesson-create-form__series-summary { color: var(--muted); }
+[data-theme="dark"] .lesson-create-form .input { border-color: #34463a; color: var(--ink); background: #101812; }
+[data-theme="dark"] .lesson-create-form .input::placeholder { color: #7f8d84; }
+[data-theme="dark"] .lesson-create-form__time-panel { border-color: var(--line); background: var(--surface); }
+[data-theme="dark"] .lesson-create-form__time-option { color: var(--ink); }
+[data-theme="dark"] .lesson-create-form__date-picker:hover,
+[data-theme="dark"] .lesson-create-form__time-picker:hover,
+[data-theme="dark"] .lesson-create-form__time-option:hover,
+[data-theme="dark"] .lesson-create-form__time-option:focus-visible { color: var(--brand-dark); }
+[data-theme="dark"] .profile-form__status { border-color: #2f5a3e; color: #b9e6c8; background: #14251a; }
+[data-theme="dark"] .profile-form__status--error { border-color: #6b3a35; color: #f0b7b2; background: var(--danger-soft); }
+[data-theme="dark"] .security-hub__status,
+[data-theme="dark"] .security-hub__arrow,
+[data-theme="dark"] .security-back,
+[data-theme="dark"] .mfa-status { color: var(--brand-dark); }
+[data-theme="dark"] .homework-panel .homework-list-row .assignment-check { border-color: #4a6153; }
+[data-theme="dark"] .homework-panel .homework-list-row--selected .assignment-check { border-color: var(--homework-brand); }
+
+/* Dark theme canvas: deep green with a subtle geometric lattice.
+   Pure CSS gradients: no images, no filters, no animation, no scroll listeners. */
+html[data-theme="dark"] {
+  background-color: #0a1710;
+  background-image:
+    radial-gradient(ellipse at 50% -10%, rgb(79 154 109 / 24%), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgb(47 122 82 / 20%), transparent 50%),
+    repeating-linear-gradient(0deg, rgb(123 199 154 / 6%) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(60deg, rgb(123 199 154 / 6%) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(120deg, rgb(123 199 154 / 6%) 0 1px, transparent 1px 34px);
+}
+[data-theme="dark"] body { background: transparent; }
+[data-theme="dark"] .auth-layout,
+[data-theme="dark"] .auth-form-panel { background: transparent; }
+@media (min-width: 741px) {
+  html[data-theme="dark"] { background-attachment: fixed; }
+}
+
+/* Dark top bar: a soft green wash with a repeated wave line along the bottom. */
+[data-theme="dark"] .workspace__topbar {
+  background-color: rgb(13 24 18 / 92%);
+  background-image:
+    linear-gradient(180deg, rgb(79 154 109 / 10%), transparent 72%),
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='12'%20viewBox='0%200%20120%2012'%3E%3Cpath%20d='M0%206Q15%200%2030%206T60%206T90%206T120%206'%20fill='none'%20stroke='%237bc79a'%20stroke-opacity='.4'%20stroke-width='1.2'/%3E%3Cpath%20d='M0%2010Q15%204%2030%2010T60%2010T90%2010T120%2010'%20fill='none'%20stroke='%237bc79a'%20stroke-opacity='.2'%20stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, repeat-x;
+  background-position: 0 0, 0 100%;
+  background-size: auto, 120px 12px;
+}
+
+/* Keep the details column height stable while switching homework selection. */
+@media (min-width: 1101px) {
+  .homework-panel .homework-sidebar .selected-assignment { min-height: 420px; }
+}
+@media (min-width: 1101px) {
+  .homework-panel .homework-queue__detail-card { min-height: 420px; }
+}
+
+/* Reserve the scrollbar gutter so the page does not shift when content height changes. */
+html { scrollbar-gutter: stable; }

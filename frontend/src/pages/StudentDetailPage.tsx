@@ -13,8 +13,21 @@ import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { Textarea } from "../components/ui/FormField";
 import { formatDate, fullName } from "../shared/format";
 import { SchedulePage } from "./SchedulePage";
+import { HomeworkPanel } from "../features/homework/HomeworkPanel";
+import { StudentHistoryPanel } from "../features/progress/StudentHistoryPanel";
+import { StudentProgressPanel, type TeacherProgressView } from "../features/progress/StudentProgressPanel";
+import { useProgressPeriod } from "../features/progress/period-url";
+import { useProfileTimezone } from "../features/progress/useProgress";
 
-type DetailTab = "main" | "schedule" | "homework";
+type DetailTab = "main" | "schedule" | "homework" | "history" | "progress";
+
+const DETAIL_TABS: readonly { value: DetailTab; label: string }[] = [
+  { value: "main", label: "Основное" },
+  { value: "schedule", label: "Расписание" },
+  { value: "homework", label: "Домашние задания" },
+  { value: "history", label: "История" },
+  { value: "progress", label: "Прогресс" },
+];
 
 function NoteEditor({ student }: { student: StudentDetail }) {
   const queryClient = useQueryClient();
@@ -50,16 +63,20 @@ function NoteEditor({ student }: { student: StudentDetail }) {
 
 export function StudentDetailPage() {
   const { id = "" } = useParams();
+  const timezone = useProfileTimezone();
+  const { period, setPeriod, explicitPeriod } = useProgressPeriod(timezone);
   const [tab, setTab] = useState<DetailTab>("main");
+  const [progressView, setProgressView] = useState<TeacherProgressView>("summary");
   const student = useQuery({ queryKey: queryKeys.student(id), queryFn: () => api.student(id), enabled: Boolean(id) });
 
   if (student.isLoading) return <LoadingState label="Загружаем профиль ученика…" />;
-  if (student.isError) return <ErrorState message={readableError(student.error)} onRetry={() => void student.refetch()} />;
+  if (student.isError && !student.data) return <ErrorState message={readableError(student.error)} onRetry={() => void student.refetch()} />;
   if (!student.data) return null;
 
   const data = student.data;
   return (
     <>
+      {student.isError ? <Alert tone="error">Не удалось обновить профиль ученика. <Button type="button" variant="secondary" onClick={() => void student.refetch()}>Повторить</Button></Alert> : null}
       <Link className="back-link" to="/students">← К ученикам</Link>
       <PageHeader title={fullName(data)} description={data.email} />
       <div className="profile-hero">
@@ -68,9 +85,9 @@ export function StudentDetailPage() {
         <span className="badge badge--success">Активное подключение</span>
       </div>
       <div className="tabs" role="tablist" aria-label="Разделы ученика">
-        {(["main", "schedule", "homework"] as const).map((value) => (
+        {DETAIL_TABS.map(({ value, label }) => (
           <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "tab--active" : ""} onClick={() => { setTab(value); }}>
-            {value === "main" ? "Основное" : value === "schedule" ? "Расписание" : "Домашние задания"}
+            {label}
           </button>
         ))}
       </div>
@@ -89,8 +106,20 @@ export function StudentDetailPage() {
         </div>
       ) : tab === "schedule" ? (
         <SchedulePage viewedStudent={{ id: data.id, name: fullName(data) }} />
+      ) : tab === "homework" ? (
+        <HomeworkPanel personId={data.id} period={explicitPeriod} />
+      ) : tab === "history" ? (
+        <StudentHistoryPanel studentId={data.id} period={period} onPeriodChange={setPeriod} />
       ) : (
-        <Card className="placeholder-panel"><span className="badge">Скоро</span><h2>Домашние задания</h2><p>Этот раздел появится на следующем этапе развития Takt.</p></Card>
+        <StudentProgressPanel
+          studentId={data.id}
+          period={period}
+          onPeriodChange={setPeriod}
+          view={progressView}
+          onViewChange={setProgressView}
+          onOpenHomework={() => { setPeriod(period); setTab("homework"); }}
+          onOpenHistory={() => { setTab("history"); }}
+        />
       )}
     </>
   );

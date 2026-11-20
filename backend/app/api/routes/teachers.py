@@ -1,20 +1,38 @@
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import (
     get_connection_service,
     get_current_student,
     get_current_teacher,
+    get_lesson_service,
+    get_progress_service,
 )
+from app.core.security import utc_now
+from app.db.session import get_db_session
 from app.models.user import User
 from app.repositories.teacher_student_relations import ConnectionRecord
 from app.schemas.connections import StudentRefDTO, TeacherListItem
 from app.schemas.error import ErrorResponse
+from app.schemas.homework_statistics import HomeworkStatisticsRequest, HomeworkStatisticsResponse
+from app.schemas.lessons import LessonHistoryRequest, LessonHistoryResponse
+from app.schemas.progress import ProgressResponse
 from app.services.connections import ConnectionService
+from app.services.homework_statistics import HomeworkStatisticsService
+from app.services.lessons import LessonService
+from app.services.progress import ProgressService
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
+
+
+def get_homework_statistics_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> HomeworkStatisticsService:
+    return HomeworkStatisticsService(session)
+
 
 teacher_errors: dict[int | str, dict[str, Any]] = {
     403: {"model": ErrorResponse, "description": "Student role required"},
@@ -54,6 +72,81 @@ async def list_current_teacher_students(
     service: Annotated[ConnectionService, Depends(get_connection_service)],
 ) -> list[StudentRefDTO]:
     return [_student_ref(record) for record in await service.list_students(teacher)]
+
+
+@router.get(
+    "/me/students/{student_id}/homework-statistics",
+    response_model=HomeworkStatisticsResponse,
+    summary="Get a student's homework statistics",
+    description=(
+        "Teacher-only statistics for an actively connected student. Homework created in the "
+        "timezone-aware half-open period [date_from, date_to) forms the cohort. Submission "
+        "and review history for that cohort is counted regardless of event date. Each metric "
+        "counts unique Homework. submitted means any saved submission, reviewed means any saved "
+        "accepted review, late means any submission saved as late after its deadline, and "
+        "revision_required means any saved needs_revision review. completion_rate is "
+        "round(reviewed / assigned * 100, 2), or null when assigned is zero."
+    ),
+    responses={
+        403: {"model": ErrorResponse, "description": "Teacher role required"},
+        404: {"model": ErrorResponse, "description": "Active connection not found"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+    },
+)
+async def get_student_homework_statistics(
+    student_id: UUID,
+    period: Annotated[HomeworkStatisticsRequest, Query()],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[HomeworkStatisticsService, Depends(get_homework_statistics_service)],
+) -> HomeworkStatisticsResponse:
+    return await service.for_student(teacher, student_id, period)
+
+
+@router.get(
+    "/me/students/{student_id}/progress",
+    response_model=ProgressResponse,
+    summary="Get a student's progress summary",
+    description=(
+        "Teacher-only progress for an actively connected student. date_from is inclusive "
+        "and date_to is exclusive. Attendance uses lesson start times; homework and reviews "
+        "use homework creation times. Grades use the latest submission's accepted review."
+    ),
+    responses={
+        403: {"model": ErrorResponse, "description": "Teacher role required"},
+        404: {"model": ErrorResponse, "description": "Active connection not found"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+    },
+)
+async def get_student_progress(
+    student_id: UUID,
+    period: Annotated[LessonHistoryRequest, Query()],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[ProgressService, Depends(get_progress_service)],
+) -> ProgressResponse:
+    return await service.for_teacher(teacher, student_id, period, now=utc_now())
+
+
+@router.get(
+    "/me/students/{student_id}/lesson-history",
+    response_model=LessonHistoryResponse,
+    summary="Get a student's lesson and attendance history",
+    description=(
+        "Teacher-only history for an actively connected student. The timezone-aware period "
+        "is a half-open interval: date_from is inclusive and date_to is exclusive."
+    ),
+    responses={
+        403: {"model": ErrorResponse, "description": "Teacher role required"},
+        404: {"model": ErrorResponse, "description": "Active connection not found"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+    },
+)
+async def get_student_lesson_history(
+    student_id: UUID,
+    filters: Annotated[LessonHistoryRequest, Query()],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    service: Annotated[LessonService, Depends(get_lesson_service)],
+) -> LessonHistoryResponse:
+    return await service.student_history(teacher, student_id, filters, now=utc_now())
 
 
 @router.get(

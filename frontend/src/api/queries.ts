@@ -16,7 +16,32 @@ import type {
   LessonSearchFilters,
   PersonScheduleItem,
   StudentRef,
+  Homework,
+  HomeworkPage,
+  HomeworkFilters,
+  HomeworkSubmissionResult,
+  HomeworkSubmission,
+  PendingSubmission,
+  PendingSubmissionPage,
+  ProgressPeriod,
+  ProgressResponse,
+  LessonHistoryResponse,
+  HomeworkStatisticsResponse,
 } from "./types";
+
+function periodQuery(period: ProgressPeriod): string {
+  return `date_from=${encodeURIComponent(period.date_from)}&date_to=${encodeURIComponent(period.date_to)}`;
+}
+
+function homeworkQuery(offset: number, personKey: string, personId?: string, filters: HomeworkFilters = {}): string {
+  const params = new URLSearchParams({ limit: "20", offset: offset.toString() });
+  if (personId) params.set(personKey, personId);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.date_from) params.set("date_from", filters.date_from);
+  if (filters.date_to) params.set("date_to", filters.date_to);
+  return params.toString();
+}
 
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
@@ -31,9 +56,51 @@ export const queryKeys = {
   nextLesson: ["lessons", "next"] as const,
   personSchedule: (role: string, id: string, dateFrom: string, dateTo: string) =>
     ["lessons", "person", role, id, dateFrom, dateTo] as const,
+  homework: (role: string, personId: string | undefined, offset: number, filters: HomeworkFilters = {}) =>
+    ["homework", role, personId ?? "all", offset, filters.search ?? "", filters.status ?? "", filters.date_from ?? "", filters.date_to ?? ""] as const,
+  homeworkDetail: (role: string, id: string) => ["homework", role, id] as const,
+  pendingSubmissions: (offset: number, studentId?: string) => ["homework", "pending", offset, studentId ?? "all"] as const,
+  pendingSubmission: (id: string) => ["homework", "pending", id] as const,
+  homeworkHistory: (role: string, id: string) => ["homework", "history", role, id] as const,
+  progress: (role: "TEACHER" | "STUDENT", studentId: string | undefined, dateFrom: string, dateTo: string) =>
+    ["progress", role, studentId ?? "me", dateFrom, dateTo] as const,
+  lessonHistory: (studentId: string, dateFrom: string, dateTo: string) =>
+    ["progress", "lesson-history", studentId, dateFrom, dateTo] as const,
+  homeworkStatistics: (studentId: string, dateFrom: string, dateTo: string) =>
+    ["progress", "homework-statistics", studentId, dateFrom, dateTo] as const,
 };
 
 export const api = {
+  teacherHomework: (studentId?: string, offset = 0, filters: HomeworkFilters = {}) =>
+    apiRequest<HomeworkPage>(`/homework?${homeworkQuery(offset, "student_id", studentId, filters)}`),
+  studentHomework: (teacherId?: string, offset = 0, filters: HomeworkFilters = {}) =>
+    apiRequest<HomeworkPage>(`/students/me/homework?${homeworkQuery(offset, "teacher_id", teacherId, filters)}`),
+  homeworkDetail: (id: string, role: "TEACHER" | "STUDENT") =>
+    apiRequest<Homework>(role === "TEACHER" ? `/homework/${id}` : `/students/me/homework/${id}`),
+  createHomework: (data: FormData, idempotencyKey: string) =>
+    apiRequest<Homework>("/homework", { method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey } }),
+  downloadHomeworkAttachment: (homeworkId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/homework/${homeworkId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
+  submitHomework: (homeworkId: string, data: FormData, idempotencyKey: string) =>
+    apiRequest<HomeworkSubmissionResult>(`/homework/${homeworkId}/submissions`, {
+      method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  pendingSubmissions: (offset = 0, studentId?: string) =>
+    apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?${homeworkQuery(offset, "student_id", studentId)}`),
+  pendingSubmission: (id: string) =>
+    apiRequest<PendingSubmission>(`/teachers/me/homework/submissions/${id}`),
+  acceptSubmission: (id: string, payload: { grade: number; comment: string }) =>
+    apiRequest<HomeworkSubmission>(`/teachers/me/homework/submissions/${id}/review`, { method: "POST", body: payload }),
+  returnSubmission: (id: string, payload: { comment: string }) =>
+    apiRequest<HomeworkSubmission>(`/teachers/me/homework/submissions/${id}/revision`, { method: "POST", body: payload }),
+  homeworkHistory: (id: string, role: "TEACHER" | "STUDENT") =>
+    apiRequest<HomeworkSubmission[]>(role === "TEACHER"
+      ? `/teachers/me/homework/${id}/submissions`
+      : `/students/me/homework/${id}/submissions`),
+  downloadStudentSubmissionAttachment: (homeworkId: string, submissionId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/students/me/homework/${homeworkId}/submissions/${submissionId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
+  downloadSubmissionAttachment: (submissionId: string, attachmentId: string) =>
+    apiRequest<Blob>(`/teachers/me/homework/submissions/${submissionId}/attachments/${attachmentId}/download`, { responseType: "blob" }),
   dashboard: () => apiRequest<DashboardSummary>("/dashboard/summary"),
   students: () => apiRequest<StudentListItem[]>("/students"),
   teacherStudents: () => apiRequest<StudentRef[]>("/teachers/me/students"),
@@ -81,4 +148,12 @@ export const api = {
   profile: () => apiRequest<Profile>("/profile"),
   updateProfile: (payload: ProfileUpdate) =>
     apiRequest<Profile>("/profile", { method: "PATCH", body: payload }),
+  myProgress: (period: ProgressPeriod) =>
+    apiRequest<ProgressResponse>(`/students/me/progress?${periodQuery(period)}`),
+  studentProgress: (studentId: string, period: ProgressPeriod) =>
+    apiRequest<ProgressResponse>(`/teachers/me/students/${encodeURIComponent(studentId)}/progress?${periodQuery(period)}`),
+  lessonHistory: (studentId: string, period: ProgressPeriod) =>
+    apiRequest<LessonHistoryResponse>(`/teachers/me/students/${encodeURIComponent(studentId)}/lesson-history?${periodQuery(period)}`),
+  homeworkStatistics: (studentId: string, period: ProgressPeriod) =>
+    apiRequest<HomeworkStatisticsResponse>(`/teachers/me/students/${encodeURIComponent(studentId)}/homework-statistics?${periodQuery(period)}`),
 };

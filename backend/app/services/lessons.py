@@ -36,6 +36,8 @@ from app.schemas.lessons import (
     LessonCancelRequest,
     LessonConflictDTO,
     LessonCreate,
+    LessonHistoryRequest,
+    LessonHistoryResponse,
     LessonRescheduleRequest,
     LessonSearchRequest,
     LessonSeriesCreate,
@@ -49,7 +51,12 @@ from app.services.lesson_series import (
     find_series_overlaps,
     generate_weekly_starts,
 )
-from app.services.lesson_views import calculate_lesson_status, lesson_ends_at
+from app.services.lesson_views import (
+    calculate_lesson_history_aggregates,
+    calculate_lesson_status,
+    lesson_ends_at,
+    lesson_to_history_item,
+)
 
 
 class LessonService:
@@ -385,6 +392,34 @@ class LessonService:
             self._access_scope(user),
             date_from=filters.date_from,
             date_to=filters.date_to,
+        )
+
+    async def student_history(
+        self,
+        teacher: User,
+        student_id: UUID,
+        filters: LessonHistoryRequest,
+        *,
+        now: datetime,
+    ) -> LessonHistoryResponse:
+        if teacher.role != RoleCode.TEACHER or not teacher.is_active:
+            raise ForbiddenError()
+        if await self._relations.get_student(teacher.id, student_id) is None:
+            raise ConnectionNotFoundError()
+
+        lessons = await self._lessons.list_student_history(
+            teacher.id,
+            student_id,
+            date_from=filters.date_from,
+            date_to=filters.date_to,
+        )
+        history = [lesson_to_history_item(lesson, now) for lesson in lessons]
+        return LessonHistoryResponse(
+            student_id=student_id,
+            date_from=filters.date_from,
+            date_to=filters.date_to,
+            history=history,
+            aggregates=calculate_lesson_history_aggregates(history),
         )
 
     async def person_schedule(

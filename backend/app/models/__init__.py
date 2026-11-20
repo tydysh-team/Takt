@@ -1,6 +1,7 @@
 """SQLAlchemy persistence models registered for Alembic metadata discovery."""
 
 from app.models.enums import RelationStatus, RoleCode
+from app.models.homework import Homework, HomeworkAttachment, HomeworkReview, HomeworkSubmission
 from app.models.lesson import Lesson
 from app.models.mfa import MfaBackupCode, MfaChallenge, UserTotp
 from app.models.profile import Profile
@@ -12,6 +13,10 @@ from app.models.user import User
 
 __all__ = [
     "Lesson",
+    "Homework",
+    "HomeworkAttachment",
+    "HomeworkReview",
+    "HomeworkSubmission",
     "MfaBackupCode",
     "MfaChallenge",
     "UserTotp",

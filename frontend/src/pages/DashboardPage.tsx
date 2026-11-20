@@ -74,7 +74,6 @@ export function DashboardPage() {
       />
       <div className="metrics-grid metrics-grid--student">
         <Card className="metric-card"><span>Преподаватели</span><strong>{summary.data.teachers_count}</strong><small>активных подключений</small></Card>
-        <Card className="future-card"><span className="badge">Скоро</span><h2>Учебный ритм</h2><p>Расписание и домашние задания появятся на следующих этапах.</p></Card>
       </div>
       <section className="content-section">
         <div className="section-heading">

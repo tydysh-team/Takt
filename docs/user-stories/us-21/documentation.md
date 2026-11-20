@@ -70,7 +70,18 @@ Query:
 ?date_from=...&date_to=...
 ```
 
-Response содержит только собственные Student-facing данные.
+Response имеет те же `student_id`, `date_from`, `date_to`, `attendance`,
+`homework` и `reviews`, что и Teacher progress API из US-20. `student_id`
+определяется только по auth context; произвольный идентификатор в query
+не принимается. Число работ с оценкой и средняя оценка рассчитываются по
+последнему применимому принятому Review каждого Homework, без подмены
+отсутствующей оценки нулём.
+
+Сводка включает собственные Lesson и Homework Student от всех Teachers,
+в том числе исторические записи после деактивации связи. Все проценты
+рассчитываются по совокупным числителям и знаменателям, средняя оценка —
+по отдельным оценённым работам. Исходные Lesson и Homework содержат
+`teacher_id` или сведения о Teacher для однозначного drill-down.
 
 ## 8. Privacy / authorization
 

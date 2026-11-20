@@ -1,6 +1,86 @@
 export type RoleCode = "TEACHER" | "STUDENT" | "ADMIN";
 export type ApplicationRole = Exclude<RoleCode, "ADMIN">;
 
+export interface HomeworkAttachment {
+  id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  created_at: string;
+}
+
+export interface Homework {
+  id: string;
+  teacher_id: string;
+  teacher_name: string;
+  student_id: string;
+  student_name: string;
+  title: string;
+  description: string | null;
+  due_at: string;
+  status: string;
+  is_overdue: boolean;
+  created_at: string;
+  attachments: HomeworkAttachment[];
+  latest_submission?: HomeworkSubmission | null;
+}
+
+export interface HomeworkSubmission {
+  id: string;
+  homework_id: string;
+  attempt_no: number;
+  comment: string | null;
+  submitted_at: string;
+  is_late: boolean;
+  attachments: HomeworkAttachment[];
+  review?: HomeworkReview | null;
+}
+
+export interface HomeworkReview {
+  id: string;
+  decision: "accepted" | "needs_revision";
+  grade: number | null;
+  comment: string | null;
+  reviewed_at: string;
+}
+
+export interface HomeworkSubmissionResult {
+  submission: HomeworkSubmission;
+  homework: Homework;
+}
+
+export interface PendingSubmission extends HomeworkSubmission {
+  student_id: string;
+  student_name: string;
+  title: string;
+  due_at: string;
+  homework_status: string;
+}
+
+export interface PendingSubmissionPage {
+  items: PendingSubmission[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface HomeworkPage {
+  items: Homework[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export type HomeworkStatus = "assigned" | "submitted" | "needs_revision" | "reviewed";
+
+export interface HomeworkFilters {
+  search?: string;
+  status?: HomeworkStatus;
+  date_from?: string;
+  date_to?: string;
+}
+
 export interface ApiErrorDetail {
   location: (string | number)[];
   code: string;
@@ -251,5 +331,65 @@ export type PersonScheduleItem = (LessonReadDTO & { type: "lesson" }) | {
 
 export type LessonLifecycleStatus = LessonStatus;
 
+export interface ProgressPeriod {
+  date_from: string;
+  date_to: string;
+}
 
+export interface LessonHistoryAggregatesDTO {
+  total_lessons: number;
+  completed_lessons: number;
+  attended_lessons: number;
+  missed_lessons: number;
+  unmarked_lessons: number;
+  cancelled_lessons: number;
+  attendance_rate: number | null;
+}
+
+export interface LessonHistoryItemDTO {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  status: LessonStatus;
+  attendance: LessonAttendance;
+}
+
+export interface LessonHistoryResponse {
+  student_id: string;
+  date_from: string;
+  date_to: string;
+  history: LessonHistoryItemDTO[];
+  aggregates: LessonHistoryAggregatesDTO;
+}
+
+export interface HomeworkStatisticsDTO {
+  assigned: number;
+  submitted: number;
+  reviewed: number;
+  late: number;
+  revision_required: number;
+  completion_rate: number | null;
+}
+
+export interface HomeworkStatisticsResponse {
+  student_id: string;
+  date_from: string;
+  date_to: string;
+  statistics: HomeworkStatisticsDTO;
+}
+
+export interface ReviewStatisticsDTO {
+  graded_homework: number;
+  average_grade: number | null;
+}
+
+export interface ProgressResponse {
+  student_id: string;
+  date_from: string;
+  date_to: string;
+  attendance: LessonHistoryAggregatesDTO;
+  homework: HomeworkStatisticsDTO;
+  reviews: ReviewStatisticsDTO;
+}
 

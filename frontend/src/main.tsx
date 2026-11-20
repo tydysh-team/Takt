@@ -5,8 +5,11 @@ import { RouterProvider } from "react-router-dom";
 
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { router } from "./routes/router";
+import { initTheme } from "./shared/theme";
 import "./shared/styles.css";
 import "./shared/application.css";
+
+initTheme();
 
 const queryClient = new QueryClient({
   defaultOptions: {

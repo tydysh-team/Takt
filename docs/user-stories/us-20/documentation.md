@@ -87,14 +87,44 @@ Response группирует метрики по объяснимым блок�
 
 ```json
 {
-  "attendance": {},
-  "homework": {},
-  "reviews": {},
-  "comparison": {}
+  "student_id": "00000000-0000-0000-0000-000000000001",
+  "date_from": "2030-01-01T00:00:00Z",
+  "date_to": "2030-02-01T00:00:00Z",
+  "attendance": {
+    "total_lessons": 12,
+    "completed_lessons": 10,
+    "attended_lessons": 7,
+    "missed_lessons": 2,
+    "unmarked_lessons": 1,
+    "cancelled_lessons": 1,
+    "attendance_rate": 77.78
+  },
+  "homework": {
+    "assigned": 10,
+    "submitted": 8,
+    "reviewed": 7,
+    "late": 2,
+    "revision_required": 3,
+    "completion_rate": 70.0
+  },
+  "reviews": {
+    "graded_homework": 6,
+    "average_grade": 82.5
+  }
 }
 ```
 
-Точный набор полей должен соответствовать реально отображаемым метрикам и не включать скрытый интегральный score.
+Обе границы — timezone-aware ISO 8601 datetime; период полуоткрытый
+`date_from <= timestamp < date_to`. Attendance использует `Lesson.starts_at`
+и расчёт US-18, Homework — `Homework.created_at` и расчёт US-19. Для Reviews
+используется та же когорта Homework: по последней Submission Attempt берётся
+сохранённый Review, только если его решение `accepted` и `grade` не равен `null`.
+`graded_homework` — число таких работ; `average_grade` — их средняя оценка,
+округлённая до двух знаков, или `null`, когда оценённых работ нет.
+
+`comparison` сейчас не возвращается: UI не требует его для Backend-контракта,
+а единая формула сравнения периодов не определена. Скрытый интегральный score
+не используется.
 
 ## 9. Частично отсутствующие данные
 

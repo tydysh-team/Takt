@@ -3,9 +3,9 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { DashboardPage } from "../pages/DashboardPage";
 import { HomePage } from "../pages/HomePage";
+import { HomeworkPage } from "../pages/HomeworkPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
-import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { SchedulePage } from "../pages/SchedulePage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { RegisterPage } from "../pages/RegisterPage";
@@ -13,6 +13,7 @@ import { StudentDetailPage } from "../pages/StudentDetailPage";
 import { StudentsPage } from "../pages/StudentsPage";
 import { TeacherDetailPage } from "../pages/TeacherDetailPage";
 import { TeachersPage } from "../pages/TeachersPage";
+import { StudentProgressPage } from "../features/progress/StudentProgressPage";
 import { RoleGate, SessionGate } from "./guards";
 import { LegacyTeacherProfileRedirect } from "./LegacyTeacherProfileRedirect";
 
@@ -31,22 +32,19 @@ export const router = createBrowserRouter([
   {
     element: <SessionGate />,
     children: [
-      { element: <AppShell />, children: [
-        { path: "/profile", element: <ProfilePage /> },
-        { path: "/profile/security", element: <ProfilePage /> },
-        { path: "/profile/security/password", element: <ProfilePage /> },
-        { path: "/profile/security/2fa", element: <ProfilePage /> },
-      ] },
-      {
-        element: <RoleGate allowed={["TEACHER", "STUDENT"]} />,
+      { element: <AppShell />,
         children: [
+          { path: "/profile", element: <ProfilePage /> },
+          { path: "/profile/security", element: <ProfilePage /> },
+          { path: "/profile/security/password", element: <ProfilePage /> },
+          { path: "/profile/security/2fa", element: <ProfilePage /> },
           {
-            element: <AppShell />,
+            element: <RoleGate allowed={["TEACHER", "STUDENT"]} />,
             children: [
               { path: "/dashboard", element: <DashboardPage /> },
               { path: "/schedule", element: <SchedulePage /> },
               { path: "/teacher-profile", element: <Navigate to="/profile" replace /> },
-              { path: "/homework", element: <PlaceholderPage /> },
+              { path: "/homework", element: <HomeworkPage /> },
               {
                 element: <RoleGate allowed={["TEACHER"]} />,
                 children: [
@@ -60,6 +58,7 @@ export const router = createBrowserRouter([
                   { path: "/teachers", element: <TeachersPage /> },
                   { path: "/teachers/:id", element: <TeacherDetailPage /> },
                   { path: "/teacher-profile/:id", element: <LegacyTeacherProfileRedirect /> },
+                  { path: "/progress", element: <StudentProgressPage /> },
                 ],
               },
               { path: "*", element: <NotFoundPage /> },

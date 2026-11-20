@@ -52,7 +52,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=resolved_settings.cors_origin_strings,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", resolved_settings.csrf_header_name],
+        allow_headers=[
+            "Authorization", "Content-Type", "Idempotency-Key", resolved_settings.csrf_header_name
+        ],
         allow_private_network=resolved_settings.allow_private_network_cors,
     )
     application.add_middleware(
