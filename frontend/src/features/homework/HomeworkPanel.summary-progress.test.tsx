@@ -34,12 +34,13 @@ function render(role: "TEACHER" | "STUDENT", items: Homework[], assigned = 0, re
   const client = new QueryClient();
   const page: HomeworkPage = { items, total: items.length, limit: 20, offset: 0 };
   client.setQueryData(queryKeys.homework(role, undefined, 0), page);
-  client.setQueryData(queryKeys.pendingSubmissions(0), { items: [], total: pending, limit: 20, offset: 0 });
-  client.setQueryData(queryKeys.homework("STUDENT", undefined, 0, { status: "assigned" }), {
-    items: [], total: assigned, limit: 20, offset: 0,
+  client.setQueryData(queryKeys.pendingSubmissions(0), { items: [], total: pending, limit: 5, offset: 0 });
+  const counterLimit = 1;
+  client.setQueryData(queryKeys.homework("STUDENT", undefined, 0, { status: "assigned", limit: counterLimit }), {
+    items: [], total: assigned, limit: counterLimit, offset: 0,
   });
-  client.setQueryData(queryKeys.homework("STUDENT", undefined, 0, { status: "needs_revision" }), {
-    items: [], total: revision, limit: 20, offset: 0,
+  client.setQueryData(queryKeys.homework("STUDENT", undefined, 0, { status: "needs_revision", limit: counterLimit }), {
+    items: [], total: revision, limit: counterLimit, offset: 0,
   });
   client.setQueryData(queryKeys.profile, {
     first_name: "Иван",

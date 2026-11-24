@@ -1059,8 +1059,7 @@ a { color: var(--brand); }
 .homework-panel .homework-history__review { padding: .65rem; border: 1px solid var(--line); border-radius: .7rem; }
 .homework-panel .homework-no-results { padding: .5rem; }
 .homework-panel .homework-pagination { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .8rem .7rem .25rem; color: var(--muted); font-size: .78rem; }
-.homework-panel--embedded .homework-layout { grid-template-columns: 1fr; }
-@media (max-width: 1200px) {
+.homework-panel--embedded .homework-layout { grid-template-columns: 1fr; }@media (max-width: 1200px) {
   .homework-panel .homework-filter-row { display: flex; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
   .homework-panel .homework-filter { flex: 1 1 210px; width: auto; min-width: 210px; }
   .homework-panel .assignment-table__head { display: none; }
@@ -1076,8 +1075,7 @@ a { color: var(--brand); }
 @media (max-width: 520px) {
   .homework-panel .homework-filter { flex-basis: 100%; width: 100%; min-width: 0; }
   .homework-panel .homework-pagination { flex-wrap: wrap; justify-content: center; }
-  .homework-panel .homework-pagination span { order: -1; width: 100%; text-align: center; }
-  .homework-panel .homework-attachment .button { width: 100%; }
+  .homework-panel .homework-pagination span { order: -1; width: 100%; text-align: center; }  .homework-panel .homework-attachment .button { width: 100%; }
   .homework-panel .homework-attachment__download { flex: 0 0 auto; }
   .homework-panel .assignment-status { grid-column: 2 / -1; grid-row: 4; }
   .homework-panel .selected-assignment__title { flex-wrap: wrap; }
@@ -1151,6 +1149,10 @@ a { color: var(--brand); }
 .homework-panel .homework-list-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1rem; }
 .homework-panel .homework-list-footer .homework-pagination { flex: 1 1 auto; padding: 0; }
 .homework-panel .homework-list-footer .homework-pagination .button { min-height: 38px; padding: .45rem .8rem; border-radius: .65rem; font-size: .8rem; }
+.homework-panel .homework-list-footer .homework-pagination-ui { flex: 1 1 auto; padding: 0; }
+.homework-panel .homework-range { color: var(--homework-muted); font-size: .74rem; white-space: nowrap; }
+.homework-panel .homework-pagination__nav { justify-content: flex-end; }
+.homework-panel .homework-pagination__nav .homework-pagination__last { display: none; }
 .homework-panel .homework-open-button { display: inline-flex; align-items: center; gap: .5rem; min-height: 42px; padding: .55rem 1rem; border: 1px solid var(--homework-line); border-radius: .7rem; color: var(--homework-brand); background: #fff; box-shadow: 0 1px 2px rgb(20 30 23 / 4%); font-size: .85rem; font-weight: 700; cursor: pointer; transition: border-color 140ms ease, background 140ms ease; }
 .homework-panel .homework-open-button:hover { border-color: var(--line-strong); background: var(--hover-surface); }
 .homework-panel .homework-open-button span { font-size: 1rem; }
@@ -1183,6 +1185,12 @@ a { color: var(--brand); }
   .homework-panel .homework-list-footer { flex-direction: column; align-items: stretch; }
   .homework-panel .homework-list-footer .homework-pagination { flex-wrap: wrap; justify-content: center; }
   .homework-panel .homework-list-footer .homework-pagination span { width: 100%; order: -1; text-align: center; }
+  .homework-panel .homework-pagination-ui { flex-direction: column; align-items: stretch; gap: .5rem; }
+  .homework-panel .homework-page-size { justify-content: space-between; }
+  .homework-panel .homework-page-status { justify-content: center; text-align: center; }
+  .homework-panel .homework-pagination__nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .homework-panel .homework-pagination__nav .button { width: 100%; }
+  .homework-panel .homework-pagination__nav .homework-pagination__last { display: inline-flex; grid-column: 1 / -1; justify-content: center; }
   .homework-panel .homework-open-button { justify-content: center; width: 100%; }
 }
 
@@ -1297,6 +1305,22 @@ a { color: var(--brand); }
 .homework-panel .homework-queue__item--active .homework-queue__arrow { color: var(--brand); }
 .homework-panel .homework-queue__pagination { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .85rem .6rem .1rem; color: var(--muted); font-size: .78rem; }
 .homework-panel .homework-queue__pagination .button { min-height: 36px; padding: .4rem .75rem; border-radius: .6rem; font-size: .78rem; }
+.homework-panel .homework-pagination-ui { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem .9rem; min-width: 0; color: var(--homework-muted); font-size: .78rem; }
+.homework-panel .homework-pagination-ui:not(.homework-queue__pagination) { justify-content: space-between; }
+.homework-panel .homework-page-size { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; }
+.homework-panel .homework-page-size__label { color: var(--homework-muted); font-size: .76rem; font-weight: 600; white-space: nowrap; }
+.homework-panel .homework-page-size__options { display: inline-flex; gap: .2rem; padding: .18rem; border: 1px solid var(--homework-line); border-radius: .65rem; background: var(--surface); }
+.homework-panel .homework-page-size__option { min-width: 34px; min-height: 28px; padding: .2rem .45rem; border: 0; border-radius: .45rem; color: var(--homework-ink); background: transparent; font-size: .76rem; font-weight: 700; cursor: pointer; transition: color 140ms ease, background 140ms ease; }
+.homework-panel .homework-page-size__option:hover:not(:disabled) { background: var(--brand-soft); }
+.homework-panel .homework-page-size__option[aria-pressed="true"] { color: #fff; background: var(--brand); }
+.homework-panel .homework-page-size__option:disabled { color: var(--muted); cursor: not-allowed; }
+.homework-panel .homework-page-size__option[aria-pressed="true"]:disabled { color: #fff; background: var(--brand); opacity: .7; }
+.homework-panel .homework-page-status { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .5rem; min-width: 0; }
+.homework-panel .homework-page-status__pages { color: var(--homework-ink); font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.homework-panel .homework-page-status__total { color: var(--homework-muted); font-size: .74rem; white-space: nowrap; }
+.homework-panel .homework-pagination__nav { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.homework-panel .homework-pagination__nav .button { min-width: 0; border-radius: .65rem; font-size: .78rem; }
+.homework-panel .homework-pagination__nav .button:disabled { opacity: .55; cursor: not-allowed; }
 .homework-panel .homework-queue__detail { min-width: 0; }
 .homework-panel .homework-queue__detail-card { padding: 1.2rem; border-color: #dfe8e1; border-radius: 1rem; background: linear-gradient(160deg, #f2f9f4, #e7f2ea); box-shadow: 0 8px 24px rgb(30 65 42 / 5%); }
 .homework-panel .homework-queue__detail-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--muted); font-size: .78rem; font-weight: 700; }
@@ -1331,6 +1355,7 @@ a { color: var(--brand); }
   .homework-panel .homework-queue__detail-card { padding: .95rem; }
   .homework-panel .homework-queue__pagination { flex-wrap: wrap; justify-content: center; }
   .homework-panel .homework-queue__pagination span { width: 100%; order: -1; text-align: center; }
+  .homework-panel .homework-pagination__nav { justify-content: center; }
 }
 
 /* Epic 3 progress and statistics. */
@@ -1644,6 +1669,10 @@ a { color: var(--brand); }
 [data-theme="dark"] .mfa-status { color: var(--brand-dark); }
 [data-theme="dark"] .homework-panel .homework-list-row .assignment-check { border-color: #4a6153; }
 [data-theme="dark"] .homework-panel .homework-list-row--selected .assignment-check { border-color: var(--homework-brand); }
+[data-theme="dark"] .homework-panel .homework-page-size__options { border-color: var(--homework-line); background: #101812; }
+[data-theme="dark"] .homework-panel .homework-page-size__option { color: var(--ink); }
+[data-theme="dark"] .homework-panel .homework-page-size__option:hover:not(:disabled) { background: var(--brand-soft); }
+[data-theme="dark"] .homework-panel .homework-page-size__option[aria-pressed="true"] { color: #fff; background: var(--brand); }
 
 /* Dark theme canvas: deep green with a subtle geometric lattice.
    Pure CSS gradients: no images, no filters, no animation, no scroll listeners. */
