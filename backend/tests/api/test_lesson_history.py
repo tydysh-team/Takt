@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.security import TokenService
 from app.models.enums import AttendanceValue, RelationStatus, RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -100,13 +100,17 @@ async def test_history_returns_current_states_and_consistent_aggregates(
         learner: User = student,
     ) -> Lesson:
         return Lesson(
+            participants=[
+                LessonParticipant(
+                    student_id=learner.id,
+                    attendance=attendance,
+                    attendance_updated_at=now if attendance is not None else None,
+                )
+            ],
             teacher_id=owner.id,
-            student_id=learner.id,
             title=title,
             starts_at=starts_at,
             duration_minutes=60,
-            attendance=attendance,
-            attendance_updated_at=now if attendance is not None else None,
             cancelled_at=now - timedelta(days=1) if cancelled else None,
         )
 
@@ -247,8 +251,8 @@ async def test_history_period_is_half_open_and_timezone_aware(
     ]
     lessons = [
         Lesson(
+            participants=[LessonParticipant(student_id=student.id)],
             teacher_id=teacher.id,
-            student_id=student.id,
             title=f"Boundary {index}",
             starts_at=start,
             duration_minutes=120 if index == 0 else 60,
@@ -340,8 +344,10 @@ async def test_empty_history_has_zero_counts_and_null_rate(
     }
 
 
+@pytest.mark.parametrize("lesson_count", [1, 100])
 async def test_history_query_count_is_constant_for_typical_volume(
     api_context: ApiTestContext,
+    lesson_count: int,
 ) -> None:
     teacher, token = await actor(api_context, RoleCode.TEACHER)
     student, _ = await actor(api_context, RoleCode.STUDENT)
@@ -350,13 +356,13 @@ async def test_history_query_count_is_constant_for_typical_volume(
     api_context.session.add_all(
         [
             Lesson(
+                participants=[LessonParticipant(student_id=student.id)],
                 teacher_id=teacher.id,
-                student_id=student.id,
                 title=f"History {index}",
                 starts_at=start + timedelta(days=index),
                 duration_minutes=60,
             )
-            for index in range(100)
+            for index in range(lesson_count)
         ]
     )
     await api_context.session.commit()
@@ -371,7 +377,8 @@ async def test_history_query_count_is_constant_for_typical_volume(
         _executemany: bool,
     ) -> None:
         nonlocal statements
-        statements += 1
+        if _statement.lstrip().upper().startswith(("SELECT", "WITH")):
+            statements += 1
 
     bind = api_context.session.sync_session.get_bind()
     event.listen(bind, "before_cursor_execute", count_statement)
@@ -385,7 +392,8 @@ async def test_history_query_count_is_constant_for_typical_volume(
         event.remove(bind, "before_cursor_execute", count_statement)
 
     assert response.status_code == 200
-    assert len(response.json()["history"]) == 100
+    assert len(response.json()["history"]) == lesson_count
+    # Count data reads, excluding SAVEPOINTs from the rollback-only fixture.
     # Authentication/profile loading, ownership and history stay constant as rows grow.
     assert statements <= 5
 
@@ -401,8 +409,8 @@ async def test_history_uses_one_current_time_for_all_rows(
     api_context.session.add_all(
         [
             Lesson(
+                participants=[LessonParticipant(student_id=student.id)],
                 teacher_id=teacher.id,
-                student_id=student.id,
                 title=title,
                 starts_at=starts_at,
                 duration_minutes=60,

@@ -9,11 +9,11 @@ export function studentScheduleConflictMessage(error: unknown, timezone: string)
   if (!Array.isArray(conflicts)) return warning;
   const ranges = conflicts.flatMap((item): string[] => {
     if (!item || typeof item !== "object") return [];
-    const { starts_at, ends_at, series_number } = item as Record<string, unknown>;
+    const { starts_at, ends_at, series_number, student_name } = item as Record<string, unknown>;
     if (typeof starts_at !== "string" || typeof ends_at !== "string") return [];
     const duration = (Date.parse(ends_at) - Date.parse(starts_at)) / 60_000;
     if (!Number.isFinite(duration) || duration <= 0) return [];
-    const label = formatConflictRange(starts_at, duration, timezone);
+    const label = `${typeof student_name === "string" ? `${student_name}: ` : ""}${formatConflictRange(starts_at, duration, timezone)}`;
     return [typeof series_number === "number" && Number.isInteger(series_number)
       ? `Занятие №${String(series_number)}: ${label}` : label];
   });

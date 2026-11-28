@@ -176,6 +176,8 @@ async def test_duplicate_time_requires_confirmation(
     assert confirmed.status_code == 201
     assert await lesson_count(api_context) == 2
     assert first.json() == {
+        "student_ids": [student["id"]],
+        "participant_count": 1,
         "id": first.json()["id"],
         "teacher_id": teacher["id"],
         "student_id": student["id"],

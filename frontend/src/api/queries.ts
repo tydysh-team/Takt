@@ -139,10 +139,11 @@ export const api = {
       method: "POST",
       body: reason ? { reason } : {},
     }),
-  updateLessonAttendance: (id: string, attendance: "present" | "absent") =>
+  lesson: (id: string) => apiRequest<LessonReadDTO>(`/lessons/${id}`),
+  updateLessonAttendance: (id: string, attendance: "present" | "absent" | "not_set", studentId?: string) =>
     apiRequest<LessonReadDTO>(`/lessons/${id}/attendance`, {
       method: "PUT",
-      body: { attendance },
+      body: { attendance, ...(studentId ? { student_id: studentId } : {}) },
     }),
   student: (id: string) => apiRequest<StudentDetail>(`/students/${id}`),
   updateStudentNote: (id: string, note: string | null) =>

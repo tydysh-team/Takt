@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -11,6 +12,7 @@ from app.core.exceptions import (
     LessonNotCancellableError,
     LessonNotFoundError,
     LessonNotReschedulableError,
+    LessonParticipantInvalidError,
     LessonScheduleUnchangedError,
     LessonSeriesTimeInvalidError,
     LessonStartInPastError,
@@ -20,7 +22,7 @@ from app.core.exceptions import (
 )
 from app.core.security import utc_now
 from app.models.enums import AttendanceValue, LessonStatus, RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.user import User
 from app.repositories.lessons import (
     LessonAccessScope,
@@ -69,26 +71,14 @@ class LessonService:
     async def create(self, teacher: User, payload: LessonCreate) -> Lesson:
         try:
             await self._lock_teacher(teacher)
-            await self._lessons.lock_student_schedule(payload.student_id)
-            student = await self._relations.get_student(
-                teacher.id,
-                payload.student_id,
-                for_update=True,
-            )
-            if student is None:
-                raise StudentNotAvailableError()
+            await self._lock_participants(teacher.id, payload.participant_ids)
             now = utc_now()
             if payload.starts_at < now:
                 raise LessonStartInPastError()
 
-            student_conflicts = await self._lessons.find_student_conflicts(
-                payload.student_id,
-                teacher.id,
-                payload.starts_at,
-                payload.duration_minutes,
+            await self._check_students(
+                payload.participant_ids, teacher.id, payload.starts_at, payload.duration_minutes
             )
-            if student_conflicts:
-                raise self._student_conflict_error(student_conflicts)
 
             conflicts = await self._lessons.find_conflicts(
                 teacher.id,
@@ -100,7 +90,7 @@ class LessonService:
 
             lesson = Lesson(
                 teacher_id=teacher.id,
-                student_id=payload.student_id,
+                participants=[LessonParticipant(student_id=sid) for sid in payload.participant_ids],
                 title=payload.title,
                 description=payload.description,
                 starts_at=payload.starts_at,
@@ -116,19 +106,10 @@ class LessonService:
     async def create_series(self, teacher: User, payload: LessonSeriesCreate) -> list[Lesson]:
         try:
             locked_teacher = await self._lock_teacher(teacher)
-            await self._lessons.lock_student_schedule(payload.student_id)
-            student = await self._relations.get_student(
-                teacher.id,
-                payload.student_id,
-                for_update=True,
-            )
-            if student is None:
-                raise StudentNotAvailableError()
+            await self._lock_participants(teacher.id, payload.participant_ids)
 
             timezone_name = (
-                locked_teacher.profile.timezone
-                if locked_teacher.profile is not None
-                else None
+                locked_teacher.profile.timezone if locked_teacher.profile is not None else None
             )
             if timezone_name is None:
                 raise LessonSeriesTimeInvalidError(
@@ -149,15 +130,17 @@ class LessonService:
                 raise LessonStartInPastError()
 
             existing_conflicts: list[tuple[SeriesInterval, LessonConflictRecord]] = []
-            student_conflicts: list[tuple[SeriesInterval, tuple[datetime, datetime]]] = []
+            student_conflicts: list[dict[str, Any]] = []
             for interval in intervals:
-                hard_conflicts = await self._lessons.find_student_conflicts(
-                    payload.student_id,
-                    teacher.id,
-                    interval.starts_at,
-                    payload.duration_minutes,
+                student_conflicts.extend(
+                    await self._student_conflicts(
+                        payload.participant_ids,
+                        teacher.id,
+                        interval.starts_at,
+                        payload.duration_minutes,
+                        series_number=interval.index + 1,
+                    )
                 )
-                student_conflicts.extend((interval, conflict) for conflict in hard_conflicts)
                 conflicts = await self._lessons.find_conflicts(
                     teacher.id,
                     interval.starts_at,
@@ -165,7 +148,7 @@ class LessonService:
                 )
                 existing_conflicts.extend((interval, conflict) for conflict in conflicts)
             if student_conflicts:
-                raise self._student_conflict_error(student_conflicts)
+                raise StudentScheduleConflictError(context={"conflicts": student_conflicts})
             series_conflicts = find_series_overlaps(intervals)
             if (existing_conflicts or series_conflicts) and not payload.confirm_conflict:
                 raise self._series_conflict_error(existing_conflicts, series_conflicts)
@@ -173,7 +156,9 @@ class LessonService:
             lessons = [
                 Lesson(
                     teacher_id=teacher.id,
-                    student_id=payload.student_id,
+                    participants=[
+                        LessonParticipant(student_id=sid) for sid in payload.participant_ids
+                    ],
                     title=payload.title,
                     description=payload.description,
                     starts_at=interval.starts_at,
@@ -196,10 +181,11 @@ class LessonService:
     ) -> LessonRecord:
         try:
             await self._lock_teacher(teacher)
-            student_id = await self._lessons.get_teacher_lesson_student_id(teacher.id, lesson_id)
-            if student_id is None:
+            student_ids = await self._lessons.get_teacher_lesson_student_ids(teacher.id, lesson_id)
+            if not student_ids:
                 raise LessonNotFoundError()
-            await self._lessons.lock_student_schedule(student_id)
+            for student_id in sorted(student_ids):
+                await self._lessons.lock_student_schedule(student_id)
             record = await self._lessons.get_teacher_lesson_for_update(teacher.id, lesson_id)
             if record is None:
                 raise LessonNotFoundError()
@@ -213,15 +199,13 @@ class LessonService:
             if payload.starts_at == lesson.starts_at:
                 raise LessonScheduleUnchangedError()
 
-            student_conflicts = await self._lessons.find_student_conflicts(
-                lesson.student_id,
+            await self._check_students(
+                student_ids,
                 teacher.id,
                 payload.starts_at,
                 lesson.duration_minutes,
                 exclude_lesson_id=lesson.id,
             )
-            if student_conflicts:
-                raise self._student_conflict_error(student_conflicts)
 
             conflicts = await self._lessons.find_conflicts(
                 teacher.id,
@@ -248,6 +232,11 @@ class LessonService:
     ) -> LessonRecord:
         try:
             await self._lock_teacher(teacher)
+            student_ids = await self._lessons.get_teacher_lesson_student_ids(teacher.id, lesson_id)
+            if not student_ids:
+                raise LessonNotFoundError()
+            for student_id in sorted(student_ids):
+                await self._lessons.lock_student_schedule(student_id)
             record = await self._lessons.get_teacher_lesson_for_update(teacher.id, lesson_id)
             if record is None:
                 raise LessonNotFoundError()
@@ -291,14 +280,23 @@ class LessonService:
             ):
                 raise AttendanceNotAvailableError()
 
-            value = (
-                AttendanceValue.PRESENT
-                if payload.attendance == "present"
-                else AttendanceValue.ABSENT
+            participant = next(
+                (p for p in lesson.participants if p.student_id == payload.student_id), None
             )
-            if lesson.attendance != value:
-                lesson.attendance = value
-                lesson.attendance_updated_at = now
+            if payload.student_id is None and len(lesson.participants) == 1:
+                participant = lesson.participants[0]
+            if participant is None:
+                raise LessonParticipantInvalidError()
+            value = {
+                "present": AttendanceValue.PRESENT,
+                "absent": AttendanceValue.ABSENT,
+                "not_set": None,
+            }[payload.attendance]
+            if participant.attendance != value:
+                participant.attendance = value
+                participant.attendance_updated_at = now if value is not None else None
+            if value is None:
+                participant.attendance_updated_at = None
             await self._session.commit()
         except Exception:
             await self._session.rollback()
@@ -307,7 +305,11 @@ class LessonService:
 
     async def _lock_teacher(self, teacher: User) -> User:
         locked_teacher = await self._users.get_by_id(teacher.id, for_update=True)
-        if locked_teacher is None:
+        if (
+            locked_teacher is None
+            or locked_teacher.role != RoleCode.TEACHER
+            or not locked_teacher.is_active
+        ):
             raise ForbiddenError()
         return locked_teacher
 
@@ -320,35 +322,92 @@ class LessonService:
                 starts_at=record.lesson.starts_at,
                 ends_at=lesson_ends_at(record.lesson),
                 duration_minutes=record.lesson.duration_minutes,
-                student=StudentRefDTO(
-                    id=record.lesson.student_id,
-                    first_name=record.student_profile.first_name,
-                    last_name=record.student_profile.last_name,
-                    middle_name=record.student_profile.middle_name,
+                student=(
+                    StudentRefDTO(
+                        id=record.lesson.participants[0].student_id,
+                        first_name=record.lesson.participants[0].profile.first_name,
+                        last_name=record.lesson.participants[0].profile.last_name,
+                        middle_name=record.lesson.participants[0].profile.middle_name,
+                    )
+                    if len(record.lesson.participants) == 1
+                    else None
                 ),
+                participant_count=len(record.lesson.participants),
             ).model_dump(mode="json")
             for record in conflicts
         ]
         return LessonTimeConflictError(context={"conflicts": items})
 
-    @staticmethod
-    def _student_conflict_error(
-        conflicts: list[tuple[datetime, datetime]]
-        | list[tuple[SeriesInterval, tuple[datetime, datetime]]],
-    ) -> StudentScheduleConflictError:
-        items = []
-        for conflict in conflicts:
-            if isinstance(conflict[0], SeriesInterval):
-                interval, (starts_at, ends_at) = conflict
-                items.append({
-                    "series_number": interval.index + 1,
-                    "starts_at": starts_at.isoformat(),
-                    "ends_at": ends_at.isoformat(),
-                })
-            else:
-                starts_at, ends_at = conflict
-                items.append({"starts_at": starts_at.isoformat(), "ends_at": ends_at.isoformat()})
-        return StudentScheduleConflictError(context={"conflicts": items})
+    async def _lock_participants(self, teacher_id: UUID, student_ids: list[UUID]) -> None:
+        # Roles are exclusive. Keep the existing teacher -> students -> relations order;
+        # sort every student lock to serialize overlapping groups without deadlocks.
+        # Reject non-students before taking locks: a malformed request must never
+        # acquire another teacher row after locking its own teacher.
+        eligible = set(
+            (
+                await self._session.scalars(
+                    select(User.id).where(
+                        User.id.in_(student_ids),
+                        User.role == RoleCode.STUDENT,
+                    )
+                )
+            ).all()
+        )
+        if eligible != set(student_ids):
+            raise StudentNotAvailableError()
+        for student_id in sorted(student_ids):
+            await self._lessons.lock_student_schedule(student_id)
+        for student_id in sorted(student_ids):
+            if await self._relations.get_student(teacher_id, student_id, for_update=True) is None:
+                raise StudentNotAvailableError()
+
+    async def _student_conflicts(
+        self,
+        student_ids: list[UUID],
+        teacher_id: UUID,
+        starts_at: datetime,
+        duration: int,
+        *,
+        exclude_lesson_id: UUID | None = None,
+        series_number: int | None = None,
+    ) -> list[dict[str, Any]]:
+        conflicts = await self._lessons.find_participant_conflicts(
+            student_ids,
+            teacher_id,
+            starts_at,
+            duration,
+            exclude_lesson_id=exclude_lesson_id,
+        )
+        items = [
+            {
+                "student_id": str(sid),
+                "student_name": name,
+                "starts_at": start.isoformat(),
+                "ends_at": end.isoformat(),
+                **({"series_number": series_number} if series_number is not None else {}),
+            }
+            for sid, name, start, end in conflicts
+        ]
+        return items
+
+    async def _check_students(
+        self,
+        student_ids: list[UUID],
+        teacher_id: UUID,
+        starts_at: datetime,
+        duration: int,
+        *,
+        exclude_lesson_id: UUID | None = None,
+    ) -> None:
+        conflicts = await self._student_conflicts(
+            student_ids,
+            teacher_id,
+            starts_at,
+            duration,
+            exclude_lesson_id=exclude_lesson_id,
+        )
+        if conflicts:
+            raise StudentScheduleConflictError(context={"conflicts": conflicts})
 
     @classmethod
     def _series_conflict_error(
@@ -413,7 +472,7 @@ class LessonService:
             date_from=filters.date_from,
             date_to=filters.date_to,
         )
-        history = [lesson_to_history_item(lesson, now) for lesson in lessons]
+        history = [lesson_to_history_item(lesson, now, student_id) for lesson in lessons]
         return LessonHistoryResponse(
             student_id=student_id,
             date_from=filters.date_from,
@@ -423,7 +482,10 @@ class LessonService:
         )
 
     async def person_schedule(
-        self, user: User, person_id: UUID, filters: PersonScheduleRequest,
+        self,
+        user: User,
+        person_id: UUID,
+        filters: PersonScheduleRequest,
     ) -> tuple[list[LessonRecord], list[tuple[datetime, datetime]]]:
         if user.role == RoleCode.TEACHER:
             if await self._relations.get_student(user.id, person_id) is None:

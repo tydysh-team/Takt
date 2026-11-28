@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.security import TokenService, utc_now
 from app.models.enums import AttendanceValue, RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -71,13 +71,17 @@ async def store_lesson(
     rescheduled_at: datetime | None = None,
 ) -> Lesson:
     lesson = Lesson(
+        participants=[
+            LessonParticipant(
+                student_id=student_id,
+                attendance=attendance,
+                attendance_updated_at=attendance_updated_at,
+            )
+        ],
         teacher_id=teacher_id,
-        student_id=student_id,
         title="Attendance lesson",
         starts_at=starts_at,
         duration_minutes=60,
-        attendance=attendance,
-        attendance_updated_at=attendance_updated_at,
         cancelled_at=cancelled_at,
         rescheduled_at=rescheduled_at,
     )
@@ -163,11 +167,11 @@ async def test_attendance_changes_are_persisted_and_lesson_scoped(
     assert student_get.json()["attendance"] == requested
     searched_lesson = next(item for item in search.json() if item["id"] == str(lesson_id))
     assert searched_lesson["attendance"] == requested
-    assert lesson.attendance == AttendanceValue(requested.upper())
-    assert lesson.attendance_updated_at == now
+    assert lesson.participants[0].attendance == AttendanceValue(requested.upper())
+    assert lesson.participants[0].attendance_updated_at == now
     assert other.id == other_id
-    assert other.attendance is None
-    assert other.attendance_updated_at is None
+    assert other.participants[0].attendance is None
+    assert other.participants[0].attendance_updated_at is None
 
 
 @pytest.mark.parametrize("value", ["present", "absent"])
@@ -196,7 +200,7 @@ async def test_repeating_same_attendance_keeps_original_timestamp(
     await api_context.session.refresh(lesson)
     assert response.status_code == 200
     assert response.json()["attendance"] == value
-    assert lesson.attendance_updated_at == original_timestamp
+    assert lesson.participants[0].attendance_updated_at == original_timestamp
 
 
 @pytest.mark.parametrize(
@@ -229,12 +233,12 @@ async def test_attendance_lifecycle_boundaries(
     assert response.status_code == expected_http
     if expected_http == 200:
         assert response.json()["status"] == expected_status
-        assert lesson.attendance == AttendanceValue.PRESENT
-        assert lesson.attendance_updated_at == now
+        assert lesson.participants[0].attendance == AttendanceValue.PRESENT
+        assert lesson.participants[0].attendance_updated_at == now
     else:
         assert response.json()["error"]["code"] == "attendance_not_available"
-        assert lesson.attendance is None
-        assert lesson.attendance_updated_at is None
+        assert lesson.participants[0].attendance is None
+        assert lesson.participants[0].attendance_updated_at is None
 
 
 @pytest.mark.parametrize(
@@ -275,7 +279,7 @@ async def test_rescheduled_and_cancelled_lesson_use_current_lifecycle(
         assert response.json()["attendance"] == "absent"
     else:
         assert response.json()["error"]["code"] == "attendance_not_available"
-        assert lesson.attendance is None
+        assert lesson.participants[0].attendance is None
 
 
 async def test_attendance_private_not_found_and_role_access(api_context: ApiTestContext) -> None:
@@ -296,13 +300,12 @@ async def test_attendance_private_not_found_and_role_access(api_context: ApiTest
     assert foreign.json()["error"]["code"] == missing.json()["error"]["code"] == "lesson_not_found"
     assert student.status_code == 403
     assert anonymous.status_code == 401
-    assert lesson.attendance is None
+    assert lesson.participants[0].attendance is None
 
 
 @pytest.mark.parametrize(
     "body",
     [
-        {"attendance": "not_set"},
         {"attendance": "unknown"},
         {"attendance": None},
         {"attendance": "present", "teacher_id": str(uuid4())},
@@ -323,7 +326,7 @@ async def test_attendance_rejects_invalid_request(
     await api_context.session.refresh(lesson)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
-    assert lesson.attendance is None
+    assert lesson.participants[0].attendance is None
 
 
 async def test_attendance_rolls_back_on_commit_error(
@@ -349,5 +352,5 @@ async def test_attendance_rolls_back_on_commit_error(
     with pytest.raises(RuntimeError, match="Simulated commit failure"):
         await api_context.client.put(path, headers=auth(token), json={"attendance": "absent"})
     await api_context.session.refresh(lesson)
-    assert lesson.attendance == AttendanceValue.PRESENT
-    assert lesson.attendance_updated_at == original_timestamp
+    assert lesson.participants[0].attendance == AttendanceValue.PRESENT
+    assert lesson.participants[0].attendance_updated_at == original_timestamp

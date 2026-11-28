@@ -11,7 +11,7 @@ from sqlalchemy.inspection import inspect
 from app.core.config import get_settings
 from app.core.security import TokenService, utc_now
 from app.models.enums import AttendanceValue, RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -84,8 +84,8 @@ async def store_lesson(
     cancelled_at: datetime | None = None,
 ) -> Lesson:
     lesson = Lesson(
+        participants=[LessonParticipant(student_id=student.id)],
         teacher_id=teacher.id,
-        student_id=student.id,
         title="История",
         description="Тема",
         starts_at=starts_at,
@@ -203,6 +203,8 @@ async def test_other_teacher_student_conflict_is_hard_and_private(
         error = response.json()["error"]
         assert error["code"] == "student_schedule_conflict"
         assert error["context"] == {"conflicts": [{
+            "student_id": proposed["student_id"],
+            "student_name": "Student Example",
             "starts_at": start.isoformat(),
             "ends_at": (start + timedelta(hours=1)).isoformat(),
         }]}
@@ -328,11 +330,11 @@ async def test_reschedule_updates_only_schedule_and_is_visible_to_student(
     assert datetime.fromisoformat(student_get.json()["starts_at"]) == new_start
     assert lesson.rescheduled_at is not None
     assert lesson.teacher_id == teacher.id
-    assert lesson.student_id == student.id
+    assert lesson.participants[0].student_id == student.id
     assert lesson.title == "История"
     assert lesson.description == "Тема"
     assert lesson.duration_minutes == 60
-    assert lesson.attendance is None
+    assert lesson.participants[0].attendance is None
 
 
 async def test_reschedule_self_conflict_and_same_time(api_context: ApiTestContext) -> None:
@@ -533,8 +535,8 @@ async def test_cancel_planned_with_optional_reason(
     assert response.json()["cancellation_reason"] == expected_reason
     assert lesson.cancelled_at is not None
     assert lesson.cancellation_reason == expected_reason
-    assert lesson.attendance is None
-    assert lesson.attendance_updated_at is None
+    assert lesson.participants[0].attendance is None
+    assert lesson.participants[0].attendance_updated_at is None
 
 
 @pytest.mark.parametrize(
@@ -611,7 +613,7 @@ async def test_cancel_in_progress_preserves_attendance_and_is_idempotent(
         f"{path}/attendance", headers=auth(token), json={"attendance": "present"}
     )
     await api_context.session.refresh(lesson)
-    attendance_updated_at = lesson.attendance_updated_at
+    attendance_updated_at = lesson.participants[0].attendance_updated_at
     if body is None:
         response = await api_context.client.post(f"{path}/cancel", headers=auth(token))
     else:
@@ -639,9 +641,9 @@ async def test_cancel_in_progress_preserves_attendance_and_is_idempotent(
     assert cancelled_at is not None
     assert lesson.cancelled_at == cancelled_at
     assert lesson.cancellation_reason == expected_reason
-    assert lesson.attendance == AttendanceValue.PRESENT
+    assert lesson.participants[0].attendance == AttendanceValue.PRESENT
     assert attendance_updated_at is not None
-    assert lesson.attendance_updated_at == attendance_updated_at
+    assert lesson.participants[0].attendance_updated_at == attendance_updated_at
     assert blocked_attendance.status_code == 409
     assert blocked_attendance.json()["error"]["code"] == "attendance_not_available"
     assert student_get.json()["status"] == "cancelled"

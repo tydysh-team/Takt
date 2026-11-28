@@ -14,6 +14,7 @@ import { ApiError } from "../api/client";
 import type { CurrentUser, PersonScheduleItem } from "../api/types";
 import { AuthContext } from "../features/auth/auth-context";
 import { SchedulePage } from "./SchedulePage";
+import { ToastProvider } from "../components/ui/ToastProvider";
 
 const teacher: CurrentUser = {
   id: "teacher-current", email: "teacher@example.com", role: "TEACHER",
@@ -54,7 +55,7 @@ describe("selected person's calendar", () => {
         register: vi.fn(), logout: vi.fn(), endSession: vi.fn(), updateCurrentUser: vi.fn(),
       }}>
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter><SchedulePage viewedStudent={{ id: "student-selected", name: "Анна Петрова" }} /></MemoryRouter>
+          <MemoryRouter><ToastProvider><SchedulePage viewedStudent={{ id: "student-selected", name: "Анна Петрова" }} /></ToastProvider></MemoryRouter>
         </QueryClientProvider>
       </AuthContext.Provider>,
     );
@@ -84,7 +85,7 @@ describe("selected person's calendar", () => {
       status: "authenticated", user: teacher, login: vi.fn(), verifyMfaLogin: vi.fn(),
       register: vi.fn(), logout: vi.fn(), endSession: vi.fn(), updateCurrentUser: vi.fn(),
     }}><QueryClientProvider client={queryClient}>
-      <MemoryRouter><SchedulePage viewedStudent={{ id: "student-selected", name: "Анна Петрова" }} /></MemoryRouter>
+      <MemoryRouter><ToastProvider><SchedulePage viewedStudent={{ id: "student-selected", name: "Анна Петрова" }} /></ToastProvider></MemoryRouter>
     </QueryClientProvider></AuthContext.Provider>);
     expect(screen.getByText("Загружаем расписание…")).not.toBeNull();
     await waitFor(() => { expect(rejectRequest).toBeDefined(); });

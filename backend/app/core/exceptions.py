@@ -174,3 +174,8 @@ class RateLimitExceededError(DomainError):
     def __init__(self, *, retry_after: int) -> None:
         self.retry_after = retry_after
         super().__init__()
+
+
+class LessonParticipantInvalidError(DomainError):
+    code = "validation_error"
+    message = "Укажите участника занятия для изменения посещаемости."

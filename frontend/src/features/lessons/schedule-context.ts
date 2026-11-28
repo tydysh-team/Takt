@@ -54,14 +54,14 @@ export function filterLessonsForSchedule(
   viewerId?: string,
 ): LessonReadDTO[] {
   const roleScopedLessons = role === "STUDENT" && viewerId
-    ? lessons.filter((lesson) => lesson.student.id === viewerId)
+    ? lessons.filter((lesson) => lesson.student?.id === viewerId || (lesson.participant_count ?? 1) > 1)
     : lessons;
 
   if (role === "STUDENT" && context.teacher) {
     return roleScopedLessons.filter((lesson) => lesson.teacher.id === context.teacher?.id);
   }
   if (role === "TEACHER" && context.student) {
-    return roleScopedLessons.filter((lesson) => lesson.student.id === context.student?.id);
+    return roleScopedLessons.filter((lesson) => lesson.student?.id === context.student?.id || lesson.participants?.some((p) => "id" in p && p.id === context.student?.id));
   }
   return roleScopedLessons;
 }
