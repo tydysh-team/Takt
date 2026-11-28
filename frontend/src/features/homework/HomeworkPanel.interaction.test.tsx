@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,7 +22,7 @@ function setup(role: "STUDENT" | "TEACHER" = "STUDENT", item: Homework = assigne
   auth.role = role;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   client.setQueryData(queryKeys.homework(role, undefined, 0), {
-    items: [item], total: 1, limit: 20, offset: 0,
+    items: [item], total: 1, limit: 5, offset: 0,
   });
   client.setQueryData(queryKeys.homeworkDetail(role, item.id), item);
   client.setQueryData(queryKeys.profile, { timezone: "Europe/Samara" });
@@ -45,22 +45,29 @@ describe("homework submission interactions", () => {
       attachments: [], student_id: assigned.student_id, student_name: assigned.student_name,
       title: `Задание ${index.toString()}`, due_at: assigned.due_at, homework_status: "submitted",
     });
-    const firstPage = Array.from({ length: 20 }, (_, index) => makePending(index + 1));
+    // The queue defaults to five rows per page: 21 records = five pages of 5/5/5/5/1.
+    const firstPage = Array.from({ length: 5 }, (_, index) => makePending(index + 1));
+    const lastPage = Array.from({ length: 4 }, (_, index) => makePending(index + 17));
     const lastItem = makePending(21);
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: firstPage, total: 21, limit: 20, offset: 0 });
-    client.setQueryData(queryKeys.pendingSubmissions(20), { items: [lastItem], total: 21, limit: 20, offset: 20 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: firstPage, total: 21, limit: 5, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(5), { items: lastPage, total: 21, limit: 5, offset: 5 });
+    client.setQueryData(queryKeys.pendingSubmissions(10), { items: lastPage, total: 21, limit: 5, offset: 10 });
+    client.setQueryData(queryKeys.pendingSubmissions(15), { items: lastPage, total: 21, limit: 5, offset: 15 });
+    client.setQueryData(queryKeys.pendingSubmissions(20), { items: [lastItem], total: 21, limit: 5, offset: 20 });
     client.setQueryData(queryKeys.pendingSubmission(lastItem.id), lastItem);
 
     fireEvent.click(screen.getByRole("button", { name: "Ожидают проверки" }));
-    fireEvent.click(screen.getByRole("button", { name: "Далее" }));
+    fireEvent.click(screen.getByRole("button", { name: "Последняя" }));
     expect(await screen.findByRole("button", { name: /Просмотреть работу Задание 21/ })).toBeTruthy();
 
-    client.setQueryData(queryKeys.pendingSubmissions(20), { items: [], total: 20, limit: 20, offset: 20 });
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: firstPage, total: 20, limit: 20, offset: 0 });
+    // 21 becomes 20: page 5 no longer exists and the queue falls back to page 4 (offset 15).
+    client.setQueryData(queryKeys.pendingSubmissions(20), { items: [], total: 20, limit: 5, offset: 20 });
+    client.setQueryData(queryKeys.pendingSubmissions(15), { items: [makePending(20)], total: 20, limit: 5, offset: 15 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: firstPage, total: 20, limit: 5, offset: 0 });
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Просмотреть работу Задание 1 ученика/ })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Просмотреть работу Задание 20 ученика/ })).toBeTruthy();
       expect(screen.queryByText("Работ на проверку нет")).toBeNull();
-      expect(screen.queryByRole("button", { name: "Далее" })).toBeNull();
+      expect(screen.getByText("Страница 4 из 4")).toBeTruthy();
     });
   });
 
@@ -72,12 +79,12 @@ describe("homework submission interactions", () => {
       attachments: [], student_id: assigned.student_id, student_name: assigned.student_name,
       title: assigned.title, due_at: assigned.due_at, homework_status: "submitted",
     };
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 5, offset: 0 });
     client.setQueryData(queryKeys.pendingSubmission(pending.id), pending);
     fireEvent.click(screen.getByRole("button", { name: "Ожидают проверки" }));
     expect(screen.getByRole("button", { name: /Просмотреть работу Решить задачи/ })).toBeTruthy();
 
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [], total: 0, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [], total: 0, limit: 5, offset: 0 });
     expect(await screen.findByText("Работ на проверку нет")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Далее" })).toBeNull();
   });
@@ -93,7 +100,7 @@ describe("homework submission interactions", () => {
     };
     let complete: ((value: { homework: Homework; submission: NonNullable<Homework["latest_submission"]> }) => void) | undefined;
     const submit = vi.spyOn(api, "submitHomework").mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
-    vi.spyOn(api, "studentHomework").mockResolvedValue({ items: [submitted], total: 1, limit: 20, offset: 0 });
+    vi.spyOn(api, "studentHomework").mockResolvedValue({ items: [submitted], total: 1, limit: 5, offset: 0 });
     vi.spyOn(api, "homeworkDetail").mockResolvedValue(submitted);
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Сдать работу" }));
@@ -147,7 +154,7 @@ describe("homework submission interactions", () => {
       due_at: assigned.due_at, homework_status: "submitted",
     };
     const client = setup("TEACHER");
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 5, offset: 0 });
     client.setQueryData(queryKeys.pendingSubmission(pending.id), pending);
     const download = vi.spyOn(api, "downloadSubmissionAttachment").mockResolvedValue(new Blob(["Answer"]));
     URL.createObjectURL = vi.fn(() => "blob:test");
@@ -168,10 +175,10 @@ describe("homework submission interactions", () => {
       title: assigned.title, due_at: assigned.due_at, homework_status: "submitted",
     };
     const client = setup("TEACHER");
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 5, offset: 0 });
     client.setQueryData(queryKeys.pendingSubmission(pending.id), pending);
     client.setQueryData(queryKeys.homeworkHistory("TEACHER", assigned.id), [pending]);
-    vi.spyOn(api, "pendingSubmissions").mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+    vi.spyOn(api, "pendingSubmissions").mockResolvedValue({ items: [], total: 0, limit: 5, offset: 0 });
     const accept = vi.spyOn(api, "acceptSubmission").mockResolvedValue({
       ...pending, review: { id: "review-1", decision: "accepted", grade: 85,
         comment: "Верно", reviewed_at: "2030-01-02T12:00:00Z" },
@@ -197,10 +204,10 @@ describe("homework submission interactions", () => {
       title: assigned.title, due_at: assigned.due_at, homework_status: "submitted",
     };
     const client = setup("TEACHER");
-    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 20, offset: 0 });
+    client.setQueryData(queryKeys.pendingSubmissions(0), { items: [pending], total: 1, limit: 5, offset: 0 });
     client.setQueryData(queryKeys.pendingSubmission(pending.id), pending);
     client.setQueryData(queryKeys.homeworkHistory("TEACHER", assigned.id), [pending]);
-    vi.spyOn(api, "pendingSubmissions").mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+    vi.spyOn(api, "pendingSubmissions").mockResolvedValue({ items: [], total: 0, limit: 5, offset: 0 });
     const revision = vi.spyOn(api, "returnSubmission").mockResolvedValue({
       ...pending, review: { id: "review-3", decision: "needs_revision", grade: null,
         comment: "Исправьте пункт 2", reviewed_at: "2030-01-02T12:00:00Z" },
@@ -246,7 +253,7 @@ describe("homework submission interactions", () => {
 
   it("updates an assigned overdue badge when the absolute deadline passes", async () => {
     const soon: Homework = { ...assigned, due_at: new Date(Date.now() + 150).toISOString() };
-    vi.spyOn(api, "studentHomework").mockResolvedValue({ items: [soon], total: 1, limit: 20, offset: 0 });
+    vi.spyOn(api, "studentHomework").mockResolvedValue({ items: [soon], total: 1, limit: 5, offset: 0 });
     vi.spyOn(api, "homeworkDetail").mockResolvedValue(soon);
     setup("STUDENT", soon);
     expect(screen.getAllByText("Назначено").length).toBeGreaterThan(0);

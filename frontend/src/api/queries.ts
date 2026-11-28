@@ -33,8 +33,16 @@ function periodQuery(period: ProgressPeriod): string {
   return `date_from=${encodeURIComponent(period.date_from)}&date_to=${encodeURIComponent(period.date_to)}`;
 }
 
-function homeworkQuery(offset: number, personKey: string, personId?: string, filters: HomeworkFilters = {}): string {
-  const params = new URLSearchParams({ limit: "20", offset: offset.toString() });
+export const HOMEWORK_PAGE_SIZES = [5, 10, 20] as const;
+export type HomeworkPageSize = (typeof HOMEWORK_PAGE_SIZES)[number];
+export const DEFAULT_HOMEWORK_PAGE_SIZE: HomeworkPageSize = 5;
+
+export function isHomeworkPageSize(value: number): value is HomeworkPageSize {
+  return (HOMEWORK_PAGE_SIZES as readonly number[]).includes(value);
+}
+
+function homeworkQuery(offset: number, limit: number, personKey: string, personId?: string, filters: HomeworkFilters = {}): string {
+  const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
   if (personId) params.set(personKey, personId);
   if (filters.search) params.set("search", filters.search);
   if (filters.status) params.set("status", filters.status);
@@ -56,10 +64,19 @@ export const queryKeys = {
   nextLesson: ["lessons", "next"] as const,
   personSchedule: (role: string, id: string, dateFrom: string, dateTo: string) =>
     ["lessons", "person", role, id, dateFrom, dateTo] as const,
-  homework: (role: string, personId: string | undefined, offset: number, filters: HomeworkFilters = {}) =>
-    ["homework", role, personId ?? "all", offset, filters.search ?? "", filters.status ?? "", filters.date_from ?? "", filters.date_to ?? ""] as const,
+  homework: (
+    role: string,
+    personId: string | undefined,
+    offset: number,
+    filters: HomeworkFilters & { limit?: number } = {},
+  ) =>
+    [
+      "homework", role, personId ?? "all", offset, filters.search ?? "", filters.status ?? "",
+      filters.date_from ?? "", filters.date_to ?? "", filters.limit ?? DEFAULT_HOMEWORK_PAGE_SIZE,
+    ] as const,
   homeworkDetail: (role: string, id: string) => ["homework", role, id] as const,
-  pendingSubmissions: (offset: number, studentId?: string) => ["homework", "pending", offset, studentId ?? "all"] as const,
+  pendingSubmissions: (offset: number, studentId?: string, limit: number = DEFAULT_HOMEWORK_PAGE_SIZE) =>
+    ["homework", "pending", offset, studentId ?? "all", limit] as const,
   pendingSubmission: (id: string) => ["homework", "pending", id] as const,
   homeworkHistory: (role: string, id: string) => ["homework", "history", role, id] as const,
   progress: (role: "TEACHER" | "STUDENT", studentId: string | undefined, dateFrom: string, dateTo: string) =>
@@ -71,10 +88,10 @@ export const queryKeys = {
 };
 
 export const api = {
-  teacherHomework: (studentId?: string, offset = 0, filters: HomeworkFilters = {}) =>
-    apiRequest<HomeworkPage>(`/homework?${homeworkQuery(offset, "student_id", studentId, filters)}`),
-  studentHomework: (teacherId?: string, offset = 0, filters: HomeworkFilters = {}) =>
-    apiRequest<HomeworkPage>(`/students/me/homework?${homeworkQuery(offset, "teacher_id", teacherId, filters)}`),
+  teacherHomework: (studentId?: string, offset = 0, filters: HomeworkFilters = {}, limit: number = DEFAULT_HOMEWORK_PAGE_SIZE) =>
+    apiRequest<HomeworkPage>(`/homework?${homeworkQuery(offset, limit, "student_id", studentId, filters)}`),
+  studentHomework: (teacherId?: string, offset = 0, filters: HomeworkFilters = {}, limit: number = DEFAULT_HOMEWORK_PAGE_SIZE) =>
+    apiRequest<HomeworkPage>(`/students/me/homework?${homeworkQuery(offset, limit, "teacher_id", teacherId, filters)}`),
   homeworkDetail: (id: string, role: "TEACHER" | "STUDENT") =>
     apiRequest<Homework>(role === "TEACHER" ? `/homework/${id}` : `/students/me/homework/${id}`),
   createHomework: (data: FormData, idempotencyKey: string) =>
@@ -85,8 +102,8 @@ export const api = {
     apiRequest<HomeworkSubmissionResult>(`/homework/${homeworkId}/submissions`, {
       method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey },
     }),
-  pendingSubmissions: (offset = 0, studentId?: string) =>
-    apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?${homeworkQuery(offset, "student_id", studentId)}`),
+  pendingSubmissions: (offset = 0, studentId?: string, limit: number = DEFAULT_HOMEWORK_PAGE_SIZE) =>
+    apiRequest<PendingSubmissionPage>(`/teachers/me/homework/submissions/pending?${homeworkQuery(offset, limit, "student_id", studentId)}`),
   pendingSubmission: (id: string) =>
     apiRequest<PendingSubmission>(`/teachers/me/homework/submissions/${id}`),
   acceptSubmission: (id: string, payload: { grade: number; comment: string }) =>

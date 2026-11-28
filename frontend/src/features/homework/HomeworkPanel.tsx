@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 
 import { readableError } from "../../api/client";
 import { invalidateHomeworkRelated } from "../../api/invalidation";
-import { api, queryKeys } from "../../api/queries";
+import { api, HOMEWORK_PAGE_SIZES, queryKeys } from "../../api/queries";
 import type { Homework, HomeworkAttachment, HomeworkFilters, HomeworkStatus, HomeworkSubmission, ProgressPeriod } from "../../api/types";
 import { PageHeader } from "../../components/PageHeader";
 import { useAuth } from "../auth/auth-context";
@@ -17,6 +17,7 @@ import { Dialog } from "../../components/ui/Dialog";
 import { Input, Select, Textarea } from "../../components/ui/FormField";
 import { formSchema, submissionSchema, reviewSchema, revisionSchema, type FormValues, type SubmissionValues, type ReviewValues, type RevisionValues } from "./homework-schema";
 import { formatPeriodLabel } from "../progress/progress-format";
+import { clampPage, clampOffset, pageCount, useHomeworkPagination, type HomeworkPagination } from "./use-homework-pagination";
 
 const allowedExtensions = [".pdf", ".docx", ".txt", ".png", ".jpg", ".jpeg"];
 const homeworkRefreshOptions = {
@@ -108,6 +109,48 @@ function listDueLabel(value: string, timezone: string): string {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: timezone,
   }).format(new Date(value)).replace(/\./g, "");
+}
+
+interface HomeworkPaginatorProps {
+  pagination: HomeworkPagination;
+  total: number;
+  label: string;
+  className?: string;
+  disabled?: boolean;
+  onPageChange?: () => void;
+}
+
+function HomeworkPaginator({ pagination, total, label, className = "", disabled = false, onPageChange }: HomeworkPaginatorProps) {
+  const { page, pageSize, setPageSize, setPage, nextPage, previousPage } = pagination;
+  const pages = pageCount(total, pageSize);
+  const currentPage = clampPage(page, total, pageSize);
+  const firstOnPage = total === 0 ? 0 : currentPage * pageSize + 1;
+  const lastOnPage = Math.min(total, (currentPage + 1) * pageSize);
+  const atLastPage = currentPage >= pages - 1;
+  const goTo = (target: number) => {
+    if (target === page) return;
+    setPage(target);
+    onPageChange?.();
+  };
+  const hasControls = total > pageSize;
+  return <div className={`homework-pagination-ui${className ? ` ${className}` : ""}`} role="group" aria-label={label}>
+    <div className="homework-page-size">
+      <span className="homework-page-size__label" id={`${label}-size`}>Показывать по:</span>
+      <div className="homework-page-size__options" role="group" aria-labelledby={`${label}-size`}>
+        {HOMEWORK_PAGE_SIZES.map((size) => <button key={size} type="button" className="homework-page-size__option" aria-pressed={size === pageSize} disabled={disabled} onClick={() => { if (size === pageSize) return; setPageSize(size); onPageChange?.(); }}>{size}</button>)}
+      </div>
+    </div>
+    <div className="homework-page-status">
+      <span className="homework-page-status__pages" role="status" aria-live="polite">Страница {currentPage + 1} из {pages}</span>
+      {total > 0 && hasControls ? <span className="homework-range">{firstOnPage}–{lastOnPage} из {total}</span> : null}
+      <span className="homework-page-status__total">Всего {total} {total === 1 ? "задание" : "заданий"}</span>
+    </div>
+    <div className="homework-pagination__nav">
+      <Button type="button" variant="secondary" disabled={disabled || currentPage === 0} onClick={() => { previousPage(); onPageChange?.(); }}>Предыдущая</Button>
+      <Button type="button" variant="secondary" disabled={disabled || atLastPage} onClick={() => { nextPage(); onPageChange?.(); }}>Следующая</Button>
+      <Button type="button" variant="secondary" className="homework-pagination__last" disabled={disabled || atLastPage} onClick={() => { goTo(pages - 1); }}>Последняя</Button>
+    </div>
+  </div>;
 }
 
 function AttachmentLink({ attachment, downloadFile }: { attachment: HomeworkAttachment; downloadFile: () => Promise<Blob> }) {
@@ -355,22 +398,24 @@ function HomeworkDetailView({ homeworkId, role, timezone, now, onBack }: { homew
 }
 
 function PendingQueue({ timezone }: { timezone: string }) {
-  const [offset, setOffset] = useState(0);
+  const pagination = useHomeworkPagination();
+  const { offset, pageSize } = pagination;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewAction, setReviewAction] = useState<{ id: string; studentId: string; mode: "accepted" | "revision" } | null>(null);
-  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset), queryFn: () => api.pendingSubmissions(offset), placeholderData: (previousData) => previousData?.items.length ? previousData : undefined, ...homeworkRefreshOptions });
+  const list = useQuery({ queryKey: queryKeys.pendingSubmissions(offset, undefined, pageSize), queryFn: () => api.pendingSubmissions(offset, undefined, pageSize), placeholderData: (previousData) => previousData?.items.length ? previousData : undefined, ...homeworkRefreshOptions });
   const total = list.data?.total ?? 0;
-  const limit = list.data?.limit ?? 20;
-  const lastOffset = total > 0 ? Math.floor((total - 1) / limit) * limit : 0;
+  const limit = pageSize;
+  const lastOffset = (pageCount(total, limit) - 1) * limit;
   const pageExpired = Boolean(list.data) && offset > lastOffset;
+  const { setPage } = pagination;
   useEffect(() => {
     if (!pageExpired) return;
     const timer = window.setTimeout(() => {
       setSelectedId(null);
-      setOffset(lastOffset);
+      setPage(Math.floor(lastOffset / limit));
     }, 0);
     return () => { window.clearTimeout(timer); };
-  }, [pageExpired, lastOffset]);
+  }, [pageExpired, lastOffset, limit, setPage]);
   const items = [...(list.data?.items ?? [])].sort((left, right) => {
     const bySubmitted = Date.parse(right.submitted_at) - Date.parse(left.submitted_at);
     return bySubmitted !== 0 ? bySubmitted : right.id.localeCompare(left.id);
@@ -424,11 +469,7 @@ function PendingQueue({ timezone }: { timezone: string }) {
           </button>;
         })}
       </div>
-      {total > limit ? <div className="homework-queue__pagination">
-        <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - limit)); setSelectedId(null); }}>Назад</Button>
-        <span>{offset + 1}–{Math.min(offset + limit, total)} из {total}</span>
-        <Button type="button" variant="secondary" disabled={offset + limit >= total} onClick={() => { setOffset(offset + limit); setSelectedId(null); }}>Далее</Button>
-      </div> : null}
+      <HomeworkPaginator pagination={pagination} total={total} label="Пагинация очереди проверки" className="homework-queue__pagination" disabled={list.isPlaceholderData} onPageChange={() => { setSelectedId(null); }} />
     </Card>
     {selected ? <aside className="homework-queue__detail"><Card className="homework-queue__detail-card">
       {detail.isLoading ? <LoadingState label="Загружаем работу…" /> : detail.isError && !detail.data ? <ErrorState message={readableError(detail.error)} onRetry={() => void detail.refetch()} /> : detail.data ? <>
@@ -466,7 +507,9 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
   const profile = useQuery({ queryKey: queryKeys.profile, queryFn: api.profile });
   const timezone = profile.data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const role = user?.role === "TEACHER" ? "TEACHER" : "STUDENT";
-  const [offset, setOffset] = useState(0);
+  const pagination = useHomeworkPagination();
+  const { offset, pageSize } = pagination;
+  const { reset: resetPage } = pagination;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [submitAction, setSubmitAction] = useState<{ id: string; revision: boolean } | null>(null);
@@ -478,11 +521,14 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
   const [statusFilter, setStatusFilter] = useState<HomeworkStatus | "">("");
   const [now, setNow] = useState(() => Date.now());
   const periodKey = [period?.date_from, period?.date_to].join("|");
-  useEffect(() => {
-    setOffset(0);
+  // Adjust state during render instead of in an effect: a new period starts from the first page.
+  const [lastPeriodKey, setLastPeriodKey] = useState(periodKey);
+  if (lastPeriodKey !== periodKey) {
+    setLastPeriodKey(periodKey);
     setSelectedId(null);
     setDetailId(null);
-  }, [periodKey]);
+    resetPage();
+  }
   useEffect(() => {
     const timer = window.setTimeout(() => { setDebouncedSearch(search.trim()); }, 250);
     return () => { window.clearTimeout(timer); };
@@ -493,43 +539,58 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
     ...(period ? { date_from: period.date_from, date_to: period.date_to } : {}),
   };
   const list = useQuery({
-    queryKey: queryKeys.homework(role, personId, offset, filters),
-    queryFn: () => role === "TEACHER" ? api.teacherHomework(personId, offset, filters) : api.studentHomework(personId, offset, filters),
+    queryKey: queryKeys.homework(role, personId, offset, { ...filters, limit: pageSize }),
+    queryFn: () => role === "TEACHER" ? api.teacherHomework(personId, offset, filters, pageSize) : api.studentHomework(personId, offset, filters, pageSize),
     enabled: !showPending,
+    // Keep the previous page visible while the next one loads unless the query scope itself changed.
     placeholderData: (previousData, previousQuery) => {
       const previousKey = previousQuery?.queryKey;
-      return previousKey?.[1] === role
-        && previousKey?.[2] === (personId ?? "all")
-        && previousKey?.[6] === (period?.date_from ?? "")
-        && previousKey?.[7] === (period?.date_to ?? "")
+      if (!previousKey) return undefined;
+      return previousKey[1] === role
+        && previousKey[2] === (personId ?? "all")
+        && previousKey[6] === (period?.date_from ?? "")
+        && previousKey[7] === (period?.date_to ?? "")
         ? previousData : undefined;
     },
     ...homeworkRefreshOptions,
   });
+  const total = list.data?.total ?? 0;
+  const { setPage } = pagination;
+  // A shorter page size or a shrinking list can leave the offset past the end.
+  const clampedOffset = list.data ? clampOffset(offset, total, pageSize) : offset;
+  const listPageExpired = list.data !== undefined && clampedOffset !== offset;
+  useEffect(() => {
+    if (!listPageExpired) return;
+    const timer = window.setTimeout(() => {
+      setSelectedId(null);
+      setPage(Math.floor(clampedOffset / pageSize));
+    }, 0);
+    return () => { window.clearTimeout(timer); };
+  }, [listPageExpired, clampedOffset, pageSize, setPage]);
   const pendingCount = useQuery({
     queryKey: queryKeys.pendingSubmissions(0, personId),
     queryFn: () => api.pendingSubmissions(0, personId),
     enabled: role === "TEACHER",
     ...homeworkRefreshOptions,
   });
+  const counterLimit = 1;
   const assignedCount = useQuery({
-    queryKey: queryKeys.homework("STUDENT", personId, 0, { status: "assigned" }),
-    queryFn: () => api.studentHomework(personId, 0, { status: "assigned" }),
+    queryKey: queryKeys.homework("STUDENT", personId, 0, { status: "assigned", limit: counterLimit }),
+    queryFn: () => api.studentHomework(personId, 0, { status: "assigned" }, counterLimit),
     enabled: role === "STUDENT",
     ...homeworkRefreshOptions,
   });
   const revisionCount = useQuery({
-    queryKey: queryKeys.homework("STUDENT", personId, 0, { status: "needs_revision" }),
-    queryFn: () => api.studentHomework(personId, 0, { status: "needs_revision" }),
+    queryKey: queryKeys.homework("STUDENT", personId, 0, { status: "needs_revision", limit: counterLimit }),
+    queryFn: () => api.studentHomework(personId, 0, { status: "needs_revision" }, counterLimit),
     enabled: role === "STUDENT",
     ...homeworkRefreshOptions,
   });
   const visibleItems = list.data?.items ?? [];
   const listUpdating = search.trim() !== debouncedSearch || list.isPlaceholderData;
-  useEffect(() => {
-    if (list.isPlaceholderData || !list.data || !selectedId) return;
-    if (!list.data.items.some((item) => item.id === selectedId)) setSelectedId(null);
-  }, [list.data, list.isPlaceholderData, selectedId]);
+  const selectionStale = !list.isPlaceholderData && selectedId !== null
+    && visibleItems.length > 0 && !visibleItems.some((item) => item.id === selectedId);
+  if (selectionStale) setSelectedId(null);
   const selected = visibleItems.find((item) => item.id === selectedId) ?? visibleItems[0];
   const detail = useQuery({
     queryKey: queryKeys.homeworkDetail(role, selected?.id ?? ""),
@@ -583,11 +644,11 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.2-3.2" />
         </svg>
-        <input className="input homework-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); setOffset(0); setSelectedId(null); }} placeholder="Поиск по заданиям" aria-label="Поиск по всем доступным заданиям" />
+        <input className="input homework-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); setSelectedId(null); }} placeholder="Поиск по заданиям" aria-label="Поиск по всем доступным заданиям" />
       </div> : null}
       <div className="homework-filter-row">
         {!showPending ? <span className="homework-filter-wrap">
-          <select className="input homework-filter" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as HomeworkStatus | ""); setOffset(0); setSelectedId(null); }} aria-label="Фильтр статуса всех доступных заданий">
+          <select className="input homework-filter" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as HomeworkStatus | ""); resetPage(); setSelectedId(null); }} aria-label="Фильтр статуса всех доступных заданий">
             <option value="">Все статусы</option>
             <option value="assigned">Назначено</option>
             <option value="submitted">На проверке</option>
@@ -596,7 +657,7 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
           </select>
           <svg className="homework-filter-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
         </span> : null}
-        {role === "TEACHER" && !personId ? <Button type="button" variant="secondary" className="homework-queue-toggle" aria-pressed={showPending} onClick={() => { setShowPending((value) => !value); }}>{showPending ? "Все задания" : "Ожидают проверки"}</Button> : null}
+        {role === "TEACHER" && !personId ? <Button type="button" variant="secondary" className="homework-queue-toggle" aria-pressed={showPending} onClick={() => { setShowPending((value) => !value); setSelectedId(null); }}>{showPending ? "Все задания" : "Ожидают проверки"}</Button> : null}
         {role === "TEACHER" ? <Button className="homework-create-button" aria-label="Назначить ДЗ" onClick={() => { setCreateOpen(true); }}><span aria-hidden="true">+</span><span>Назначить ДЗ</span></Button> : null}
       </div>
     </div>
@@ -643,12 +704,8 @@ function HomeworkPanelInner({ personId, period }: { personId?: string; period?: 
               <span className={`badge assignment-status assignment-status--${listStatusModifier(item, now)}`}>{statusText(item, now)}</span>
               <span className="homework-row-arrow" aria-hidden="true" title="Прокрутить к деталям задания" onClick={(event) => { event.stopPropagation(); if (selected?.id !== item.id) { setSelectedId(item.id); } window.requestAnimationFrame(scrollToDetails); }}>›</span>
             </button>)}
-            {visibleItems.length || (list.data && list.data.total > list.data.limit) ? <div className="homework-list-footer">
-              {list.data && list.data.total > list.data.limit ? <div className="homework-pagination">
-                <Button type="button" variant="secondary" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - 20)); }}>Назад</Button>
-                <span>{offset + 1}–{Math.min(offset + 20, list.data.total)} из {list.data.total}</span>
-                <Button type="button" variant="secondary" disabled={offset + 20 >= list.data.total} onClick={() => { setOffset(offset + 20); }}>Далее</Button>
-              </div> : <span />}
+            {total > 0 || visibleItems.length ? <div className="homework-list-footer">
+              {total > 0 ? <HomeworkPaginator pagination={pagination} total={total} label="Пагинация домашних заданий" className="homework-pagination" disabled={list.isPlaceholderData} onPageChange={() => { setSelectedId(null); }} /> : <span />}
               {visibleItems.length ? <button className="homework-open-button" type="button" onClick={() => { const target = selected ?? visibleItems[0]; if (target) openDetails(target); }}>Открыть задание <span aria-hidden="true">→</span></button> : null}
             </div> : null}
           </Card>
