@@ -5,6 +5,8 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+
+from conftest import require_test_database_url
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -13,7 +15,7 @@ from app.core.security import TokenService, utc_now
 from app.db.session import get_db_session
 from app.main import app
 from app.models.enums import RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -24,9 +26,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.postgresql]
 
 @pytest.mark.parametrize("competitor", ["series", "single"])
 async def test_concurrent_series_writes_are_serialized(competitor: str) -> None:
-    database_url = get_settings().test_database_url
-    if database_url is None:
-        raise RuntimeError("TEST_DATABASE_URL must point to a migrated PostgreSQL test database")
+    database_url = require_test_database_url()
 
     engine = create_async_engine(database_url, pool_pre_ping=True)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
@@ -150,9 +150,7 @@ async def test_concurrent_series_writes_are_serialized(competitor: str) -> None:
 
 
 async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -> None:
-    database_url = get_settings().test_database_url
-    if database_url is None:
-        raise RuntimeError("TEST_DATABASE_URL must point to a migrated PostgreSQL test database")
+    database_url = require_test_database_url()
 
     engine = create_async_engine(database_url, pool_pre_ping=True)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
@@ -276,9 +274,7 @@ async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -
 
 
 async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
-    database_url = get_settings().test_database_url
-    if database_url is None:
-        raise RuntimeError("TEST_DATABASE_URL must point to a migrated PostgreSQL test database")
+    database_url = require_test_database_url()
 
     engine = create_async_engine(database_url, pool_pre_ping=True)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
@@ -352,7 +348,7 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
             assert rejected.json()["error"]["code"] == "student_schedule_conflict"
             async with sessions() as verify:
                 count = await verify.scalar(select(func.count()).select_from(Lesson).where(
-                    Lesson.student_id == student_id,
+                    Lesson.participants.any(LessonParticipant.student_id == student_id),
                 ))
                 assert count == 1
         finally:
@@ -360,7 +356,7 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
     finally:
         if student_id is not None and teacher_ids:
             async with sessions() as cleanup:
-                await cleanup.execute(delete(Lesson).where(Lesson.student_id == student_id))
+                await cleanup.execute(delete(Lesson).where(Lesson.participants.any(LessonParticipant.student_id == student_id)))
                 await cleanup.execute(delete(TeacherStudentRelation).where(
                     TeacherStudentRelation.student_id == student_id,
                 ))

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.security import TokenService, utc_now
 from app.models.enums import AttendanceValue, RelationStatus, RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -77,17 +77,19 @@ async def test_teacher_and_student_see_shared_lessons_and_private_busy_intervals
     await connect(api_context, teacher, other_student)
     start = utc_now() + timedelta(days=28)
     shared = Lesson(
-        teacher_id=teacher.id, student_id=student.id, title="Shared lesson",
+        participants=[LessonParticipant(student_id=student.id)],
+        teacher_id=teacher.id, title="Shared lesson",
         description="Shared description", starts_at=start, duration_minutes=60,
     )
     foreign_student = Lesson(
-        teacher_id=other_teacher.id, student_id=student.id, title="Private foreign title",
+        participants=[LessonParticipant(student_id=student.id, attendance=AttendanceValue.PRESENT, attendance_updated_at=utc_now())],
+        teacher_id=other_teacher.id, title="Private foreign title",
         description="Private foreign notes", starts_at=start + timedelta(minutes=30),
-        duration_minutes=60, attendance=AttendanceValue.PRESENT,
-        attendance_updated_at=utc_now(),
+        duration_minutes=60,
     )
     foreign_teacher = Lesson(
-        teacher_id=teacher.id, student_id=other_student.id, title="Other student's title",
+        participants=[LessonParticipant(student_id=other_student.id)],
+        teacher_id=teacher.id, title="Other student's title",
         description="Other student's notes", starts_at=start + timedelta(minutes=15),
         duration_minutes=60,
     )
@@ -114,7 +116,7 @@ async def test_teacher_and_student_see_shared_lessons_and_private_busy_intervals
         assert datetime.fromisoformat(busy["starts_at"]) == foreign.starts_at
         assert datetime.fromisoformat(busy["ends_at"]) == foreign.starts_at + timedelta(hours=1)
         assert str(foreign.id) not in response.text
-        third_party_id = foreign.teacher_id if foreign is foreign_student else foreign.student_id
+        third_party_id = foreign.teacher_id if foreign is foreign_student else foreign.participants[0].student_id
         assert str(third_party_id) not in response.text
         assert foreign.title not in response.text
         assert foreign.description not in response.text
@@ -154,15 +156,18 @@ async def test_busy_excludes_cancelled_and_past_but_shared_history_remains(
     start = utc_now() - timedelta(days=2)
     api_context.session.add_all([
         Lesson(
-            teacher_id=teacher.id, student_id=student.id, title="Shared past",
+            participants=[LessonParticipant(student_id=student.id)],
+            teacher_id=teacher.id, title="Shared past",
             starts_at=start, duration_minutes=60,
         ),
         Lesson(
-            teacher_id=other_teacher.id, student_id=student.id, title="Foreign past",
+            participants=[LessonParticipant(student_id=student.id)],
+            teacher_id=other_teacher.id, title="Foreign past",
             starts_at=start, duration_minutes=60,
         ),
         Lesson(
-            teacher_id=other_teacher.id, student_id=student.id, title="Foreign cancelled",
+            participants=[LessonParticipant(student_id=student.id)],
+            teacher_id=other_teacher.id, title="Foreign cancelled",
             starts_at=utc_now() + timedelta(hours=1), duration_minutes=60,
             cancelled_at=utc_now(),
         ),
@@ -187,7 +192,8 @@ async def test_busy_week_boundaries_and_overlaps_are_preserved(
     start = utc_now() + timedelta(days=21)
     api_context.session.add_all([
         Lesson(
-            teacher_id=other_teacher.id, student_id=student.id, title=f"Foreign {index}",
+            participants=[LessonParticipant(student_id=student.id)],
+            teacher_id=other_teacher.id, title=f"Foreign {index}",
             starts_at=start + timedelta(minutes=offset), duration_minutes=60,
         )
         for index, offset in enumerate((0, 30, 90))

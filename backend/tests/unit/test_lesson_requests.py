@@ -95,3 +95,21 @@ def test_series_defaults_conflict_confirmation_and_forbids_owner() -> None:
                 "teacher_id": uuid4(),
             }
         )
+
+
+@pytest.mark.parametrize("request_type", [LessonCreate, LessonSeriesCreate])
+def test_participant_list_validation_and_legacy_compatibility(request_type) -> None:
+    fields = lesson_fields()
+    if request_type is LessonSeriesCreate:
+        fields.update(recurrence="weekly", count=3)
+    legacy = request_type.model_validate(fields)
+    assert legacy.participant_ids == [fields["student_id"]]
+    fields.pop("student_id")
+    ids = [uuid4(), uuid4()]
+    assert request_type.model_validate({**fields, "student_ids": ids}).participant_ids == ids
+    assert request_type.model_validate({**fields, "student_ids": ids[:1]}).participant_ids == ids[:1]
+    for invalid in [{}, {"student_ids": []}, {"student_ids": [ids[0], ids[0]]},
+                    {"student_id": ids[0], "student_ids": ids},
+                    {"student_id": None, "student_ids": ids}, {"student_ids": None}]:
+        with pytest.raises(ValidationError):
+            request_type.model_validate({**fields, **invalid})

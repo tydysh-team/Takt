@@ -12,6 +12,7 @@ import { Dialog } from "../components/ui/Dialog";
 import { Drawer } from "../components/ui/Drawer";
 import { Alert, ErrorState, LoadingState } from "../components/ui/Feedback";
 import { useAuth } from "../features/auth/auth-context";
+import { LessonParticipants, participantIds, groupLabel } from "../features/lessons/LessonParticipants";
 import { LessonCreateForm, type StudentPickerState } from "../features/lessons/LessonCreateForm";
 import { lessonActions } from "../features/lessons/lesson-actions";
 import { describeSeriesConflicts, findLessonConflicts, formatConflictRange, seriesConflictCandidates } from "../features/lessons/conflict-check";
@@ -99,11 +100,13 @@ function WarningIcon() {
   return <svg className="conflict-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.8 20h18.4L12 3Z" /><path d="M12 9.2v4.6M12 17.1v.1" /></svg>;
 }
 
-function personName(person: { first_name: string; last_name: string; middle_name: string | null }) {
+function personName(person: { first_name: string; last_name: string; middle_name: string | null } | null) {
+  if (!person) return "";
   return person.first_name + " " + person.last_name;
 }
 
-function personFullName(person: { first_name: string; last_name: string; middle_name: string | null }) {
+function personFullName(person: { first_name: string; last_name: string; middle_name: string | null } | null) {
+  if (!person) return "";
   return [person.last_name, person.first_name, person.middle_name].filter(Boolean).join(" ");
 }
 
@@ -175,7 +178,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   // US-08: temporary attendance application state
-  const [attendanceApplying, setAttendanceApplying] = useState<"present" | "absent" | null>(null);
+  const [attendanceApplying, setAttendanceApplying] = useState<"present" | "absent" | "not_set" | null>(null);
 
   // US-09: series conflict confirmation (instead of hard-block)
   const [seriesConflict, setSeriesConflict] = useState<SeriesConflictState | null>(null);
@@ -246,7 +249,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     try {
       if (formPayload.recurrence) {
         const basePayload = {
-          student_id: formPayload.student_id,
+          ...(formPayload.student_ids ? { student_ids: formPayload.student_ids } : { student_id: formPayload.student_id! }),
           title: formPayload.title,
           ...(formPayload.description !== undefined ? { description: formPayload.description } : {}),
           starts_at: formPayload.starts_at,
@@ -262,7 +265,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
           await api.createLessonSeries(payload);
           setCreateOpen(false);
           setCreateSuccess(true);
-          await invalidateLessonRelated(queryClient, "TEACHER", formPayload.student_id);
+          await invalidateLessonRelated(queryClient, "TEACHER", formPayload.student_ids ?? formPayload.student_id);
         } catch (error) {
           const seriesConflicts = seriesConflictItems(error);
           if (seriesConflicts.length && !confirm_conflict) {
@@ -273,7 +276,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         await api.createLesson({ ...formPayload, confirm_conflict });
         setCreateOpen(false);
         setCreateSuccess(true);
-        await invalidateLessonRelated(queryClient, "TEACHER", formPayload.student_id);
+        await invalidateLessonRelated(queryClient, "TEACHER", formPayload.student_ids ?? formPayload.student_id);
       }
     } catch (error) {
       const studentConflict = studentScheduleConflictMessage(error, timezone);
@@ -325,7 +328,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         setRescheduleConflict(null);
         setRescheduleState(null);
         setSelectedCalendarLessonId(null);
-        await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", lesson.student.id);
+        await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", participantIds(lesson));
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           void queryClient.invalidateQueries({ queryKey: ["lessons"] });
@@ -362,7 +365,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       setCancelReason("");
       setCancelError(null);
       setSelectedCalendarLessonId(null);
-      await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", target.student.id);
+      await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", participantIds(target));
     }).catch((error: unknown) => {
       setCancelError(readableError(error));
       if (error instanceof ApiError && error.status === 409) {
@@ -373,11 +376,11 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     });
   }
 
-  function applyAttendance(lesson: LessonReadDTO, attendance: "present" | "absent") {
+  function applyAttendance(lesson: LessonReadDTO, attendance: "present" | "absent" | "not_set", studentId?: string) {
     setAttendanceApplying(attendance);
-    void api.updateLessonAttendance(lesson.id, attendance)
+    void api.updateLessonAttendance(lesson.id, attendance, studentId)
       .then(async () => {
-        await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", lesson.student.id);
+        await invalidateLessonRelated(queryClient, isTeacher ? "TEACHER" : "STUDENT", studentId ?? participantIds(lesson));
       })
       .catch((error: unknown) => {
         setConflictCheckError(readableError(error));
@@ -412,7 +415,13 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const visibleLessons = useMemo(() => displayedItems
     .filter((lesson) => localDate(lesson.starts_at, timezone) === selectedDate)
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.id.localeCompare(b.id)), [displayedItems, selectedDate, timezone]);
-  const selectedCalendarLesson = displayedItems.find((lesson): lesson is LessonReadDTO & { type: "lesson" } => lesson.type === "lesson" && lesson.id === selectedCalendarLessonId) ?? null;
+  const selectedSummary = displayedItems.find((lesson): lesson is LessonReadDTO & { type: "lesson" } => lesson.type === "lesson" && lesson.id === selectedCalendarLessonId) ?? null;
+  const lessonDetails = useQuery({
+    queryKey: ["lessons", "detail", selectedCalendarLessonId],
+    queryFn: () => api.lesson(selectedCalendarLessonId!),
+    enabled: Boolean(selectedCalendarLessonId && (selectedSummary?.participant_count ?? 1) > 1),
+  });
+  const selectedCalendarLesson = lessonDetails.data?.id === selectedCalendarLessonId ? lessonDetails.data : selectedSummary;
   const selectedLessonHasConflict = selectedCalendarLesson && lessonStatus(selectedCalendarLesson) !== "cancelled"
     ? findLessonConflicts({ startsAt: selectedCalendarLesson.starts_at, durationMinutes: selectedCalendarLesson.duration_minutes }, displayedItems.filter((lesson) => localDate(lesson.starts_at, timezone) === localDate(selectedCalendarLesson.starts_at, timezone) && scheduleItemStatus(lesson) !== "cancelled").map((lesson) => ({ id: lesson.id, title: scheduleItemTitle(lesson), startsAt: lesson.starts_at, durationMinutes: lesson.duration_minutes })), selectedCalendarLesson.id).length > 0
     : false;
@@ -465,7 +474,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       <PageHeader eyebrow="Расписание" title={presentation.title} description={presentation.description} action={presentation.showPersonalScheduleLink ? <Link className="back-link schedule-context-link" to="/schedule">К моему расписанию</Link> : undefined} />
       <div className="schedule-summary-grid">
         <Card className="summary-card"><span>Занятий на неделе</span><strong>{scheduledLessonCount}</strong><small>{selectedPerson ? "в расписании выбранного человека" : isTeacher ? "запланировано вами" : "в вашем расписании"}</small></Card>
-        <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError && !nextLessonQuery.data ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? nextLesson.type === "busy" ? "Занят" : `${nextLesson.title} — ${personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
+        <Card className="summary-card summary-card--accent"><span>Ближайшее занятие</span><strong>{nextLessonQuery.isLoading ? "Загружаем…" : nextLessonQuery.isError && !nextLessonQuery.data ? "Не удалось загрузить" : nextLesson ? formatLessonDateTime(nextLesson.starts_at, timezone) : "Нет занятий"}</strong><small>{nextLessonQuery.isError ? <button className="summary-card__retry" type="button" onClick={() => { void nextLessonQuery.refetch(); }}>Повторить</button> : nextLesson ? nextLesson.type === "busy" ? "Занят" : `${nextLesson.title} — ${isTeacher && (nextLesson.participant_count ?? 1) > 1 ? groupLabel(nextLesson) : personName(isTeacher ? nextLesson.student : nextLesson.teacher)}` : "Пока занятий нет"}</small></Card>
       </div>
     </div>
     {createSuccess ? <Alert>Занятие успешно создано.</Alert> : null}
@@ -580,7 +589,8 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
         <strong>{first.title}</strong>
         {cancelled ? <em className="schedule-event__cancelled-tag">Отменено</em> : null}
       </span>
-      <span>{personName(isTeacher ? first.student : first.teacher)}</span>
+      <span>{isTeacher && (first.participant_count ?? 1) > 1 ? groupLabel(first) : personName(isTeacher ? first.student : first.teacher)}</span>
+      {!isTeacher && (first.participant_count ?? 1) > 1 ? <small>Групповое занятие</small> : null}
       <span className="schedule-event__foot"><small>{range}</small></span>
       {cancelled ? null : <small className="schedule-status-label">{statusLabels[lessonStatus(first)]}</small>}
       <span className="schedule-card-help" aria-hidden="true">?</span>
@@ -595,7 +605,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
   const overlapping = overlappingLessonIds.has(lesson.id);
   return <article role="button" tabIndex={0} title="Нажмите, чтобы открыть описание занятия" aria-label={`${lesson.title}. Статус: ${statusLabels[lessonStatus(lesson)]}. Показать детали`} className={`lesson-card lesson-card--${subjectTone(lesson.title)} lesson-card--status-${lessonStatus(lesson)}${overlapping ? " lesson-card--overlap" : ""}${cancelled ? " lesson-card--cancelled" : ""}`} key={lesson.id} onClick={() => { setSelectedCalendarLessonId(lesson.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCalendarLessonId(lesson.id); } }}>
     <time>{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</time>
-    <div><strong>{lesson.title}</strong><span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span></div>
+    <div><strong>{lesson.title}</strong><span>{isTeacher ? (lesson.participant_count ?? 1) > 1 ? groupLabel(lesson) : `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}${(lesson.participant_count ?? 1) > 1 ? " · Групповое занятие" : ""}`}</span></div>
     {cancelled ? <small className="lesson-cancelled-badge">Отменено</small> : overlapping ? <small className="lesson-overlap-badge">Пересечение</small> : <small className="schedule-status-label">{statusLabels[lessonStatus(lesson)]}</small>}
     <span className="schedule-card-help" aria-hidden="true">?</span>
   </article>;
@@ -605,20 +615,27 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
     <Dialog open={Boolean(selectedCalendarLesson)} title={selectedCalendarLesson?.title ?? "Детали занятия"} description="Подробная информация о занятии" onClose={() => { setSelectedCalendarLessonId(null); }}>
       {selectedCalendarLesson ? <div className="selected-lesson-details" aria-live="polite">
       <dl>
-        <div><dt>Ученик</dt><dd>{personFullName(selectedCalendarLesson.student)}</dd></div>
+        {(selectedCalendarLesson.participant_count ?? 1) === 1 ? <div><dt>Ученик</dt><dd>{personFullName(selectedCalendarLesson.student)}</dd></div> : null}
         <div><dt>Преподаватель</dt><dd>{personFullName(selectedCalendarLesson.teacher)}</dd></div>
         <div><dt>Название</dt><dd>{selectedCalendarLesson.title}</dd></div>
+        {(selectedCalendarLesson.participant_count ?? 1) > 1 ? <div><dt>Длительность</dt><dd>{selectedCalendarLesson.duration_minutes} минут</dd></div> : null}
         <div><dt>Время</dt><dd>{formatLessonDateTime(selectedCalendarLesson.starts_at, timezone)} — {formatLessonTime(selectedCalendarLesson.starts_at, selectedCalendarLesson.duration_minutes, timezone).split(" — ")[1]}</dd></div>
         {selectedLessonHasConflict ? <div><dt>Расписание</dt><dd><span className="lesson-overlap-badge">Пересекается с другим занятием</span></dd></div> : null}
         <div><dt>Статус</dt><dd>{selectedStatus === null ? "Статус неизвестен" : statusLabels[selectedStatus]}</dd></div>
-        <div><dt>Посещение</dt><dd>{lessonAttendanceLabel(selectedCalendarLesson)}</dd></div>
+        {!isTeacher || (selectedCalendarLesson.participant_count ?? 1) === 1 ? <div><dt>Посещение</dt><dd>{lessonAttendanceLabel(selectedCalendarLesson)}</dd></div> : null}
         {selectedCalendarLesson.is_rescheduled ? <div><dt>Изменения</dt><dd>Перенесено</dd></div> : null}
         {selectedCalendarLesson.cancellation_reason ? <div><dt>Причина отмены</dt><dd>{selectedCalendarLesson.cancellation_reason}</dd></div> : null}
       </dl>
       {selectedCalendarLesson.description ? <section className="selected-lesson-details__description"><h3>Описание</h3><p>{selectedCalendarLesson.description}</p></section> : null}
 
+      {(selectedCalendarLesson.participant_count ?? 1) > 1 ? <>
+        {lessonDetails.isLoading ? <LoadingState /> : null}
+        {lessonDetails.isError ? <Alert tone="error">Не удалось загрузить участников. <button type="button" onClick={() => { void lessonDetails.refetch(); }}>Повторить</button></Alert> : null}
+        <LessonParticipants lesson={selectedCalendarLesson} isTeacher={isTeacher} canUpdate={selectedActions.canUpdateAttendance} pending={attendanceApplying !== null} onAttendance={(value, id) => { applyAttendance(selectedCalendarLesson, value, id); }} />
+      </> : null}
+
       {/* US-08: attendance — доступна только для in_progress и completed (Teacher) */}
-      {selectedActions.canUpdateAttendance ? (
+      {selectedActions.canUpdateAttendance && (selectedCalendarLesson.participant_count ?? 1) === 1 ? (
         <div className="selected-lesson-details__actions">
           <button
             className="button button--secondary"
@@ -636,6 +653,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
           >
             Отсутствовал
           </button>
+          <button className="button button--secondary" type="button" disabled={attendanceApplying !== null} onClick={() => { applyAttendance(selectedCalendarLesson, "not_set"); }}>Не отмечено</button>
         </div>
       ) : null}
 
@@ -699,7 +717,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
               <span className="conflict-drawer__time">{formatLessonTime(lesson.starts_at, lesson.duration_minutes, timezone)}</span>
               <span className="conflict-drawer__body">
                 <strong>{lesson.title}</strong>
-                <span>{isTeacher ? `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}`}</span>
+                <span>{isTeacher ? (lesson.participant_count ?? 1) > 1 ? groupLabel(lesson) : `Ученик: ${personName(lesson.student)}` : `Преподаватель: ${personName(lesson.teacher)}${(lesson.participant_count ?? 1) > 1 ? " · Групповое занятие" : ""}`}</span>
               </span>
               <span className={`conflict-drawer__status conflict-drawer__status--${status}`}>{statusLabels[status]}</span>
               <span className="conflict-drawer__arrow" aria-hidden="true">→</span>
@@ -777,6 +795,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
             onChange={(e) => { setRescheduleError(null); setRescheduleConflict(null); setRescheduleState((s) => s ? { ...s, time: e.target.value } : s); }}
           />
         </div>
+        {(rescheduleState?.lesson.participant_count ?? 1) > 1 ? <p>Занятие будет перенесено для всех участников.</p> : null}
         {rescheduleError ? <p className="form-field__error" role="alert">{rescheduleError}</p> : null}
         <div className="dialog__actions">
           <button className="button button--secondary" type="button" disabled={rescheduleApplying} onClick={() => { setRescheduleState(null); setRescheduleError(null); }}>Отмена</button>
@@ -811,6 +830,7 @@ export function SchedulePage({ viewedTeacher, viewedStudent }: SchedulePageProps
       onClose={() => { if (!cancelApplying) { setCancelTarget(null); setCancelReason(""); setCancelError(null); } }}
     >
       <div className="conflict-warning-content">
+        {(cancelTarget?.participant_count ?? 1) > 1 ? <p>Занятие будет отменено для всех участников.</p> : null}
         <p>Занятие будет отменено. Это действие нельзя будет отменить автоматически. Запись занятия сохранится.</p>
         {cancelError ? <Alert tone="error">{cancelError}</Alert> : null}
         <div className="form-field">

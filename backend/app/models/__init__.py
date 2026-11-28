@@ -2,7 +2,7 @@
 
 from app.models.enums import RelationStatus, RoleCode
 from app.models.homework import Homework, HomeworkAttachment, HomeworkReview, HomeworkSubmission
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.mfa import MfaBackupCode, MfaChallenge, UserTotp
 from app.models.profile import Profile
 from app.models.refresh_session import RefreshSession
@@ -13,6 +13,7 @@ from app.models.user import User
 
 __all__ = [
     "Lesson",
+    "LessonParticipant",
     "Homework",
     "HomeworkAttachment",
     "HomeworkReview",

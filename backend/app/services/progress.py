@@ -49,7 +49,7 @@ class ProgressService:
             teacher_id, student_id, date_from=period.date_from, date_to=period.date_to
         )
         attendance = calculate_lesson_history_aggregates(
-            lesson_to_history_item(lesson, now) for lesson in lessons
+            lesson_to_history_item(lesson, now, student_id) for lesson in lessons
         )
         homework = await self._homework.count_for_student(
             teacher_id, student_id, period.date_from, period.date_to

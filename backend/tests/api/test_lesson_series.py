@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.security import TokenService, utc_now
 from app.models.enums import RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -128,7 +128,7 @@ async def test_create_weekly_series_is_sorted_and_persisted(
     assert [item["starts_at"] for item in response.json()] == sorted(
         item["starts_at"] for item in response.json()
     )
-    assert {lesson.student_id for lesson in stored} == {student.id}
+    assert {lesson.participants[0].student_id for lesson in stored} == {student.id}
     assert {lesson.title for lesson in stored} == {"Математика"}
     assert {lesson.description for lesson in stored} == {"Подготовка к экзамену"}
     assert {lesson.duration_minutes for lesson in stored} == {60}
@@ -168,15 +168,15 @@ async def test_existing_conflicts_are_detailed_and_confirmation_creates_all(
     teacher, token, student, _ = await participants(api_context)
     first = datetime(2030, 1, 7, 15, tzinfo=UTC)
     existing = Lesson(
+        participants=[LessonParticipant(student_id=student.id)],
         teacher_id=teacher.id,
-        student_id=student.id,
         title="Existing",
         starts_at=first + timedelta(days=7, minutes=30),
         duration_minutes=60,
     )
     cancelled = Lesson(
+        participants=[LessonParticipant(student_id=student.id)],
         teacher_id=teacher.id,
-        student_id=student.id,
         title="Cancelled",
         starts_at=first,
         duration_minutes=60,
@@ -218,8 +218,8 @@ async def test_series_with_one_other_teacher_conflict_is_atomic(
     other_teacher, _ = await actor(api_context, RoleCode.TEACHER)
     first = datetime(2030, 1, 7, 15, tzinfo=UTC)
     api_context.session.add(Lesson(
+        participants=[LessonParticipant(student_id=student.id)],
         teacher_id=other_teacher.id,
-        student_id=student.id,
         title="Private lesson",
         description="Private notes",
         starts_at=first + timedelta(days=14, minutes=30),

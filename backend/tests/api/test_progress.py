@@ -21,7 +21,7 @@ from app.models.homework import (
     HomeworkSubmission,
     ReviewDecision,
 )
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.teacher_student_relation import TeacherStudentRelation
@@ -86,14 +86,12 @@ def lesson(
     *, attendance: AttendanceValue | None = None, cancelled: bool = False,
 ) -> Lesson:
     return Lesson(
+        participants=[LessonParticipant(student_id=student.id, attendance=attendance, attendance_updated_at=starts_at + timedelta(hours=1) if attendance else None)],
         id=uuid4(),
         teacher_id=teacher.id,
-        student_id=student.id,
         title="Progress lesson",
         starts_at=starts_at,
         duration_minutes=60,
-        attendance=attendance,
-        attendance_updated_at=starts_at + timedelta(hours=1) if attendance else None,
         cancelled_at=starts_at if cancelled else None,
     )
 

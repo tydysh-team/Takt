@@ -18,12 +18,27 @@ from app.schemas.connections import StudentRefDTO
 class LessonCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    student_id: UUID
+    student_id: UUID | None = None
+    student_ids: list[UUID] | None = None
     title: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     starts_at: AwareDatetime
     duration_minutes: int = Field(strict=True, gt=0, le=2147483647)
     confirm_conflict: bool = False
+
+    @model_validator(mode="after")
+    def validate_participants(self) -> "LessonCreate":
+        if ("student_id" in self.model_fields_set) == ("student_ids" in self.model_fields_set):
+            raise ValueError("Provide exactly one of student_id or student_ids")
+        if not self.participant_ids or len(set(self.participant_ids)) != len(self.participant_ids):
+            raise ValueError("At least one distinct student is required; duplicates are forbidden")
+        return self
+
+    @property
+    def participant_ids(self) -> list[UUID]:
+        return self.student_ids if self.student_ids is not None else (
+            [self.student_id] if self.student_id is not None else []
+        )
 
     @field_validator("title", mode="before")
     @classmethod
@@ -41,7 +56,9 @@ class LessonDTO(BaseModel):
 
     id: UUID
     teacher_id: UUID
-    student_id: UUID
+    student_id: UUID | None
+    student_ids: list[UUID]
+    participant_count: int
     title: str
     description: str | None
     starts_at: datetime
@@ -76,7 +93,8 @@ class LessonCancelRequest(BaseModel):
 class LessonAttendanceUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    attendance: Literal["present", "absent"]
+    attendance: Literal["present", "absent", "not_set"]
+    student_id: UUID | None = None
 
 
 class LessonConflictDTO(BaseModel):
@@ -87,7 +105,8 @@ class LessonConflictDTO(BaseModel):
     starts_at: datetime
     ends_at: datetime
     duration_minutes: int
-    student: StudentRefDTO
+    student: StudentRefDTO | None
+    participant_count: int
 
 
 class LessonSearchRequest(BaseModel):
@@ -153,6 +172,17 @@ class LessonHistoryResponse(BaseModel):
     aggregates: LessonHistoryAggregatesDTO
 
 
+class TeacherLessonParticipantDTO(StudentRefDTO):
+    attendance: AttendanceStatus
+
+
+class StudentLessonParticipantDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    first_name: str
+    last_name: str
+    is_self: bool
+
+
 class LessonReadDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -167,7 +197,9 @@ class LessonReadDTO(BaseModel):
     attendance: AttendanceStatus
     cancellation_reason: str | None
     teacher: StudentRefDTO
-    student: StudentRefDTO
+    student: StudentRefDTO | None
+    participant_count: int
+    participants: list[TeacherLessonParticipantDTO | StudentLessonParticipantDTO] = Field(default_factory=list)
 
 
 class PersonScheduleLessonDTO(LessonReadDTO):

@@ -230,7 +230,8 @@ export type StudentRef = PersonRef;
 export type TeacherRef = PersonRef;
 
 export interface LessonCreatePayload {
-  student_id: string;
+  student_id?: string;
+  student_ids?: string[];
   title: string;
   description?: string | null;
   starts_at: string;
@@ -243,7 +244,8 @@ export interface LessonFormPayload extends Omit<LessonCreatePayload, "confirm_co
 }
 
 export interface LessonSeriesPayload {
-  student_id: string;
+  student_id?: string;
+  student_ids?: string[];
   title: string;
   description?: string | null;
   starts_at: string;
@@ -259,7 +261,9 @@ export type LessonAttendance = "not_set" | "present" | "absent";
 export interface LessonDTO {
   id: string;
   teacher_id: string;
-  student_id: string;
+  student_id: string | null;
+  student_ids: string[];
+  participant_count: number;
   title: string;
   description: string | null;
   starts_at: string;
@@ -277,7 +281,8 @@ export interface LessonConflict {
   starts_at: string;
   ends_at: string;
   duration_minutes: number;
-  student: StudentRef;
+  student: StudentRef | null;
+  participant_count?: number;
 }
 
 export interface LessonSeriesConflictExisting {
@@ -308,6 +313,12 @@ export interface LessonSearchFilters {
   date_to?: string | null;
 }
 
+export type LessonParticipant = (StudentRef & { attendance: LessonAttendance }) | {
+  first_name: string;
+  last_name: string;
+  is_self: boolean;
+};
+
 export interface LessonReadDTO {
   id: string;
   title: string;
@@ -320,7 +331,9 @@ export interface LessonReadDTO {
   attendance: LessonAttendance;
   cancellation_reason: string | null;
   teacher: TeacherRef;
-  student: StudentRef;
+  student: StudentRef | null;
+  participant_count?: number;
+  participants?: LessonParticipant[];
 }
 
 export type PersonScheduleItem = (LessonReadDTO & { type: "lesson" }) | {

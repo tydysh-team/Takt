@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.exceptions import (
     AlreadyConnectedError,
     AttendanceNotAvailableError,
+    LessonParticipantInvalidError,
     AuthenticationRequiredError,
     ConnectionNotFoundError,
     CsrfValidationError,
@@ -186,6 +187,8 @@ async def domain_exception_handler(_request: Request, exc: DomainError) -> JSONR
         headers = {"Retry-After": str(exc.retry_after)}
     elif isinstance(exc, MfaConfigurationError):
         status_code = 503
+    if isinstance(exc, LessonParticipantInvalidError):
+        status_code = 422
     return error_response(
         status_code=status_code,
         code=exc.code,

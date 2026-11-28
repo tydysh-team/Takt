@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import PasswordService
 from app.models.enums import AttendanceValue, RoleCode
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonParticipant
 from app.models.profile import Profile
 from app.models.role_profiles import StudentProfile, TeacherProfile
 from app.models.user import User
@@ -72,8 +72,8 @@ async def store_lesson(
     description: str | None = None,
 ) -> Lesson:
     lesson = Lesson(
+        participants=[LessonParticipant(student_id=student.id)],
         teacher_id=teacher.id,
-        student_id=student.id,
         title=title,
         description=description,
         starts_at=starts_at,
@@ -143,6 +143,8 @@ async def test_student_search_scope_boundaries_sorting_and_dto(
     assert [item["id"] for item in interval.json()] == [str(exact.id)]
     assert [item["id"] for item in upper_bound.json()] == [str(before.id)]
     assert interval.json()[0] == {
+        "participant_count": 1,
+        "participants": [],
         "id": str(exact.id),
         "title": "Exact",
         "description": "Details",
@@ -366,8 +368,8 @@ async def test_read_dto_includes_persisted_lesson_facts(api_context: ApiTestCont
     lesson = await store_lesson(api_context, teacher, student, start)
     lesson.rescheduled_at = start - timedelta(days=1)
     lesson.cancelled_at = start - timedelta(hours=1)
-    lesson.attendance = AttendanceValue.PRESENT
-    lesson.attendance_updated_at = start - timedelta(hours=2)
+    lesson.participants[0].attendance = AttendanceValue.PRESENT
+    lesson.participants[0].attendance_updated_at = start - timedelta(hours=2)
     await api_context.session.commit()
 
     get_response = await api_context.client.get(

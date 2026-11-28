@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.engine import make_url  # noqa: E402
 
 from app.admin import admin_authentication  # noqa: E402
 from app.api.dependencies.auth import get_rate_limiter  # noqa: E402
@@ -55,12 +56,26 @@ class ApiTestContext:
     session: AsyncSession
 
 
+def require_test_database_url() -> str:
+    settings = get_settings()
+    value = settings.test_database_url
+    if value is None:
+        raise RuntimeError("TEST_DATABASE_URL must point to a migrated PostgreSQL test database")
+    target, application = make_url(value), make_url(settings.database_url)
+    name = (target.database or "").lower()
+    if not (name.endswith("_test") or name.startswith("test_")):
+        raise RuntimeError("Refusing tests: database name must start with 'test_' or end with '_test'")
+    if (target.host, target.port or 5432, target.database) == (
+        application.host, application.port or 5432, application.database,
+    ) and settings.app_env != "test":
+        raise RuntimeError("Refusing tests against the application database")
+    return value
+
+
 @pytest_asyncio.fixture
 async def api_context() -> AsyncIterator[ApiTestContext]:
     """Run API tests in a rollback-only transaction on a migrated PostgreSQL database."""
-    database_url = get_settings().test_database_url
-    if database_url is None:
-        raise RuntimeError("TEST_DATABASE_URL must point to a migrated PostgreSQL test database")
+    database_url = require_test_database_url()
 
     engine = create_async_engine(database_url, pool_pre_ping=True)
     async with engine.connect() as connection:

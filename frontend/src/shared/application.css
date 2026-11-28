@@ -1713,3 +1713,14 @@ html[data-theme="dark"] {
 
 /* Reserve the scrollbar gutter so the page does not shift when content height changes. */
 html { scrollbar-gutter: stable; }
+
+
+.lesson-type-picker, .lesson-participant-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.lesson-type-picker [aria-pressed="true"] { outline: 2px solid currentColor; }
+.lesson-participant-picker { display: grid; gap: .5rem; padding: .5rem; }
+.lesson-participant-picker__list, .lesson-participants { max-height: 18rem; overflow-y: auto; }
+.lesson-participant-picker__list { display: grid; gap: .5rem; }
+.lesson-participant-picker__list label { display: flex; align-items: center; gap: .5rem; }
+.lesson-participants { padding-inline-start: 1.25rem; }
+.lesson-participants li { padding-block: .5rem; }
+.lesson-participants li > span { display: block; }

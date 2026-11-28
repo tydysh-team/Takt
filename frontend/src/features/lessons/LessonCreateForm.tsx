@@ -23,6 +23,10 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
   onCreate: (payload: LessonFormPayload) => void;
 }) {
   const [studentId, setStudentId] = useState("");
+  const [group, setGroup] = useState(false);
+  const [studentIds, setStudentIds] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
@@ -37,7 +41,8 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
   const datePickerRef = useRef<HTMLInputElement>(null);
 
   const isoDate = parseLessonDate(date);
-  const errors = lessonFormErrors({ studentId, title, date, start, timeError });
+  const errors = lessonFormErrors({ studentId: group ? (studentIds.length >= 2 ? "group" : "") : studentId, title, date, start, timeError });
+  if (group && studentIds.length < 2) errors.student_id = "Выберите минимум двух разных учеников.";
   const seriesCount = Number(repeatCount);
   const recurrence = repeat ? { frequency: "weekly" as const, count: seriesCount } : undefined;
   const seriesErrorMessage = repeat ? seriesCountError(seriesCount) : null;
@@ -50,10 +55,10 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
       : studentsState === "empty"
         ? "Нет доступных учеников"
         : "Выберите ученика";
-  const requiredMissing = !studentId || !title.trim() || !date.trim() || !start.trim();
+  const requiredMissing = (group ? studentIds.length < 2 : !studentId) || !title.trim() || !date.trim() || !start.trim();
   const draftSummary = repeat && isoDate && !seriesErrorMessage && start && !errors.start
     ? seriesSummary({
-      student_id: studentId,
+      ...(group ? { student_ids: studentIds } : { student_id: studentId }),
       title: title.trim(),
       description: description.trim() || null,
       starts_at: lessonStartUtc(isoDate, start, timezone),
@@ -69,7 +74,7 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
     try {
       const startsAt = lessonStartUtc(isoDate, start, timezone);
       onCreate({
-        student_id: studentId,
+        ...(group ? { student_ids: studentIds } : { student_id: studentId }),
         title: title.trim(),
         description: description.trim() || null,
         starts_at: startsAt,
@@ -94,14 +99,32 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
     ) : studentsState === "empty" ? (
       <Alert tone="info">Нет доступных учеников. Подключите ученика в разделе «Ученики».</Alert>
     ) : null}
-    <div className="form-field">
+    <div className="lesson-type-picker" role="group" aria-label="Тип занятия">
+      <button type="button" className="button button--secondary" aria-pressed={!group} onClick={() => { setGroup(false); }}>Индивидуальное</button>
+      <button type="button" className="button button--secondary" aria-pressed={group} onClick={() => { setGroup(true); }}>Групповое</button>
+    </div>
+    {group ? <div className="form-field">
+      <button type="button" className="input" disabled={studentsUnavailable} aria-expanded={pickerOpen} aria-controls="lesson-participant-picker" onClick={() => { setPickerOpen(!pickerOpen); }}>Участники: выбрано {studentIds.length}</button>
+      {pickerOpen ? <div id="lesson-participant-picker" className="lesson-participant-picker">
+        <input className="input" aria-label="Поиск учеников" placeholder="Поиск по имени и фамилии" value={search} onChange={(event) => { setSearch(event.target.value); }} />
+        <div className="lesson-participant-picker__list">
+          {students.filter((student) => `${student.first_name} ${student.last_name}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map((student) => <label key={student.id}>
+            <input type="checkbox" checked={studentIds.includes(student.id)} onChange={(event) => { setStudentIds((ids) => event.target.checked ? [...ids, student.id] : ids.filter((id) => id !== student.id)); }} />
+            {student.first_name} {student.last_name}
+          </label>)}
+        </div>
+        <button type="button" className="button button--secondary" onClick={() => { setPickerOpen(false); }}>Закрыть список</button>
+      </div> : null}
+      <div className="lesson-participant-chips">{students.filter((student) => studentIds.includes(student.id)).map((student) => <button type="button" className="button button--secondary" key={student.id} aria-label={`Исключить ${student.first_name} ${student.last_name}`} onClick={() => { setStudentIds((ids) => ids.filter((id) => id !== student.id)); }}>{student.first_name} {student.last_name} ×</button>)}</div>
+      {submitted && errors.student_id ? <span className="form-field__error" role="alert">{errors.student_id}</span> : null}
+    </div> : <div className="form-field">
       <label htmlFor="lesson-student">Ученик</label>
       <select id="lesson-student" name="student_id" className="input" value={studentId} disabled={studentsUnavailable} aria-invalid={submitted && Boolean(errors.student_id)} aria-describedby={submitted && errors.student_id ? "lesson-student-error" : undefined} onChange={(event) => { setStudentId(event.target.value); }}>
         <option value="" disabled>{studentPlaceholder}</option>
         {students.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name}</option>)}
       </select>
       {submitted && errors.student_id ? <span className="form-field__error" id="lesson-student-error" role="alert">{errors.student_id}</span> : null}
-    </div>
+    </div>}
     <div className="form-field">
       <label htmlFor="lesson-title">Название</label>
       <input id="lesson-title" name="title" className="input" value={title} maxLength={120} placeholder="Введите название урока" aria-invalid={submitted && Boolean(errors.title)} aria-describedby={submitted && errors.title ? "lesson-title-error" : undefined} onChange={(event) => { setTitle(event.target.value); }} />

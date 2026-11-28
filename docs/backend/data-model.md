@@ -91,3 +91,21 @@ FK `fk_refresh_sessions_user_id_users`: `ON DELETE CASCADE`. Unique `uq_refresh_
 | `revoked_at` | `timestamptz` | да | — | — | Отзыв |
 
 `teacher_id` использует `ON DELETE CASCADE`; `used_by_student_id` — `ON DELETE RESTRICT`. Unique `uq_teacher_invitations_code_digest`. Checks: expiry позже creation; `used_at` и `used_by_student_id` одновременно NULL либо одновременно заполнены. Индексы: `teacher_id`, `expires_at`.
+
+
+## Занятия и участники (20261128_0013)
+
+`lessons` хранит общие факты: преподавателя, название, описание, начало, длительность,
+отмену, причину отмены и перенос. Одно занятие имеет одну запись независимо от числа учеников.
+`lesson_participants` хранит `lesson_id`, `student_id`, `attendance`, `attendance_updated_at`.
+Составной PK `(lesson_id, student_id)` запрещает дубликаты; FK ведут к `lessons.id` и
+`student_profiles.user_id`, с `ON DELETE CASCADE`. Обратный индекс `(student_id, lesson_id)`
+используется при поиске участия; индекс преподавателя и начала в `lessons` сохранён.
+Индивидуальное занятие имеет одного участника, групповое — не менее двух.
+Минимум один участник и неизменность состава обеспечиваются сервисом; API изменения состава нет.
+
+`not_set` хранится как два NULL: `attendance` и `attendance_updated_at`.
+ENUM `attendance_value` содержит прежние `PRESENT`, `ABSENT`; check требует согласованности
+отметки и времени. Миграция блокирует legacy-записи, копирует данные и сравнивает обе стороны
+через `EXCEPT` до удаления колонок. Downgrade до изменения схемы отклоняет любое занятие
+с количеством участников, отличным от одного. Работа выполняется в транзакции PostgreSQL.
