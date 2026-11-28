@@ -82,11 +82,21 @@ STUDENT_PATH = "/api/v1/students/me/progress"
 
 
 def lesson(
-    teacher: User, student: User, starts_at: datetime,
-    *, attendance: AttendanceValue | None = None, cancelled: bool = False,
+    teacher: User,
+    student: User,
+    starts_at: datetime,
+    *,
+    attendance: AttendanceValue | None = None,
+    cancelled: bool = False,
 ) -> Lesson:
     return Lesson(
-        participants=[LessonParticipant(student_id=student.id, attendance=attendance, attendance_updated_at=starts_at + timedelta(hours=1) if attendance else None)],
+        participants=[
+            LessonParticipant(
+                student_id=student.id,
+                attendance=attendance,
+                attendance_updated_at=starts_at + timedelta(hours=1) if attendance else None,
+            )
+        ],
         id=uuid4(),
         teacher_id=teacher.id,
         title="Progress lesson",
@@ -111,8 +121,11 @@ def homework(teacher: User, student: User, created_at: datetime, due_at: datetim
 
 
 def attempt(
-    task: Homework, number: int, submitted_at: datetime,
-    decision: ReviewDecision | None = None, grade: Decimal | None = None,
+    task: Homework,
+    number: int,
+    submitted_at: datetime,
+    decision: ReviewDecision | None = None,
+    grade: Decimal | None = None,
 ) -> tuple[HomeworkSubmission, HomeworkReview | None]:
     submission = HomeworkSubmission(
         id=uuid4(),
@@ -132,7 +145,8 @@ def attempt(
             reviewed_at=submitted_at + timedelta(hours=1),
             comment="Revise" if decision == ReviewDecision.NEEDS_REVISION else None,
         )
-        if decision is not None else None
+        if decision is not None
+        else None
     )
     return submission, review
 
@@ -147,14 +161,16 @@ async def test_teacher_summary_matches_us18_us19_and_final_grades(
     start = datetime(2020, 1, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     due = start + timedelta(days=2)
-    api_context.session.add_all([
-        lesson(teacher, student, start, attendance=AttendanceValue.PRESENT),
-        lesson(teacher, student, start + timedelta(days=1), attendance=AttendanceValue.ABSENT),
-        lesson(teacher, student, start + timedelta(days=2)),
-        lesson(teacher, student, start + timedelta(days=3), cancelled=True),
-        lesson(teacher, student, end, attendance=AttendanceValue.PRESENT),
-        lesson(teacher, other_student, start, attendance=AttendanceValue.PRESENT),
-    ])
+    api_context.session.add_all(
+        [
+            lesson(teacher, student, start, attendance=AttendanceValue.PRESENT),
+            lesson(teacher, student, start + timedelta(days=1), attendance=AttendanceValue.ABSENT),
+            lesson(teacher, student, start + timedelta(days=2)),
+            lesson(teacher, student, start + timedelta(days=3), cancelled=True),
+            lesson(teacher, student, end, attendance=AttendanceValue.PRESENT),
+            lesson(teacher, other_student, start, attendance=AttendanceValue.PRESENT),
+        ]
+    )
     revised = homework(teacher, student, start, due)
     ungraded = homework(teacher, student, start + timedelta(days=1), due)
     unsubmitted = homework(teacher, student, start + timedelta(days=2), due)
@@ -178,11 +194,16 @@ async def test_teacher_summary_matches_us18_us19_and_final_grades(
     statements = 0
 
     def count_statement(
-        _connection: Connection, _cursor: object, _statement: str,
-        _parameters: object, _context: object, _executemany: bool,
+        _connection: Connection,
+        _cursor: object,
+        _statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
     ) -> None:
         nonlocal statements
-        statements += 1
+        if _statement.lstrip().upper().startswith(("SELECT", "WITH")):
+            statements += 1
 
     bind = api_context.session.sync_session.get_bind()
     event.listen(bind, "before_cursor_execute", count_statement)
@@ -192,16 +213,18 @@ async def test_teacher_summary_matches_us18_us19_and_final_grades(
         )
     finally:
         event.remove(bind, "before_cursor_execute", count_statement)
-    # US-18 history needs at most five queries including authentication;
+    # Exclude fixture SAVEPOINTs. US-18 needs at most five data reads including auth;
     # homework and final grades add one aggregate query each.
     assert statements <= 7
     history = await api_context.client.get(
         f"/api/v1/teachers/me/students/{student.id}/lesson-history",
-        params=params, headers=auth(teacher_token),
+        params=params,
+        headers=auth(teacher_token),
     )
     homework_stats = await api_context.client.get(
         f"/api/v1/teachers/me/students/{student.id}/homework-statistics",
-        params=params, headers=auth(teacher_token),
+        params=params,
+        headers=auth(teacher_token),
     )
     own = await api_context.client.get(STUDENT_PATH, params=params, headers=auth(student_token))
     assert all(response.status_code == 200 for response in (summary, history, homework_stats, own))
@@ -210,13 +233,21 @@ async def test_teacher_summary_matches_us18_us19_and_final_grades(
     assert body["attendance"] == history.json()["aggregates"]
     assert body["homework"] == homework_stats.json()["statistics"]
     assert body["attendance"] == {
-        "total_lessons": 4, "completed_lessons": 3, "attended_lessons": 1,
-        "missed_lessons": 1, "unmarked_lessons": 1, "cancelled_lessons": 1,
+        "total_lessons": 4,
+        "completed_lessons": 3,
+        "attended_lessons": 1,
+        "missed_lessons": 1,
+        "unmarked_lessons": 1,
+        "cancelled_lessons": 1,
         "attendance_rate": 50.0,
     }
     assert body["homework"] == {
-        "assigned": 3, "submitted": 2, "reviewed": 2, "late": 1,
-        "revision_required": 1, "completion_rate": 66.67,
+        "assigned": 3,
+        "submitted": 2,
+        "reviewed": 2,
+        "late": 1,
+        "revision_required": 1,
+        "completion_rate": 66.67,
     }
     assert body["reviews"] == {"graded_homework": 1, "average_grade": 80.0}
     assert own.json() == body
@@ -228,7 +259,8 @@ async def test_teacher_summary_matches_us18_us19_and_final_grades(
     )
     assert review_history.status_code == 200
     assert [item["review"]["decision"] for item in review_history.json()] == [
-        "needs_revision", "accepted"
+        "needs_revision",
+        "accepted",
     ]
     assert review_history.json()[-1]["review"]["grade"] == 80
 
@@ -246,12 +278,14 @@ async def test_student_multiple_teachers_weighted_rates_and_historical_data(
     start = datetime(2020, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     due = start + timedelta(days=2)
-    api_context.session.add_all([
-        lesson(first, student, start, attendance=AttendanceValue.PRESENT),
-        lesson(second, student, start + timedelta(days=1), attendance=AttendanceValue.ABSENT),
-        lesson(second, student, start + timedelta(days=2), attendance=AttendanceValue.ABSENT),
-        lesson(second, other_student, start, attendance=AttendanceValue.PRESENT),
-    ])
+    api_context.session.add_all(
+        [
+            lesson(first, student, start, attendance=AttendanceValue.PRESENT),
+            lesson(second, student, start + timedelta(days=1), attendance=AttendanceValue.ABSENT),
+            lesson(second, student, start + timedelta(days=2), attendance=AttendanceValue.ABSENT),
+            lesson(second, other_student, start, attendance=AttendanceValue.PRESENT),
+        ]
+    )
     first_task = homework(first, student, start, due)
     second_task = homework(second, student, start, due)
     second_unsubmitted = homework(second, student, start + timedelta(days=1), due)
@@ -293,7 +327,8 @@ async def test_student_multiple_teachers_weighted_rates_and_historical_data(
     )
     assert source_homework.status_code == 200
     assert {item["teacher_id"] for item in source_homework.json()["items"]} == {
-        str(first.id), str(second.id)
+        str(first.id),
+        str(second.id),
     }
     source_lessons = await api_context.client.post(
         "/api/v1/lessons/search", json=params, headers=auth(student_token)
@@ -301,7 +336,8 @@ async def test_student_multiple_teachers_weighted_rates_and_historical_data(
     assert source_lessons.status_code == 200
     assert len(source_lessons.json()) == own_body["attendance"]["total_lessons"]
     assert {item["teacher"]["id"] for item in source_lessons.json()} == {
-        str(first.id), str(second.id)
+        str(first.id),
+        str(second.id),
     }
 
     relation = await api_context.session.scalar(
@@ -384,23 +420,30 @@ async def test_authorization_validation_and_timezone(api_context: ApiTestContext
     assert (await api_context.client.get(STUDENT_PATH, params=params)).status_code == 401
     assert (await api_context.client.get(teacher_path(student), params=params)).status_code == 401
     for token in (teacher_token, admin_token):
-        assert (await api_context.client.get(
-            STUDENT_PATH, params=params, headers=auth(token)
-        )).status_code == 403
+        assert (
+            await api_context.client.get(STUDENT_PATH, params=params, headers=auth(token))
+        ).status_code == 403
     for token in (student_token, admin_token):
-        assert (await api_context.client.get(
-            teacher_path(student), params=params, headers=auth(token)
-        )).status_code == 403
-    assert (await api_context.client.get(
-        teacher_path(student), params=params, headers=auth(stranger_token)
-    )).status_code == 404
-    assert (await api_context.client.get(
-        teacher_path(other_student), params=params, headers=auth(teacher_token)
-    )).status_code == 404
-    assert (await api_context.client.get(
-        STUDENT_PATH, params={**params, "student_id": str(other_student.id)},
-        headers=auth(student_token),
-    )).status_code == 422
+        assert (
+            await api_context.client.get(teacher_path(student), params=params, headers=auth(token))
+        ).status_code == 403
+    assert (
+        await api_context.client.get(
+            teacher_path(student), params=params, headers=auth(stranger_token)
+        )
+    ).status_code == 404
+    assert (
+        await api_context.client.get(
+            teacher_path(other_student), params=params, headers=auth(teacher_token)
+        )
+    ).status_code == 404
+    assert (
+        await api_context.client.get(
+            STUDENT_PATH,
+            params={**params, "student_id": str(other_student.id)},
+            headers=auth(student_token),
+        )
+    ).status_code == 422
     other = await api_context.client.get(STUDENT_PATH, params=params, headers=auth(other_token))
     assert other.status_code == 200
     assert other.json()["attendance"]["total_lessons"] == 0
@@ -414,10 +457,13 @@ async def test_authorization_validation_and_timezone(api_context: ApiTestContext
         ):
             response = await api_context.client.get(target, params=invalid, headers=auth(token))
             assert response.status_code == 422
-    assert (await api_context.client.get(
-        "/api/v1/teachers/me/students/not-a-uuid/progress",
-        params=params, headers=auth(teacher_token),
-    )).status_code == 422
+    assert (
+        await api_context.client.get(
+            "/api/v1/teachers/me/students/not-a-uuid/progress",
+            params=params,
+            headers=auth(teacher_token),
+        )
+    ).status_code == 422
 
 
 async def test_aggregate_failure_is_not_reported_as_zero(
@@ -436,7 +482,8 @@ async def test_aggregate_failure_is_not_reported_as_zero(
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         for path, current_token in ((teacher_path(student), token), (STUDENT_PATH, student_token)):
             response = await client.get(
-                path, params=period(start, start + timedelta(days=1)),
+                path,
+                params=period(start, start + timedelta(days=1)),
                 headers=auth(current_token),
             )
             assert response.status_code == 500
@@ -451,8 +498,6 @@ async def test_openapi_progress_contracts() -> None:
     ):
         operation = paths[path]["get"]
         response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
-        assert response_schema["$ref"].endswith(
-            "ProgressResponse"
-        )
+        assert response_schema["$ref"].endswith("ProgressResponse")
         names = {parameter["name"] for parameter in operation["parameters"]}
         assert {"date_from", "date_to"} <= names

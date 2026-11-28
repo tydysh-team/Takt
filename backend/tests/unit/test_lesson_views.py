@@ -101,7 +101,10 @@ def test_history_aggregates_only_completed_attendance() -> None:
         item(-timedelta(minutes=30)),
         item(timedelta(hours=1)),
     ]
-    history = [lesson_to_history_item(lesson, START, lesson.participants[0].student_id) for lesson in lessons]
+    history = [
+        lesson_to_history_item(lesson, START, lesson.participants[0].student_id)
+        for lesson in lessons
+    ]
 
     result = calculate_lesson_history_aggregates(history)
 
@@ -135,7 +138,8 @@ def test_history_attendance_rate_is_null_without_marked_completed_lessons() -> N
     ]
 
     result = calculate_lesson_history_aggregates(
-        lesson_to_history_item(lesson, START, lesson.participants[0].student_id) for lesson in lessons
+        lesson_to_history_item(lesson, START, lesson.participants[0].student_id)
+        for lesson in lessons
     )
 
     assert result.completed_lessons == 1

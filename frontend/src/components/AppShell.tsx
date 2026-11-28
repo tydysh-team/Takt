@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../features/auth/auth-context";
 import { hasRole } from "../features/auth/roles";
@@ -7,6 +7,7 @@ import { fullName, roleLabel } from "../shared/format";
 import { Avatar } from "./ui/Avatar";
 import { Button } from "./ui/Button";
 import { ThemeToggle } from "./ThemeToggle";
+import { ToastProvider } from "./ui/ToastProvider";
 
 const commonItems = [
   { to: "/dashboard", label: "Главная", icon: "home" },
@@ -55,6 +56,7 @@ export function AppShell() {
   };
 
   return (
+    <ToastProvider>
     <div className="workspace">
       <button
         className="mobile-menu"
@@ -104,16 +106,17 @@ export function AppShell() {
         <header className="workspace__topbar">
           <div>
             <span className="workspace__greeting">Рабочее пространство</span>
-            <strong>{fullName(user)}</strong>
+            <Link className="workspace__profile-name" to="/profile"><strong>{fullName(user)}</strong></Link>
           </div>
           <ThemeToggle />
-          <Avatar firstName={user.first_name} lastName={user.last_name} />
+          <Link className="workspace__profile-avatar" to="/profile" aria-label="Открыть свой профиль"><Avatar firstName={user.first_name} lastName={user.last_name} /></Link>
         </header>
         <div className="workspace__content">
           <Outlet />
         </div>
       </main>
     </div>
+    </ToastProvider>
   );
 }
 

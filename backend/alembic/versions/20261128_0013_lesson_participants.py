@@ -31,15 +31,20 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["student_id"], ["student_profiles.user_id"], ondelete="CASCADE"),
         sa.CheckConstraint(timestamp_check, name="ck_lesson_participants_attendance_timestamp"),
     )
-    op.create_index("ix_lesson_participants_student_lesson", "lesson_participants", ["student_id", "lesson_id"])
-    op.execute("""INSERT INTO lesson_participants (lesson_id, student_id, attendance, attendance_updated_at)
+    op.create_index(
+        "ix_lesson_participants_student_lesson", "lesson_participants", ["student_id", "lesson_id"]
+    )
+    op.execute("""INSERT INTO lesson_participants
+                  (lesson_id, student_id, attendance, attendance_updated_at)
                   SELECT id, student_id, attendance, attendance_updated_at FROM lessons""")
     op.execute("""DO $$ BEGIN
         IF EXISTS (
             (SELECT id, student_id, attendance, attendance_updated_at FROM lessons
-             EXCEPT SELECT lesson_id, student_id, attendance, attendance_updated_at FROM lesson_participants)
+             EXCEPT SELECT lesson_id, student_id, attendance, attendance_updated_at
+             FROM lesson_participants)
             UNION ALL
-            (SELECT lesson_id, student_id, attendance, attendance_updated_at FROM lesson_participants
+            (SELECT lesson_id, student_id, attendance, attendance_updated_at
+             FROM lesson_participants
              EXCEPT SELECT id, student_id, attendance, attendance_updated_at FROM lessons)
         ) THEN RAISE EXCEPTION 'Lesson participant migration verification failed'; END IF;
     END $$""")
@@ -56,11 +61,15 @@ def downgrade() -> None:
     op.execute("""DO $$ BEGIN
         IF EXISTS (SELECT l.id FROM lessons l LEFT JOIN lesson_participants p ON p.lesson_id=l.id
                    GROUP BY l.id HAVING count(p.student_id) <> 1)
-        THEN RAISE EXCEPTION 'Cannot downgrade: every lesson must have exactly one participant'; END IF;
+        THEN
+            RAISE EXCEPTION 'Cannot downgrade: every lesson must have exactly one participant';
+        END IF;
     END $$""")
     op.add_column("lessons", sa.Column("student_id", postgresql.UUID(as_uuid=True), nullable=True))
     op.add_column("lessons", sa.Column("attendance", attendance_value, nullable=True))
-    op.add_column("lessons", sa.Column("attendance_updated_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "lessons", sa.Column("attendance_updated_at", sa.DateTime(timezone=True), nullable=True)
+    )
     op.execute("""UPDATE lessons l SET student_id=p.student_id, attendance=p.attendance,
                   attendance_updated_at=p.attendance_updated_at
                   FROM lesson_participants p WHERE p.lesson_id=l.id""")
@@ -72,8 +81,14 @@ def downgrade() -> None:
         THEN RAISE EXCEPTION 'Lesson downgrade verification failed'; END IF;
     END $$""")
     op.alter_column("lessons", "student_id", nullable=False)
-    op.create_foreign_key("fk_lessons_student_id_student_profiles", "lessons", "student_profiles",
-                          ["student_id"], ["user_id"], ondelete="CASCADE")
+    op.create_foreign_key(
+        "fk_lessons_student_id_student_profiles",
+        "lessons",
+        "student_profiles",
+        ["student_id"],
+        ["user_id"],
+        ondelete="CASCADE",
+    )
     op.create_index("ix_lessons_student_starts_at", "lessons", ["student_id", "starts_at"])
     op.create_check_constraint("ck_lessons_attendance_timestamp", "lessons", timestamp_check)
     op.drop_table("lesson_participants")

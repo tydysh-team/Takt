@@ -36,8 +36,10 @@ class LessonCreate(BaseModel):
 
     @property
     def participant_ids(self) -> list[UUID]:
-        return self.student_ids if self.student_ids is not None else (
-            [self.student_id] if self.student_id is not None else []
+        return (
+            self.student_ids
+            if self.student_ids is not None
+            else ([self.student_id] if self.student_id is not None else [])
         )
 
     @field_validator("title", mode="before")
@@ -199,7 +201,9 @@ class LessonReadDTO(BaseModel):
     teacher: StudentRefDTO
     student: StudentRefDTO | None
     participant_count: int
-    participants: list[TeacherLessonParticipantDTO | StudentLessonParticipantDTO] = Field(default_factory=list)
+    participants: list[TeacherLessonParticipantDTO | StudentLessonParticipantDTO] = Field(
+        default_factory=list
+    )
 
 
 class PersonScheduleLessonDTO(LessonReadDTO):

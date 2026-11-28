@@ -34,12 +34,12 @@ os.environ.setdefault(
 
 import httpx  # noqa: E402
 import pytest_asyncio  # noqa: E402
+from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.ext.asyncio import (  # noqa: E402
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.engine import make_url  # noqa: E402
 
 from app.admin import admin_authentication  # noqa: E402
 from app.api.dependencies.auth import get_rate_limiter  # noqa: E402
@@ -64,9 +64,13 @@ def require_test_database_url() -> str:
     target, application = make_url(value), make_url(settings.database_url)
     name = (target.database or "").lower()
     if not (name.endswith("_test") or name.startswith("test_")):
-        raise RuntimeError("Refusing tests: database name must start with 'test_' or end with '_test'")
+        raise RuntimeError(
+            "Refusing tests: database name must start with 'test_' or end with '_test'"
+        )
     if (target.host, target.port or 5432, target.database) == (
-        application.host, application.port or 5432, application.database,
+        application.host,
+        application.port or 5432,
+        application.database,
     ) and settings.app_env != "test":
         raise RuntimeError("Refusing tests against the application database")
     return value
@@ -110,4 +114,3 @@ async def api_context() -> AsyncIterator[ApiTestContext]:
         if outer_transaction.is_active:
             await outer_transaction.rollback()
     await engine.dispose()
-

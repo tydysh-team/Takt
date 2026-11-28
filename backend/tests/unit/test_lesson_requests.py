@@ -107,9 +107,16 @@ def test_participant_list_validation_and_legacy_compatibility(request_type) -> N
     fields.pop("student_id")
     ids = [uuid4(), uuid4()]
     assert request_type.model_validate({**fields, "student_ids": ids}).participant_ids == ids
-    assert request_type.model_validate({**fields, "student_ids": ids[:1]}).participant_ids == ids[:1]
-    for invalid in [{}, {"student_ids": []}, {"student_ids": [ids[0], ids[0]]},
-                    {"student_id": ids[0], "student_ids": ids},
-                    {"student_id": None, "student_ids": ids}, {"student_ids": None}]:
+    assert (
+        request_type.model_validate({**fields, "student_ids": ids[:1]}).participant_ids == ids[:1]
+    )
+    for invalid in [
+        {},
+        {"student_ids": []},
+        {"student_ids": [ids[0], ids[0]]},
+        {"student_id": ids[0], "student_ids": ids},
+        {"student_id": None, "student_ids": ids},
+        {"student_ids": None},
+    ]:
         with pytest.raises(ValidationError):
             request_type.model_validate({**fields, **invalid})

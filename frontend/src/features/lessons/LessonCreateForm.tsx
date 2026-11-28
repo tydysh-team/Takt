@@ -1,11 +1,12 @@
-import { useRef, useState, type SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 
 import type { LessonFormPayload, StudentRef } from "../../api/types";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { lessonStartUtc } from "../../shared/lesson-time";
 import { seriesCountError, seriesSummary } from "./recurrence";
-import { formatLessonDate, lessonFormErrors, parseLessonDate } from "./lesson-form-validation";
+import { lessonFormErrors, parseLessonDate } from "./lesson-form-validation";
+import { LessonDateInput } from "./LessonDateInput";
 import { LessonTimePicker } from "./LessonTimePicker";
 
 export type StudentPickerState = "loading" | "error" | "empty" | "ready";
@@ -37,8 +38,6 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
 
   const [submitted, setSubmitted] = useState(false);
   const [timeError, setTimeError] = useState("");
-  const dateTextRef = useRef<HTMLInputElement>(null);
-  const datePickerRef = useRef<HTMLInputElement>(null);
 
   const isoDate = parseLessonDate(date);
   const errors = lessonFormErrors({ studentId: group ? (studentIds.length >= 2 ? "group" : "") : studentId, title, date, start, timeError });
@@ -137,17 +136,7 @@ export function LessonCreateForm({ students, studentsState = "ready", onRetryStu
     <div className="lesson-create-form__datetime">
       <div className="form-field">
         <label htmlFor="lesson-date">Дата</label>
-        <div className="input lesson-create-form__date-control" aria-invalid={submitted && Boolean(errors.date)}>
-          <input ref={dateTextRef} id="lesson-date" name="date" type="text" autoComplete="off" maxLength={10} placeholder="дд.мм.гггг" value={date} aria-invalid={Boolean(serverTimeError) || (submitted && Boolean(errors.date))} aria-describedby={serverTimeError ? "lesson-server-time-error" : submitted && errors.date ? "lesson-date-error" : undefined} onChange={(event) => { setDate(event.target.value); setTimeError(""); onTimeChange?.(); }} />
-          <button type="button" className="lesson-create-form__date-picker" aria-label="Выбрать дату в календаре" onClick={() => {
-            const input = datePickerRef.current;
-            if (!input) return;
-            try { input.showPicker(); } catch { dateTextRef.current?.focus(); }
-          }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 10h18" /></svg>
-          </button>
-          <input ref={datePickerRef} className="lesson-create-form__native-date" type="date" tabIndex={-1} aria-hidden="true" value={isoDate ?? ""} onChange={(event) => { setDate(formatLessonDate(event.target.value)); setTimeError(""); onTimeChange?.(); }} />
-        </div>
+        <LessonDateInput id="lesson-date" name="date" value={date} invalid={Boolean(serverTimeError) || (submitted && Boolean(errors.date))} errorId={serverTimeError ? "lesson-server-time-error" : submitted && errors.date ? "lesson-date-error" : undefined} onChange={(value) => { setDate(value); setTimeError(""); onTimeChange?.(); }} />
         {submitted && errors.date ? <span className="form-field__error" id="lesson-date-error" role="alert">{errors.date}</span> : null}
       </div>
       <div className="form-field">

@@ -71,7 +71,13 @@ async def store_lesson(
     rescheduled_at: datetime | None = None,
 ) -> Lesson:
     lesson = Lesson(
-        participants=[LessonParticipant(student_id=student_id, attendance=attendance, attendance_updated_at=attendance_updated_at)],
+        participants=[
+            LessonParticipant(
+                student_id=student_id,
+                attendance=attendance,
+                attendance_updated_at=attendance_updated_at,
+            )
+        ],
         teacher_id=teacher_id,
         title="Attendance lesson",
         starts_at=starts_at,

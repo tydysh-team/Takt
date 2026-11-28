@@ -27,7 +27,9 @@ async def test_every_student_is_locked_in_uuid_order_before_any_relation():
     service._lessons.lock_student_schedule = AsyncMock(side_effect=lock)
     service._relations.get_student = AsyncMock(side_effect=relation)
     await service._lock_participants(UUID(int=9), ids)
-    assert calls == [(kind, student_id) for kind in ["student", "relation"] for student_id in sorted(ids)]
+    assert calls == [
+        (kind, student_id) for kind in ["student", "relation"] for student_id in sorted(ids)
+    ]
 
 
 @pytest.mark.asyncio

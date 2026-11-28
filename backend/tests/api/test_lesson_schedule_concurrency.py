@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
-
 from conftest import require_test_database_url
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -123,9 +122,9 @@ async def test_concurrent_series_writes_are_serialized(competitor: str) -> None:
             async with sessions() as verify:
                 created_count = int(
                     await verify.scalar(
-                        select(func.count()).select_from(Lesson).where(
-                            Lesson.teacher_id == teacher_id
-                        )
+                        select(func.count())
+                        .select_from(Lesson)
+                        .where(Lesson.teacher_id == teacher_id)
                     )
                     or 0
                 )
@@ -247,9 +246,7 @@ async def test_concurrent_creates_require_confirmation_for_the_second_lesson() -
 
                 cancelled, repeated = await asyncio.gather(cancel("First"), cancel("Second"))
             assert cancelled.status_code == repeated.status_code == 200
-            assert cancelled.json()["cancellation_reason"] == repeated.json()[
-                "cancellation_reason"
-            ]
+            assert cancelled.json()["cancellation_reason"] == repeated.json()["cancellation_reason"]
             assert cancelled.json()["cancellation_reason"] in {"First", "Second"}
 
             async with sessions() as verify:
@@ -284,20 +281,28 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
         async with sessions() as setup:
             student = User(
                 email=f"parallel-student-{uuid4().hex}@example.com",
-                password_hash="test-only", role=RoleCode.STUDENT, is_active=True,
+                password_hash="test-only",
+                role=RoleCode.STUDENT,
+                is_active=True,
             )
             student.profile = Profile(
-                first_name="Student", last_name="Parallel", timezone="Europe/Moscow",
+                first_name="Student",
+                last_name="Parallel",
+                timezone="Europe/Moscow",
             )
             student.student_profile = StudentProfile()
             teachers = []
             for _ in range(2):
                 teacher = User(
                     email=f"parallel-teacher-{uuid4().hex}@example.com",
-                    password_hash="test-only", role=RoleCode.TEACHER, is_active=True,
+                    password_hash="test-only",
+                    role=RoleCode.TEACHER,
+                    is_active=True,
                 )
                 teacher.profile = Profile(
-                    first_name="Teacher", last_name="Parallel", timezone="Europe/Moscow",
+                    first_name="Teacher",
+                    last_name="Parallel",
+                    timezone="Europe/Moscow",
                 )
                 teacher.teacher_profile = TeacherProfile()
                 teachers.append(teacher)
@@ -305,12 +310,16 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
             await setup.flush()
             student_id = student.id
             teacher_ids = [teacher.id for teacher in teachers]
-            setup.add_all([
-                TeacherStudentRelation(
-                    teacher_id=teacher_id, student_id=student_id, created_at=utc_now(),
-                )
-                for teacher_id in teacher_ids
-            ])
+            setup.add_all(
+                [
+                    TeacherStudentRelation(
+                        teacher_id=teacher_id,
+                        student_id=student_id,
+                        created_at=utc_now(),
+                    )
+                    for teacher_id in teacher_ids
+                ]
+            )
             await setup.commit()
 
         async def override_session() -> AsyncIterator[AsyncSession]:
@@ -321,7 +330,8 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
         try:
             transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 12345))
             async with httpx.AsyncClient(
-                transport=transport, base_url="http://testserver",
+                transport=transport,
+                base_url="http://testserver",
             ) as client:
                 start = utc_now() + timedelta(days=30)
                 body = {
@@ -333,12 +343,18 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
                 }
 
                 async def create(teacher_id: UUID) -> httpx.Response:
-                    token = TokenService(get_settings()).create_access_token(
-                        user_id=teacher_id, role=RoleCode.TEACHER,
-                    ).value
+                    token = (
+                        TokenService(get_settings())
+                        .create_access_token(
+                            user_id=teacher_id,
+                            role=RoleCode.TEACHER,
+                        )
+                        .value
+                    )
                     return await client.post(
                         "/api/v1/lessons",
-                        headers={"Authorization": f"Bearer {token}"}, json=body,
+                        headers={"Authorization": f"Bearer {token}"},
+                        json=body,
                     )
 
                 responses = await asyncio.gather(*(create(id_) for id_ in teacher_ids))
@@ -347,21 +363,33 @@ async def test_concurrent_other_teachers_cannot_book_same_student() -> None:
             rejected = next(response for response in responses if response.status_code == 409)
             assert rejected.json()["error"]["code"] == "student_schedule_conflict"
             async with sessions() as verify:
-                count = await verify.scalar(select(func.count()).select_from(Lesson).where(
-                    Lesson.participants.any(LessonParticipant.student_id == student_id),
-                ))
+                count = await verify.scalar(
+                    select(func.count())
+                    .select_from(Lesson)
+                    .where(
+                        Lesson.participants.any(LessonParticipant.student_id == student_id),
+                    )
+                )
                 assert count == 1
         finally:
             app.dependency_overrides.pop(get_db_session, None)
     finally:
         if student_id is not None and teacher_ids:
             async with sessions() as cleanup:
-                await cleanup.execute(delete(Lesson).where(Lesson.participants.any(LessonParticipant.student_id == student_id)))
-                await cleanup.execute(delete(TeacherStudentRelation).where(
-                    TeacherStudentRelation.student_id == student_id,
-                ))
-                await cleanup.execute(delete(User).where(
-                    User.id.in_([student_id, *teacher_ids]),
-                ))
+                await cleanup.execute(
+                    delete(Lesson).where(
+                        Lesson.participants.any(LessonParticipant.student_id == student_id)
+                    )
+                )
+                await cleanup.execute(
+                    delete(TeacherStudentRelation).where(
+                        TeacherStudentRelation.student_id == student_id,
+                    )
+                )
+                await cleanup.execute(
+                    delete(User).where(
+                        User.id.in_([student_id, *teacher_ids]),
+                    )
+                )
                 await cleanup.commit()
         await engine.dispose()

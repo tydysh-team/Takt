@@ -13,8 +13,8 @@ from app.schemas.lessons import (
     LessonHistoryAggregatesDTO,
     LessonHistoryItemDTO,
     LessonReadDTO,
-    TeacherLessonParticipantDTO,
     StudentLessonParticipantDTO,
+    TeacherLessonParticipantDTO,
 )
 
 
@@ -60,7 +60,9 @@ def lesson_to_dto(lesson: Lesson, now: datetime) -> LessonDTO:
         duration_minutes=lesson.duration_minutes,
         status=calculate_lesson_status(lesson, now),
         is_rescheduled=lesson.rescheduled_at is not None,
-        attendance=attendance_status(lesson.participants[0].attendance if len(lesson.participants) == 1 else None),
+        attendance=attendance_status(
+            lesson.participants[0].attendance if len(lesson.participants) == 1 else None
+        ),
         cancellation_reason=lesson.cancellation_reason,
     )
 
@@ -72,7 +74,9 @@ def lesson_to_history_item(lesson: Lesson, now: datetime, student_id: UUID) -> L
         starts_at=lesson.starts_at,
         ends_at=lesson_ends_at(lesson),
         status=calculate_lesson_status(lesson, now),
-        attendance=attendance_status(next(p.attendance for p in lesson.participants if p.student_id == student_id)),
+        attendance=attendance_status(
+            next(p.attendance for p in lesson.participants if p.student_id == student_id)
+        ),
     )
 
 
@@ -102,9 +106,7 @@ def calculate_lesson_history_aggregates(
             unmarked += 1
 
     marked_completed = attended + missed
-    attendance_rate = (
-        round(attended * 100 / marked_completed, 2) if marked_completed else None
-    )
+    attendance_rate = round(attended * 100 / marked_completed, 2) if marked_completed else None
     return LessonHistoryAggregatesDTO(
         total_lessons=len(items),
         completed_lessons=completed,
@@ -117,23 +119,37 @@ def calculate_lesson_history_aggregates(
 
 
 def lesson_record_to_dto(
-    record: LessonRecord, now: datetime, *, student_id: UUID | None = None, details: bool = False,
+    record: LessonRecord,
+    now: datetime,
+    *,
+    student_id: UUID | None = None,
+    details: bool = False,
 ) -> LessonReadDTO:
     lesson = record.lesson
     single = lesson.participants[0] if len(lesson.participants) == 1 else None
     own = next((p for p in lesson.participants if p.student_id == student_id), None)
     visible_attendance = own if student_id is not None else single
-    participants = []
+    participants: list[TeacherLessonParticipantDTO | StudentLessonParticipantDTO] = []
     if student_id is None and single is None:
-        participants = [TeacherLessonParticipantDTO(
-            id=p.student_id, first_name=p.profile.first_name, last_name=p.profile.last_name,
-            middle_name=p.profile.middle_name, attendance=attendance_status(p.attendance),
-        ) for p in lesson.participants]
+        participants = [
+            TeacherLessonParticipantDTO(
+                id=p.student_id,
+                first_name=p.profile.first_name,
+                last_name=p.profile.last_name,
+                middle_name=p.profile.middle_name,
+                attendance=attendance_status(p.attendance),
+            )
+            for p in lesson.participants
+        ]
     elif details and own is not None and single is None:
-        participants = [StudentLessonParticipantDTO(
-            first_name=p.profile.first_name, last_name=p.profile.last_name,
-            is_self=p.student_id == student_id,
-        ) for p in lesson.participants]
+        participants = [
+            StudentLessonParticipantDTO(
+                first_name=p.profile.first_name,
+                last_name=p.profile.last_name,
+                is_self=p.student_id == student_id,
+            )
+            for p in lesson.participants
+        ]
     return LessonReadDTO(
         id=lesson.id,
         title=lesson.title,
@@ -143,7 +159,9 @@ def lesson_record_to_dto(
         duration_minutes=lesson.duration_minutes,
         status=calculate_lesson_status(lesson, now),
         is_rescheduled=lesson.rescheduled_at is not None,
-        attendance=attendance_status(visible_attendance.attendance if visible_attendance is not None else None),
+        attendance=attendance_status(
+            visible_attendance.attendance if visible_attendance is not None else None
+        ),
         cancellation_reason=lesson.cancellation_reason,
         teacher=StudentRefDTO(
             id=lesson.teacher_id,
@@ -151,12 +169,16 @@ def lesson_record_to_dto(
             last_name=record.teacher_profile.last_name,
             middle_name=record.teacher_profile.middle_name,
         ),
-        student=(StudentRefDTO(
-            id=single.student_id,
-            first_name=single.profile.first_name,
-            last_name=single.profile.last_name,
-            middle_name=single.profile.middle_name,
-        ) if single is not None else None),
+        student=(
+            StudentRefDTO(
+                id=single.student_id,
+                first_name=single.profile.first_name,
+                last_name=single.profile.last_name,
+                middle_name=single.profile.middle_name,
+            )
+            if single is not None
+            else None
+        ),
         participant_count=len(lesson.participants),
         participants=participants,
     )

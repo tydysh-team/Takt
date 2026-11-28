@@ -10,7 +10,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.exceptions import (
     AlreadyConnectedError,
     AttendanceNotAvailableError,
-    LessonParticipantInvalidError,
     AuthenticationRequiredError,
     ConnectionNotFoundError,
     CsrfValidationError,
@@ -24,6 +23,7 @@ from app.core.exceptions import (
     LessonNotCancellableError,
     LessonNotFoundError,
     LessonNotReschedulableError,
+    LessonParticipantInvalidError,
     LessonScheduleUnchangedError,
     LessonSeriesTimeInvalidError,
     LessonStartInPastError,

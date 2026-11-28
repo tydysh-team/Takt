@@ -9,8 +9,8 @@ from app.api.dependencies.auth import (
     get_lesson_service,
 )
 from app.core.security import utc_now
-from app.models.user import User
 from app.models.enums import RoleCode
+from app.models.user import User
 from app.schemas.error import ErrorResponse
 from app.schemas.lessons import (
     BusyIntervalDTO,
@@ -85,7 +85,12 @@ async def search_lessons(
 ) -> list[LessonReadDTO]:
     records = await service.search(user, filters)
     now = utc_now()
-    return [lesson_record_to_dto(record, now, student_id=user.id if user.role == RoleCode.STUDENT else None) for record in records]
+    return [
+        lesson_record_to_dto(
+            record, now, student_id=user.id if user.role == RoleCode.STUDENT else None
+        )
+        for record in records
+    ]
 
 
 @router.post(
@@ -107,7 +112,11 @@ async def person_schedule(
     common, busy = await service.person_schedule(user, person_id, filters)
     now = utc_now()
     items: list[PersonScheduleLessonDTO | BusyIntervalDTO] = [
-        PersonScheduleLessonDTO(**lesson_record_to_dto(record, now, student_id=user.id if user.role == RoleCode.STUDENT else None).model_dump())
+        PersonScheduleLessonDTO(
+            **lesson_record_to_dto(
+                record, now, student_id=user.id if user.role == RoleCode.STUDENT else None
+            ).model_dump()
+        )
         for record in common
     ]
     items.extend(BusyIntervalDTO(starts_at=start, ends_at=end) for start, end in busy)
@@ -126,7 +135,12 @@ async def get_lesson(
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> LessonReadDTO:
     record = await service.get_by_id(user, lesson_id)
-    return lesson_record_to_dto(record, utc_now(), student_id=user.id if user.role == RoleCode.STUDENT else None, details=True)
+    return lesson_record_to_dto(
+        record,
+        utc_now(),
+        student_id=user.id if user.role == RoleCode.STUDENT else None,
+        details=True,
+    )
 
 
 @router.patch(

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
+import { useLessonInputFormat } from "./lesson-input-format";
 import { minuteSuggestions } from "./lesson-form-validation";
 
 const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 
-export function LessonTimePicker({ value, onChange, invalid, errorId }: {
+export function LessonTimePicker({ value, onChange, invalid, errorId, id = "lesson-start", name = "start" }: {
+  id?: string;
+  name?: string;
   value: string;
   onChange: (value: string) => void;
   invalid: boolean;
@@ -18,6 +21,10 @@ export function LessonTimePicker({ value, onChange, invalid, errorId }: {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const hourRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const minuteRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const formattedInput = useLessonInputFormat("time", value, onChange);
+  const panelId = id === "lesson-start" ? "lesson-time-panel" : `${id}-panel`;
+  const hoursLabelId = `${id}-hours-label`;
+  const minutesLabelId = `${id}-minutes-label`;
   const selected = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
   const selectedHour = selected?.[1] ?? "00";
   const selectedMinute = selected?.[2] ?? "00";
@@ -90,27 +97,27 @@ export function LessonTimePicker({ value, onChange, invalid, errorId }: {
 
   return <div ref={rootRef} className="lesson-create-form__time-field">
     <div className="input lesson-create-form__time-control" aria-invalid={invalid}>
-      <input id="lesson-start" name="start" type="text" autoComplete="off" maxLength={5} placeholder="ЧЧ:ММ" value={value} aria-invalid={invalid} aria-describedby={errorId} onPointerDown={() => { setOpen(false); }} onChange={(event) => { onChange(event.target.value); setOpen(false); }} onKeyDown={(event) => {
+      <input id={id} type="text" name={name} {...formattedInput} inputMode="numeric" autoComplete="off" maxLength={5} placeholder="ЧЧ:ММ" value={value} aria-invalid={invalid} aria-describedby={errorId} onPointerDown={() => { setOpen(false); }} onChange={(event) => { formattedInput.onChange(event); setOpen(false); }} onKeyDown={(event) => {
         if (event.key === "ArrowDown") {
           event.preventDefault();
           if (open) hourRefs.current[activeHour]?.focus();
           else openPanel();
         }
       }} />
-      <button ref={triggerRef} type="button" className="lesson-create-form__time-picker" aria-label="Выбрать время" aria-expanded={open} aria-controls={open ? "lesson-time-panel" : undefined} onClick={() => { if (open) setOpen(false); else openPanel(); }}>
+      <button ref={triggerRef} type="button" className="lesson-create-form__time-picker" aria-label="Выбрать время" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => { if (open) setOpen(false); else openPanel(); }}>
         <svg className="lesson-create-form__clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l-3 2" /></svg>
         <svg className="lesson-create-form__chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m2 4 4 4 4-4" /></svg>
       </button>
     </div>
-    {open ? <div id="lesson-time-panel" className={`lesson-create-form__time-panel${above ? " lesson-create-form__time-panel--above" : ""}`} role="group" aria-label="Выбор времени">
-      <div className="lesson-create-form__time-column" role="group" aria-labelledby="lesson-hours-label">
-        <span id="lesson-hours-label" className="lesson-create-form__time-column-label">Часы</span>
+    {open ? <div id={panelId} className={`lesson-create-form__time-panel${above ? " lesson-create-form__time-panel--above" : ""}`} role="group" aria-label="Выбор времени">
+      <div className="lesson-create-form__time-column" role="group" aria-labelledby={hoursLabelId}>
+        <span id={hoursLabelId} className="lesson-create-form__time-column-label">Часы</span>
         <div className="lesson-create-form__time-options">
           {hours.map((hour, index) => <button key={hour} ref={(node) => { hourRefs.current[index] = node; }} type="button" className={`lesson-create-form__time-option${selected?.[1] === hour ? " lesson-create-form__time-option--selected" : ""}`} aria-pressed={selected?.[1] === hour} tabIndex={activeHour === index ? 0 : -1} onFocus={() => { setActiveHour(index); }} onKeyDown={(event) => { navigate(event, "hour", index); }} onClick={() => { chooseHour(hour); }}>{hour}</button>)}
         </div>
       </div>
-      <div className="lesson-create-form__time-column" role="group" aria-labelledby="lesson-minutes-label">
-        <span id="lesson-minutes-label" className="lesson-create-form__time-column-label">Минуты</span>
+      <div className="lesson-create-form__time-column" role="group" aria-labelledby={minutesLabelId}>
+        <span id={minutesLabelId} className="lesson-create-form__time-column-label">Минуты</span>
         <div className="lesson-create-form__time-options">
           {minuteSuggestions.map((minute, index) => <button key={minute} ref={(node) => { minuteRefs.current[index] = node; }} type="button" className={`lesson-create-form__time-option${selected?.[2] === minute ? " lesson-create-form__time-option--selected" : ""}`} aria-pressed={selected?.[2] === minute} tabIndex={activeMinute === index ? 0 : -1} onFocus={() => { setActiveMinute(index); }} onKeyDown={(event) => { navigate(event, "minute", index); }} onClick={() => { chooseMinute(minute); }}>{minute}</button>)}
         </div>
